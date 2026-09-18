@@ -1,0 +1,11 @@
+# 头脑风暴可视化会话（本地临时产物）
+.superpowers/
+
+# 依赖与构建
+node_modules/
+dist/
+target/
+
+# 编辑器
+.vscode/
+.idea/
