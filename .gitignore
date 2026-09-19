@@ -4,8 +4,24 @@
 # 依赖与构建
 node_modules/
 dist/
+dist-ssr/
 target/
+*.local
+
+# 日志
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
 
 # 编辑器
-.vscode/
+.vscode/*
+!.vscode/extensions.json
 .idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
