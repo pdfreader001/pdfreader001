@@ -1,0 +1,252 @@
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
+use std::sync::{Mutex, OnceLock};
+
+use pdfium_render::prelude::*;
+use serde::Serialize;
+use tauri::State;
+
+use crate::error::{AppError, AppResult};
+
+/// 撤销快照栈上限。
+const UNDO_LIMIT: usize = 20;
+
+/// 全局 PDFium 实例。
+/// pdfium-render 的 thread_safe feature 内部用全局互斥锁串行化了所有 FPDF_* 调用，
+/// 因此跨线程共享 &Pdfium 是安全的；trait object 本身不声明 Send/Sync，故手动包装。
+struct PdfiumHolder(Pdfium);
+// SAFETY: 见上；所有访问都经由 ThreadSafePdfiumBindings 的全局锁。
+unsafe impl Sync for PdfiumHolder {}
+unsafe impl Send for PdfiumHolder {}
+
+pub fn pdfium() -> &'static Pdfium {
+    static PDFIUM: OnceLock<PdfiumHolder> = OnceLock::new();
+    &PDFIUM
+        .get_or_init(|| {
+            let dll = pdfium_library_path().expect("找不到 pdfium.dll，请检查安装");
+            let bindings = Pdfium::bind_to_library(&dll)
+                .or_else(|_| Pdfium::bind_to_system_library())
+                .expect("加载 pdfium.dll 失败");
+            PdfiumHolder(Pdfium::new(bindings))
+        })
+        .0
+}
+
+/// 依次尝试：资源目录、可执行文件同级、开发期 src-tauri/pdfium/。
+fn pdfium_library_path() -> Option<std::path::PathBuf> {
+    let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    let mut candidates = vec![
+        exe_dir.join("pdfium.dll"),
+        exe_dir.join("resources").join("pdfium.dll"),
+    ];
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd.join("pdfium").join("pdfium.dll"));
+        candidates.push(cwd.join("src-tauri").join("pdfium").join("pdfium.dll"));
+    }
+    // 项目根（从 src-tauri 目录向上）
+    candidates.push(
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("pdfium")
+            .join("pdfium.dll"),
+    );
+    candidates.into_iter().find(|p| p.exists())
+}
+
+pub(crate) struct DocEntry {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) path: Option<std::path::PathBuf>,
+}
+
+/// Tauri 托管状态：文档字节表 + 每文档撤销快照栈。
+#[derive(Default)]
+pub struct AppState {
+    pub(crate) docs: Mutex<HashMap<u64, DocEntry>>,
+    pub(crate) undo: Mutex<HashMap<u64, Vec<Vec<u8>>>>,
+    next_id: std::sync::atomic::AtomicU64,
+}
+
+impl AppState {
+    fn next_doc_id(&self) -> u64 {
+        self.next_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageInfo {
+    pub index: u32,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentInfo {
+    pub doc_id: u64,
+    pub file_name: String,
+    pub page_count: u32,
+    pub pages: Vec<PageInfo>,
+}
+
+/// 校验字节流可被 PDFium 解析，并返回页数与页面尺寸。
+fn inspect(bytes: &[u8], password: Option<&str>) -> AppResult<(u32, Vec<PageInfo>)> {
+    let pdfium = pdfium();
+    let doc = pdfium.load_pdf_from_byte_slice(bytes, password)?;
+    let pages = doc.pages();
+    let count = pages.len() as u32;
+    let mut infos = Vec::with_capacity(count as usize);
+    for i in 0..count {
+        let idx = u16::try_from(i).map_err(|_| AppError::PageOutOfRange)?;
+        let page = pages.get(idx).map_err(|_| AppError::PageOutOfRange)?;
+        infos.push(PageInfo {
+            index: i,
+            width: page.width().value as f64,
+            height: page.height().value as f64,
+        });
+    }
+    Ok((count, infos))
+}
+
+fn build_info(doc_id: u64, entry: &DocEntry, count: u32, pages: Vec<PageInfo>) -> DocumentInfo {
+    let file_name = entry
+        .path
+        .as_ref()
+        .and_then(|p| p.file_name())
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "未命名文档".into());
+    DocumentInfo {
+        doc_id,
+        file_name,
+        page_count: count,
+        pages,
+    }
+}
+
+/// 打开 PDF 文档。password 用于加密文档。
+#[tauri::command]
+pub async fn open_document(
+    state: State<'_, AppState>,
+    path: String,
+    password: Option<String>,
+) -> AppResult<DocumentInfo> {
+    let bytes = fs::read(&path)?;
+    let (count, pages) = inspect(&bytes, password.as_deref())?;
+    let doc_id = state.next_doc_id();
+    let entry = DocEntry {
+        bytes,
+        path: Some(std::path::PathBuf::from(&path)),
+    };
+    let info = build_info(doc_id, &entry, count, pages);
+    state.docs.lock().unwrap().insert(doc_id, entry);
+    Ok(info)
+}
+
+/// 关闭文档，释放内存。
+#[tauri::command]
+pub async fn close_document(state: State<'_, AppState>, doc_id: u64) -> AppResult<()> {
+    state.docs.lock().unwrap().remove(&doc_id);
+    state.undo.lock().unwrap().remove(&doc_id);
+    Ok(())
+}
+
+/// 获取文档元数据（页数、页面尺寸）。
+#[tauri::command]
+pub async fn get_metadata(state: State<'_, AppState>, doc_id: u64) -> AppResult<DocumentInfo> {
+    let docs = state.docs.lock().unwrap();
+    let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
+    let (count, pages) = inspect(&entry.bytes, None)?;
+    Ok(build_info(doc_id, entry, count, pages))
+}
+
+/// 保存文档（原子写入：先写临时文件再改名）。
+/// path 为空时保存到原文件。
+#[tauri::command]
+pub async fn save_document(
+    state: State<'_, AppState>,
+    doc_id: u64,
+    path: Option<String>,
+) -> AppResult<DocumentInfo> {
+    let mut docs = state.docs.lock().unwrap();
+    let entry = docs.get_mut(&doc_id).ok_or(AppError::NotFound)?;
+
+    let target = match path {
+        Some(p) => std::path::PathBuf::from(p),
+        None => entry.path.clone().ok_or_else(|| {
+            AppError::Internal("文档没有原始路径，请指定保存位置".into())
+        })?,
+    };
+
+    // 先在锁内生成新字节，再写盘
+    let new_bytes = {
+        let pdfium = pdfium();
+        let doc = pdfium.load_pdf_from_byte_slice(&entry.bytes, None)?;
+        doc.save_to_bytes()?
+    };
+
+    atomic_write(&target, &new_bytes)?;
+
+    entry.bytes = new_bytes;
+    entry.path = Some(target);
+    let (count, pages) = inspect(&entry.bytes, None)?;
+    Ok(build_info(doc_id, entry, count, pages))
+}
+
+/// 原子写入：写到同目录 .tmp 后 rename。
+pub fn atomic_write(target: &Path, bytes: &[u8]) -> AppResult<()> {
+    let tmp = {
+        let mut name = target
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "out.pdf".into());
+        name.push_str(".tmp");
+        target.with_file_name(name)
+    };
+    fs::write(&tmp, bytes)?;
+    if target.exists() {
+        fs::remove_file(target)?;
+    }
+    fs::rename(&tmp, target)?;
+    Ok(())
+}
+
+/// 修改文档前调用：压入当前快照。
+pub fn push_snapshot(state: &AppState, doc_id: u64) {
+    let docs = state.docs.lock().unwrap();
+    let Some(entry) = docs.get(&doc_id) else {
+        return;
+    };
+    let mut undo = state.undo.lock().unwrap();
+    let stack = undo.entry(doc_id).or_default();
+    stack.push(entry.bytes.clone());
+    if stack.len() > UNDO_LIMIT {
+        stack.remove(0);
+    }
+}
+
+/// 撤销一步修改，返回新元数据。
+#[tauri::command]
+pub async fn undo_document(state: State<'_, AppState>, doc_id: u64) -> AppResult<DocumentInfo> {
+    let snapshot = {
+        let mut undo = state.undo.lock().unwrap();
+        let Some(stack) = undo.get_mut(&doc_id) else {
+            return Err(AppError::NotFound);
+        };
+        let Some(snap) = stack.pop() else {
+            return Err(AppError::Internal("没有可撤销的操作".into()));
+        };
+        snap
+    };
+    let mut docs = state.docs.lock().unwrap();
+    let entry = docs.get_mut(&doc_id).ok_or(AppError::NotFound)?;
+    entry.bytes = snapshot;
+    let (count, pages) = inspect(&entry.bytes, None)?;
+    Ok(build_info(doc_id, entry, count, pages))
+}
+
+/// 是否可撤销。
+#[tauri::command]
+pub async fn can_undo(state: State<'_, AppState>, doc_id: u64) -> AppResult<bool> {
+    let undo = state.undo.lock().unwrap();
+    Ok(undo.get(&doc_id).map(|s| !s.is_empty()).unwrap_or(false))
+}
