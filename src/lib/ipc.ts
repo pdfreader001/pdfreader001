@@ -313,6 +313,30 @@ export function imagesToPdf(opts: ImageToPdfOpts, outputPath: string): Promise<s
   return invoke<string>("images_to_pdf", { opts, outputPath });
 }
 
+// ---------- Office 互转（M8） ----------
+
+export interface OfficeProbe {
+  installed: boolean;
+  path: string | null;
+  version: string | null;
+}
+
+export function detectOffice(): Promise<OfficeProbe> {
+  return invoke<OfficeProbe>("detect_office");
+}
+
+export function convertOfficeToPdf(
+  sofficePath: string,
+  source: string,
+  outputDir: string,
+): Promise<string> {
+  return invoke<string>("convert_office_to_pdf", {
+    sofficePath,
+    source,
+    outputDir,
+  });
+}
+
 // ---------- 二进制渲染 ----------
 
 /**

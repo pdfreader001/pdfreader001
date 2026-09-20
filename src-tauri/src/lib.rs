@@ -2,6 +2,7 @@ pub mod convert;
 pub mod document;
 pub mod edit;
 pub mod error;
+pub mod office;
 pub mod pages;
 pub mod render;
 pub mod security;
@@ -44,7 +45,9 @@ pub fn run() {
             security::export_plain_copy,
             security::reload_plain,
             convert::export_pages_to_images,
-            convert::images_to_pdf
+            convert::images_to_pdf,
+            office::detect_office,
+            office::convert_office_to_pdf
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

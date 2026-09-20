@@ -17,6 +17,8 @@ import {
   reloadPlain,
   exportPagesToImages,
   imagesToPdf,
+  detectOffice,
+  convertOfficeToPdf,
 } from "../lib/ipc";
 import type {
   SplitMode,
@@ -24,6 +26,7 @@ import type {
   AnnotationInfo,
   AnnotationKind,
   SecurityStatus,
+  OfficeProbe,
 } from "../lib/ipc";
 
 const TITLES: Record<Exclude<TaskId, null>, string> = {
@@ -954,7 +957,7 @@ function ConvertPanel() {
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
 
-  const [mode, setMode] = useState<"pdf2img" | "img2pdf">("pdf2img");
+  const [mode, setMode] = useState<"pdf2img" | "img2pdf" | "office2pdf">("pdf2img");
   const [imgPaths, setImgPaths] = useState<string[]>([]);
   const [dpi, setDpi] = useState(150);
   const [format, setFormat] = useState<"png" | "jpeg">("png");
@@ -1072,6 +1075,15 @@ function ConvertPanel() {
           />
           图片 → PDF
         </label>
+        <label className={`split-mode${mode === "office2pdf" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={mode === "office2pdf"}
+            onChange={() => setMode("office2pdf")}
+            style={{ display: "none" }}
+          />
+          Office → PDF
+        </label>
       </div>
 
       {mode === "pdf2img" ? (
@@ -1180,7 +1192,130 @@ function ConvertPanel() {
           </div>
         </>
       )}
+
+      {mode === "office2pdf" && (
+        <Office2PdfSection busy={busy} setBusy={setBusy} pushToast={pushToast} errorToast={errorToast} />
+      )}
     </div>
+  );
+}
+
+function Office2PdfSection({
+  busy,
+  setBusy,
+  pushToast,
+  errorToast,
+}: {
+  busy: boolean;
+  setBusy: (b: boolean) => void;
+  pushToast: (k: "info" | "error", msg: string) => void;
+  errorToast: (e: unknown) => void;
+}) {
+  const [probe, setProbe] = useState<OfficeProbe | null>(null);
+  const [probing, setProbing] = useState(false);
+  const [src, setSrc] = useState<string | null>(null);
+  const [srcName, setSrcName] = useState("");
+
+  const runProbe = async () => {
+    setProbing(true);
+    try {
+      setProbe(await detectOffice());
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setProbing(false);
+    }
+  };
+
+  const pickFile = async () => {
+    const picked = await open({
+      multiple: false,
+      filters: [
+        {
+          name: "Office 文档",
+          extensions: ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp", "rtf"],
+        },
+      ],
+    });
+    if (typeof picked === "string") {
+      setSrc(picked);
+      setSrcName(picked.split(/[\\/]/).pop() || picked);
+    }
+  };
+
+  const convert = async () => {
+    if (!probe?.installed || !probe.path || !src) {
+      pushToast("info", "请先探测 LibreOffice 并选择源文件");
+      return;
+    }
+    const outDir = await open({ title: "选择输出目录", directory: true });
+    if (typeof outDir !== "string") return;
+    setBusy(true);
+    try {
+      const p = await convertOfficeToPdf(probe.path, src, outDir);
+      pushToast("info", `已生成 PDF：${p}`);
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="merge-output">
+        <button onClick={runProbe} disabled={probing || busy}>
+          {probing ? "探测中…" : probe ? "重新探测" : "探测 LibreOffice"}
+        </button>
+        {probe && (
+          probe.installed ? (
+            <span
+              className="merge-output-path"
+              title={probe.path ?? undefined}
+            >
+              ✓ {probe.version ?? "已安装"}
+            </span>
+          ) : (
+            <span
+              className="merge-output-path"
+              style={{ color: "var(--danger)" }}
+            >
+              未安装 LibreOffice，请先下载安装（libreoffice.org）
+            </span>
+          )
+        )}
+      </div>
+      <div className="merge-output">
+        <button onClick={pickFile} disabled={busy}>
+          选择 Office 文件…
+        </button>
+        <span
+          className="merge-output-path"
+          title={src ?? undefined}
+          style={src ? undefined : { color: "var(--fg-dim)" }}
+        >
+          {srcName || "未选择"}
+        </span>
+        {src && (
+          <button onClick={() => { setSrc(null); setSrcName(""); }} disabled={busy}>
+            ✕
+          </button>
+        )}
+      </div>
+      <p className="placeholder" style={{ marginTop: 8, fontSize: 11 }}>
+        支持 .doc / .docx / .xls / .xlsx / .ppt / .pptx / .odt / .ods / .odp / .rtf
+        转换为 PDF。PDF → Office 不支持（请使用专业工具）。
+      </p>
+      <div className="task-footer">
+        <button
+          className="btn-primary"
+          onClick={convert}
+          disabled={busy || !probe?.installed || !src}
+        >
+          {busy ? "转换中…" : "转换为 PDF"}
+        </button>
+      </div>
+    </>
   );
 }
 

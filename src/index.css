@@ -606,7 +606,7 @@ input:focus {
 /* ---------- M3：拆分模式选择 ---------- */
 .split-modes {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
   gap: 6px;
 }
 .split-mode {
