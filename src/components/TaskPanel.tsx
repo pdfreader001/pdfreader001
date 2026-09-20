@@ -15,6 +15,8 @@ import {
   getSecurityStatus,
   exportPlainCopy,
   reloadPlain,
+  exportPagesToImages,
+  imagesToPdf,
 } from "../lib/ipc";
 import type {
   SplitMode,
@@ -39,7 +41,7 @@ const DESC: Record<Exclude<TaskId, null>, string> = {
   watermark: "为页面添加文字或图片水印，支持位置、透明度与平铺。",
   edit: "为当前页添加 PDF 注释：高亮、下划线、删除线、便签、自由文本框、矩形标注。",
   security: "查看文档加密状态与权限矩阵；导出明文副本或在内存中去除加密后另存。",
-  export: "将页面导出为 PNG / JPG 图片。",
+  export: "PDF 与图片互转：PDF → PNG/JPEG（按页可调 DPI）；PNG/JPG/JPEG/BMP/WebP → PDF（多图合并）。",
 };
 
 interface MergeItem {
@@ -944,6 +946,244 @@ function SecurityPanel() {
   );
 }
 
+function ConvertPanel() {
+  const docId = useApp((s) => s.docId);
+  const currentPage = useApp((s) => s.currentPage);
+  const pageCount = useApp((s) => s.pageCount);
+  const selectedPages = useApp((s) => s.selectedPages);
+  const pushToast = useApp((s) => s.pushToast);
+  const errorToast = useApp((s) => s.errorToast);
+
+  const [mode, setMode] = useState<"pdf2img" | "img2pdf">("pdf2img");
+  const [imgPaths, setImgPaths] = useState<string[]>([]);
+  const [dpi, setDpi] = useState(150);
+  const [format, setFormat] = useState<"png" | "jpeg">("png");
+  const [pageSize, setPageSize] = useState<"fit" | "a4" | "letter" | "auto">("a4");
+  const [layout, setLayout] = useState<"fit" | "fill">("fit");
+  const [busy, setBusy] = useState(false);
+  const [pagesStr, setPagesStr] = useState("");
+
+  const effectivePages = (): number[] => {
+    const txt = pagesStr.trim();
+    if (selectedPages.size > 0 && !txt) {
+      return Array.from(selectedPages).sort((a, b) => a - b);
+    }
+    if (!txt) return [currentPage];
+    // 简单解析 "1,3,5-7"
+    const out: number[] = [];
+    txt.split(",").forEach((part) => {
+      const p = part.trim();
+      if (!p) return;
+      if (p.includes("-")) {
+        const [a, b] = p.split("-").map((x) => parseInt(x.trim()));
+        if (!isNaN(a) && !isNaN(b)) {
+          for (let i = Math.min(a, b); i <= Math.max(a, b); i++) out.push(i - 1);
+        }
+      } else {
+        const v = parseInt(p);
+        if (!isNaN(v)) out.push(v - 1);
+      }
+    });
+    return out;
+  };
+
+  const onPdf2Img = async () => {
+    if (docId === null) return;
+    const pages = effectivePages().filter((p) => p >= 0 && p < pageCount);
+    if (pages.length === 0) {
+      pushToast("info", "请指定至少一页");
+      return;
+    }
+    const outDir = await open({ title: "选择输出目录", directory: true });
+    if (typeof outDir !== "string") return;
+    setBusy(true);
+    try {
+      const outputs = await exportPagesToImages(
+        docId,
+        { pages, dpi, format },
+        outDir,
+      );
+      pushToast("info", `已导出 ${outputs.length} 张图片`);
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addImages = async () => {
+    const picked = await open({
+      multiple: true,
+      filters: [
+        {
+          name: "图片",
+          extensions: ["png", "jpg", "jpeg", "bmp", "webp"],
+        },
+      ],
+    });
+    if (Array.isArray(picked)) {
+      setImgPaths((prev) => [...prev, ...picked]);
+    }
+  };
+
+  const onImg2Pdf = async () => {
+    if (imgPaths.length === 0) {
+      pushToast("info", "请添加至少一张图片");
+      return;
+    }
+    const outPath = await save({
+      title: "图片另存为 PDF",
+      defaultPath: "images.pdf",
+      filters: [{ name: "PDF 文档", extensions: ["pdf"] }],
+    });
+    if (typeof outPath !== "string") return;
+    setBusy(true);
+    try {
+      const p = await imagesToPdf(
+        { imagePaths: imgPaths, pageSize, layout },
+        outPath,
+      );
+      pushToast("info", `已生成 PDF：${p}（${imgPaths.length} 页）`);
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="task-body">
+      <div className="split-modes">
+        <label className={`split-mode${mode === "pdf2img" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={mode === "pdf2img"}
+            onChange={() => setMode("pdf2img")}
+            style={{ display: "none" }}
+          />
+          PDF → 图片
+        </label>
+        <label className={`split-mode${mode === "img2pdf" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={mode === "img2pdf"}
+            onChange={() => setMode("img2pdf")}
+            style={{ display: "none" }}
+          />
+          图片 → PDF
+        </label>
+      </div>
+
+      {mode === "pdf2img" ? (
+        <>
+          <div className="field">
+            <label>页码范围（留空 = 当前页，多个则逗号分隔，如 1,3,5-7）</label>
+            <input
+              type="text"
+              value={pagesStr}
+              onChange={(e) => setPagesStr(e.target.value)}
+              placeholder={`第 ${currentPage + 1} 页`}
+            />
+            {selectedPages.size > 0 && (
+              <p className="placeholder" style={{ marginTop: 4 }}>
+                已选中 {selectedPages.size} 页，留空将导出这些页
+              </p>
+            )}
+          </div>
+          <div className="form-row">
+            <label>格式</label>
+            <select
+              value={format}
+              onChange={(e) => setFormat(e.target.value as "png" | "jpeg")}
+            >
+              <option value="png">PNG（无损）</option>
+              <option value="jpeg">JPEG（体积小）</option>
+            </select>
+          </div>
+          <div className="form-row">
+            <label>DPI</label>
+            <input
+              type="number"
+              min={36}
+              max={600}
+              value={dpi}
+              onChange={(e) =>
+                setDpi(Math.min(600, Math.max(36, parseInt(e.target.value) || 150)))
+              }
+              style={{ width: 80 }}
+            />
+            <label>（36–600）</label>
+          </div>
+          <div className="task-footer">
+            <button
+              className="btn-primary"
+              onClick={onPdf2Img}
+              disabled={busy || docId === null}
+            >
+              {busy ? "导出中…" : "导出图片"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="merge-output">
+            <button onClick={addImages} disabled={busy}>
+              添加图片…
+            </button>
+            <span
+              className="merge-output-path"
+              style={imgPaths.length ? undefined : { color: "var(--fg-dim)" }}
+              title={imgPaths.join("\n")}
+            >
+              {imgPaths.length > 0
+                ? `已选 ${imgPaths.length} 张`
+                : "未选择"}
+            </span>
+            {imgPaths.length > 0 && (
+              <button onClick={() => setImgPaths([])} disabled={busy}>
+                清空
+              </button>
+            )}
+          </div>
+          <div className="form-row">
+            <label>页面尺寸</label>
+            <select
+              value={pageSize}
+              onChange={(e) =>
+                setPageSize(e.target.value as "fit" | "a4" | "letter" | "auto")
+              }
+            >
+              <option value="fit">按图片（每页不同）</option>
+              <option value="a4">统一 A4</option>
+              <option value="letter">统一 Letter</option>
+              <option value="auto">取最大</option>
+            </select>
+          </div>
+          <div className="form-row">
+            <label>布局</label>
+            <select
+              value={layout}
+              onChange={(e) => setLayout(e.target.value as "fit" | "fill")}
+            >
+              <option value="fit">按比例居中（推荐）</option>
+              <option value="fill">拉伸铺满</option>
+            </select>
+          </div>
+          <div className="task-footer">
+            <button
+              className="btn-primary"
+              onClick={onImg2Pdf}
+              disabled={busy || imgPaths.length === 0}
+            >
+              {busy ? "生成中…" : "生成 PDF"}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function TaskPanel() {
   const task = useApp((s) => s.task);
   const closeTask = useApp((s) => s.closeTask);
@@ -964,7 +1204,8 @@ export default function TaskPanel() {
         {task === "watermark" && <WatermarkPanel />}
         {task === "edit" && <EditPanel />}
         {task === "security" && <SecurityPanel />}
-        {task !== "merge" && task !== "split" && task !== "watermark" && task !== "edit" && task !== "security" && (
+        {task === "export" && <ConvertPanel />}
+        {task !== "merge" && task !== "split" && task !== "watermark" && task !== "edit" && task !== "security" && task !== "export" && (
           <>
             <p className="placeholder">{DESC[task]}</p>
             <p className="placeholder" style={{ marginTop: 12 }}>

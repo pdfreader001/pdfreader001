@@ -284,6 +284,35 @@ export function reloadPlain(docId: number): Promise<DocumentInfo> {
   return invoke<DocumentInfo>("reload_plain", { docId });
 }
 
+// ---------- 格式互转（M7） ----------
+
+export interface PageRangeSpec {
+  pages: number[];
+  dpi: number;
+  /** "png" | "jpeg" */
+  format: string;
+}
+
+export interface ImageToPdfOpts {
+  imagePaths: string[];
+  /** "fit" | "a4" | "letter" | "auto" */
+  pageSize: string;
+  /** "fit" | "fill" */
+  layout: string;
+}
+
+export function exportPagesToImages(
+  docId: number,
+  spec: PageRangeSpec,
+  outputDir: string,
+): Promise<string[]> {
+  return invoke<string[]>("export_pages_to_images", { docId, spec, outputDir });
+}
+
+export function imagesToPdf(opts: ImageToPdfOpts, outputPath: string): Promise<string> {
+  return invoke<string>("images_to_pdf", { opts, outputPath });
+}
+
 // ---------- 二进制渲染 ----------
 
 /**

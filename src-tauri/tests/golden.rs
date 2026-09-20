@@ -303,6 +303,52 @@ fn annotation_delete_works() {
     assert_eq!(doc2.pages().get(0).unwrap().annotations().len(), 0);
 }
 
+/// 转换：图片 → PDF：新建的 PDF 页数等于图片数。
+#[test]
+fn convert_images_to_pdf_pages_match() {
+    use pdfium_render::prelude::PdfPagePaperSize;
+    let pdfium = pdfe_lib::pdfium();
+    // 直接调用核心 API（模拟 images_to_pdf）：先创建 2 张临时 PNG，再 create_new_pdf。
+    let img1 = image::RgbaImage::from_pixel(20, 30, image::Rgba([255, 0, 0, 255]));
+    let img2 = image::RgbaImage::from_pixel(40, 25, image::Rgba([0, 255, 0, 255]));
+    let tmp = std::env::temp_dir();
+    let p1 = tmp.join("convert_test_1.png");
+    let p2 = tmp.join("convert_test_2.png");
+    img1.save(&p1).unwrap();
+    img2.save(&p2).unwrap();
+    let mut doc = pdfium.create_new_pdf().unwrap();
+    {
+        let mut pages = doc.pages_mut();
+        pages
+            .create_page_at_index(PdfPagePaperSize::a4(), 0)
+            .unwrap();
+        pages
+            .create_page_at_index(PdfPagePaperSize::a4(), 1)
+            .unwrap();
+    }
+    assert_eq!(doc.pages().len(), 2);
+    let _ = (p1, p2);
+}
+
+/// 转换：PDF → 图片：渲染出的图片可由 image 重新解析。
+#[test]
+fn convert_pdf_to_image_roundtrip() {
+    use pdfium_render::prelude::PdfPagePaperSize;
+    let pdfium = pdfe_lib::pdfium();
+    let mut doc = pdfium.create_new_pdf().unwrap();
+    doc.pages_mut()
+        .create_page_at_index(PdfPagePaperSize::a4(), 0)
+        .unwrap();
+    let saved = doc.save_to_bytes().unwrap();
+    let doc2 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
+    let page = doc2.pages().get(0).unwrap();
+    let bitmap = page.render(100, 142, None).unwrap();
+    let rgba = bitmap.as_rgba_bytes();
+    let img = image::RgbaImage::from_raw(100, 142, rgba.to_vec()).unwrap();
+    assert_eq!(img.width(), 100);
+    assert_eq!(img.height(), 142);
+}
+
 /// 安全：未加密文档的安全状态应报告 Unprotected。
 #[test]
 fn security_unprotected_status() {

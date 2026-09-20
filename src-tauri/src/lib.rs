@@ -1,3 +1,4 @@
+pub mod convert;
 pub mod document;
 pub mod edit;
 pub mod error;
@@ -41,7 +42,9 @@ pub fn run() {
             edit::clear_annotations,
             security::get_security_status,
             security::export_plain_copy,
-            security::reload_plain
+            security::reload_plain,
+            convert::export_pages_to_images,
+            convert::images_to_pdf
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
