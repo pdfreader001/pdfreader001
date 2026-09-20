@@ -302,3 +302,46 @@ fn annotation_delete_works() {
     let doc2 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
     assert_eq!(doc2.pages().get(0).unwrap().annotations().len(), 0);
 }
+
+/// 安全：未加密文档的安全状态应报告 Unprotected。
+#[test]
+fn security_unprotected_status() {
+    use pdfium_render::prelude::{PdfPagePaperSize, PdfSecurityHandlerRevision};
+    let pdfium = pdfe_lib::pdfium();
+    let mut doc = pdfium.create_new_pdf().unwrap();
+    doc.pages_mut()
+        .create_page_at_index(PdfPagePaperSize::a4(), 0)
+        .unwrap();
+    let saved = doc.save_to_bytes().unwrap();
+    let doc2 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
+    let perms = doc2.permissions();
+    assert_eq!(
+        perms.security_handler_revision().unwrap(),
+        PdfSecurityHandlerRevision::Unprotected
+    );
+    // 未加密时全部权限应为 true
+    assert!(perms.can_modify_document_content().unwrap());
+    assert!(perms.can_extract_text_and_graphics().unwrap());
+    assert!(perms.can_assemble_document().unwrap());
+    assert!(perms.can_print_high_quality().unwrap());
+}
+
+/// 安全：明文副本导出后内容一致。
+#[test]
+fn security_plain_copy_roundtrip() {
+    use pdfium_render::prelude::PdfPagePaperSize;
+    let pdfium = pdfe_lib::pdfium();
+    let mut doc = pdfium.create_new_pdf().unwrap();
+    doc.pages_mut()
+        .create_page_at_index(PdfPagePaperSize::a4(), 0)
+        .unwrap();
+    doc.pages_mut()
+        .create_page_at_index(PdfPagePaperSize::a4(), 1)
+        .unwrap();
+    let saved = doc.save_to_bytes().unwrap();
+    // 模拟 security::export_plain_copy 的核心逻辑
+    let doc2 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
+    let plain = doc2.save_to_bytes().unwrap();
+    let doc3 = pdfium.load_pdf_from_byte_slice(&plain, None).unwrap();
+    assert_eq!(doc3.pages().len(), 2);
+}

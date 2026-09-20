@@ -3,6 +3,7 @@ pub mod edit;
 pub mod error;
 pub mod pages;
 pub mod render;
+pub mod security;
 pub mod watermark;
 
 pub use document::pdfium;
@@ -37,7 +38,10 @@ pub fn run() {
             edit::list_annotations,
             edit::add_annotation,
             edit::delete_annotation,
-            edit::clear_annotations
+            edit::clear_annotations,
+            security::get_security_status,
+            security::export_plain_copy,
+            security::reload_plain
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

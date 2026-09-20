@@ -258,6 +258,32 @@ export function clearAnnotations(
   return invoke<DocumentInfo>("clear_annotations", { docId, pages });
 }
 
+// ---------- 文档安全（M6） ----------
+
+export interface SecurityStatus {
+  handlerRevision: "Unprotected" | "Revision2" | "Revision3" | "Revision4" | "Unknown" | string;
+  canPrintHighQuality: boolean;
+  canPrintLowQuality: boolean;
+  canModifyDocument: boolean;
+  canExtractTextAndGraphics: boolean;
+  canAddAnnotations: boolean;
+  canFillFormFields: boolean;
+  canAssembleDocument: boolean;
+  canCreateNewFormFields: boolean;
+}
+
+export function getSecurityStatus(docId: number): Promise<SecurityStatus> {
+  return invoke<SecurityStatus>("get_security_status", { docId });
+}
+
+export function exportPlainCopy(docId: number, outputPath: string): Promise<string> {
+  return invoke<string>("export_plain_copy", { docId, outputPath });
+}
+
+export function reloadPlain(docId: number): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("reload_plain", { docId });
+}
+
 // ---------- 二进制渲染 ----------
 
 /**
