@@ -1,6 +1,7 @@
 pub mod convert;
 pub mod document;
 pub mod edit;
+pub mod ebook;
 pub mod error;
 pub mod office;
 pub mod pages;
@@ -49,7 +50,9 @@ pub fn run() {
             convert::export_pages_to_images,
             convert::images_to_pdf,
             office::detect_office,
-            office::convert_office_to_pdf
+            office::convert_office_to_pdf,
+            ebook::detect_ebook_tools,
+            ebook::convert_ebook_to_pdf
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

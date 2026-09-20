@@ -345,6 +345,32 @@ export function convertOfficeToPdf(
   });
 }
 
+// ---------- 电子书互转（M10） ----------
+
+export interface EbookToolProbe {
+  installed: boolean;
+  path: string | null;
+  version: string | null;
+}
+
+export interface ConvertEbookOpts {
+  source: string;
+  output: string;
+  author?: string | null;
+  title?: string | null;
+}
+
+export function detectEbookTools(): Promise<EbookToolProbe> {
+  return invoke<EbookToolProbe>("detect_ebook_tools");
+}
+
+export function convertEbookToPdf(
+  toolPath: string,
+  opts: ConvertEbookOpts,
+): Promise<string> {
+  return invoke<string>("convert_ebook_to_pdf", { toolPath, opts });
+}
+
 // ---------- 二进制渲染 ----------
 
 /**
