@@ -1,9 +1,19 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../state/store";
 import type { TaskId } from "../state/store";
-import { mergeDocuments, splitDocument, canUndo, addTextWatermark, addImageWatermark } from "../lib/ipc";
-import type { SplitMode, WatermarkStyle } from "../lib/ipc";
+import {
+  mergeDocuments,
+  splitDocument,
+  canUndo,
+  addTextWatermark,
+  addImageWatermark,
+  addAnnotation,
+  listAnnotations,
+  deleteAnnotation,
+  clearAnnotations,
+} from "../lib/ipc";
+import type { SplitMode, WatermarkStyle, AnnotationInfo, AnnotationKind } from "../lib/ipc";
 
 const TITLES: Record<Exclude<TaskId, null>, string> = {
   merge: "合并文档",
@@ -18,7 +28,7 @@ const DESC: Record<Exclude<TaskId, null>, string> = {
   merge: "将多个 PDF 按顺序合并为一个文档，可对每个文件选择页码范围。",
   split: "按固定页数、自定义范围或书签层级，将文档拆分为多个文件。",
   watermark: "为页面添加文字或图片水印，支持位置、透明度与平铺。",
-  edit: "双击页面文字进入编辑；新增文本框；选中图片可移动、缩放、删除。",
+  edit: "为当前页添加 PDF 注释：高亮、下划线、删除线、便签、自由文本框、矩形标注。",
   security: "为文档设置打开密码与权限密码，或移除已有密码。",
   export: "将页面导出为 PNG / JPG 图片。",
 };
@@ -576,6 +586,207 @@ function WatermarkPanel() {
   );
 }
 
+const ANNOT_KINDS: { k: AnnotationKind; label: string; icon: string }[] = [
+  { k: "Highlight", label: "高亮", icon: "🖍" },
+  { k: "Underline", label: "下划线", icon: "U̲" },
+  { k: "Strikeout", label: "删除线", icon: "S̶" },
+  { k: "StickyNote", label: "便签", icon: "📝" },
+  { k: "FreeText", label: "文字框", icon: "T" },
+  { k: "Square", label: "矩形", icon: "▭" },
+];
+
+function EditPanel() {
+  const docId = useApp((s) => s.docId);
+  const currentPage = useApp((s) => s.currentPage);
+  const pageCount = useApp((s) => s.pageCount);
+  const updatePages = useApp((s) => s.updatePages);
+  const markDirty = useApp((s) => s.markDirty);
+  const setCanUndo = useApp((s) => s.setCanUndo);
+  const pushToast = useApp((s) => s.pushToast);
+  const errorToast = useApp((s) => s.errorToast);
+
+  const [kind, setKind] = useState<AnnotationKind>("Highlight");
+  const [color, setColor] = useState("#ffeb3b");
+  const [contents, setContents] = useState("");
+  const [list, setList] = useState<AnnotationInfo[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const reloadRef = useRef(0);
+
+  const reload = async () => {
+    if (docId === null) return;
+    setLoading(true);
+    const seq = ++reloadRef.current;
+    try {
+      const data = await listAnnotations(docId, currentPage);
+      if (seq === reloadRef.current) setList(data);
+    } catch (e) {
+      if (seq === reloadRef.current) errorToast(e);
+    } finally {
+      if (seq === reloadRef.current) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docId, currentPage]);
+
+  const add = async () => {
+    if (docId === null) return;
+    setBusy(true);
+    try {
+      // 区域：默认放在页面上 1/3 处，宽 1/3、高 1/12
+      const region = {
+        left: 0.15,
+        top: 0.2,
+        width: 0.7,
+        height: 0.07,
+      };
+      const info = await addAnnotation(docId, currentPage, {
+        kind,
+        region,
+        contents,
+        color,
+        opacity: 60,
+      });
+      updatePages(info);
+      markDirty(true);
+      setCanUndo(await canUndo(docId));
+      pushToast("info", `已添加 ${ANNOT_KINDS.find((x) => x.k === kind)?.label ?? ""}`);
+      setContents("");
+      await reload();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const remove = async (idx: number) => {
+    if (docId === null) return;
+    setBusy(true);
+    try {
+      const info = await deleteAnnotation(docId, currentPage, idx);
+      updatePages(info);
+      markDirty(true);
+      setCanUndo(await canUndo(docId));
+      await reload();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clearAll = async () => {
+    if (docId === null) return;
+    if (!confirm(`清空当前页（${list.length} 个注释）？`)) return;
+    setBusy(true);
+    try {
+      const info = await clearAnnotations(docId, [currentPage]);
+      updatePages(info);
+      markDirty(true);
+      setCanUndo(await canUndo(docId));
+      pushToast("info", "已清空当前页注释");
+      await reload();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="task-body">
+      <p className="placeholder">
+        第 {currentPage + 1} / {pageCount || "?"} 页。点击下方按钮即可在页面顶部插入所选类型的注释。
+      </p>
+      <div className="annot-kinds">
+        {ANNOT_KINDS.map((a) => (
+          <button
+            key={a.k}
+            className={kind === a.k ? "active" : ""}
+            onClick={() => setKind(a.k)}
+            title={a.label}
+          >
+            <span style={{ fontSize: 16 }}>{a.icon}</span>
+            <br />
+            {a.label}
+          </button>
+        ))}
+      </div>
+      {(kind === "Highlight" ||
+        kind === "Underline" ||
+        kind === "Strikeout" ||
+        kind === "FreeText" ||
+        kind === "Square") && (
+        <div className="form-row">
+          <label>颜色</label>
+          <input
+            type="color"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            style={{ width: 40, padding: 0, height: 28 }}
+          />
+        </div>
+      )}
+      <div className="field">
+        <label>备注文本（可选）</label>
+        <input
+          type="text"
+          value={contents}
+          onChange={(e) => setContents(e.target.value)}
+          placeholder="如：此处需补充说明"
+        />
+      </div>
+      <div className="task-footer">
+        <button
+          className="btn-primary"
+          onClick={add}
+          disabled={busy || docId === null}
+        >
+          {busy ? "添加中…" : "添加到当前页"}
+        </button>
+      </div>
+
+      <div className="annot-list-head">
+        <span>本页注释（{loading ? "…" : list.length}）</span>
+        {list.length > 0 && (
+          <button onClick={clearAll} disabled={busy} style={{ color: "var(--danger)" }}>
+            清空本页
+          </button>
+        )}
+      </div>
+      <div className="annot-list">
+        {list.length === 0 && !loading && (
+          <p className="placeholder">本页还没有注释</p>
+        )}
+        {list.map((a, i) => (
+          <div key={i} className="annot-item">
+            <span
+              className="annot-swatch"
+              style={{ background: a.color }}
+            />
+            <span className="annot-kind">{a.kind}</span>
+            <span className="annot-contents" title={a.contents}>
+              {a.contents || "（无文本）"}
+            </span>
+            <button
+              onClick={() => remove(a.index)}
+              disabled={busy}
+              title="删除"
+              style={{ color: "var(--danger)" }}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function TaskPanel() {
   const task = useApp((s) => s.task);
   const closeTask = useApp((s) => s.closeTask);
@@ -594,7 +805,8 @@ export default function TaskPanel() {
         {task === "merge" && <MergePanel />}
         {task === "split" && <SplitPanel />}
         {task === "watermark" && <WatermarkPanel />}
-        {task !== "merge" && task !== "split" && task !== "watermark" && (
+        {task === "edit" && <EditPanel />}
+        {task !== "merge" && task !== "split" && task !== "watermark" && task !== "edit" && (
           <>
             <p className="placeholder">{DESC[task]}</p>
             <p className="placeholder" style={{ marginTop: 12 }}>

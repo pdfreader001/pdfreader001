@@ -191,6 +191,73 @@ export function addImageWatermark(
   return invoke<DocumentInfo>("add_image_watermark", { docId, pages, opts });
 }
 
+// ---------- 注释（M5） ----------
+
+export type AnnotationKind =
+  | "Highlight"
+  | "Underline"
+  | "Strikeout"
+  | "StickyNote"
+  | "FreeText"
+  | "Square";
+
+export interface AnnotationInfo {
+  index: number;
+  pageIndex: number;
+  kind: AnnotationKind;
+  left: number;
+  bottom: number;
+  right: number;
+  top: number;
+  contents: string;
+  color: string;
+}
+
+export interface RegionSpec {
+  left: number; // 0-1
+  top: number; // 0-1
+  width: number; // 0-1
+  height: number; // 0-1
+}
+
+export interface AddAnnotationOpts {
+  kind: AnnotationKind;
+  region: RegionSpec;
+  contents: string;
+  color: string;
+  opacity: number;
+}
+
+export function listAnnotations(
+  docId: number,
+  pageIndex?: number | null,
+): Promise<AnnotationInfo[]> {
+  return invoke<AnnotationInfo[]>("list_annotations", { docId, pageIndex: pageIndex ?? null });
+}
+
+export function addAnnotation(
+  docId: number,
+  pageIndex: number,
+  opts: AddAnnotationOpts,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("add_annotation", { docId, pageIndex, opts });
+}
+
+export function deleteAnnotation(
+  docId: number,
+  pageIndex: number,
+  annotationIndex: number,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("delete_annotation", { docId, pageIndex, annotationIndex });
+}
+
+export function clearAnnotations(
+  docId: number,
+  pages: number[],
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("clear_annotations", { docId, pages });
+}
+
 // ---------- 二进制渲染 ----------
 
 /**

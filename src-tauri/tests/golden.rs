@@ -225,3 +225,80 @@ fn image_watermark_persists() {
     let page = doc2.pages().get(0).unwrap();
     assert_eq!(page.objects().len(), 1, "应包含 1 个水印图片对象");
 }
+
+/// 注释：添加高亮注释 → 保存往返后注释数量一致。
+#[test]
+fn annotation_highlight_persists() {
+    use pdfium_render::prelude::{
+        PdfPageAnnotationCommon, PdfPagePaperSize, PdfPoints, PdfQuadPoints,
+    };
+    let pdfium = pdfe_lib::pdfium();
+    let mut doc = pdfium.create_new_pdf().unwrap();
+    let size = PdfPagePaperSize::a4();
+    doc.pages_mut().create_page_at_index(size, 0).unwrap();
+    {
+        let mut pages = doc.pages_mut();
+        let mut page = pages.get(0).unwrap();
+        let mut annots = page.annotations_mut();
+        let mut hl = annots.create_highlight_annotation().unwrap();
+        let q = PdfQuadPoints::new(
+            PdfPoints::new(72.0),
+            PdfPoints::new(750.0),
+            PdfPoints::new(200.0),
+            PdfPoints::new(750.0),
+            PdfPoints::new(200.0),
+            PdfPoints::new(730.0),
+            PdfPoints::new(72.0),
+            PdfPoints::new(730.0),
+        );
+        hl.attachment_points_mut()
+            .create_attachment_point_at_end(q)
+            .unwrap();
+        hl.set_contents("重要内容").unwrap();
+    }
+    let saved = doc.save_to_bytes().unwrap();
+    let doc2 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
+    let page = doc2.pages().get(0).unwrap();
+    assert_eq!(page.annotations().len(), 1, "应保留 1 个注释");
+    let annot = page.annotations().get(0).unwrap();
+    assert_eq!(annot.contents().unwrap(), "重要内容");
+}
+
+/// 注释：删除注释 → 保存往返后为 0。
+#[test]
+fn annotation_delete_works() {
+    use pdfium_render::prelude::{PdfPagePaperSize, PdfPoints, PdfQuadPoints};
+    let pdfium = pdfe_lib::pdfium();
+    let mut doc = pdfium.create_new_pdf().unwrap();
+    let size = PdfPagePaperSize::a4();
+    doc.pages_mut().create_page_at_index(size, 0).unwrap();
+    {
+        let mut pages = doc.pages_mut();
+        let mut page = pages.get(0).unwrap();
+        let mut annots = page.annotations_mut();
+        let mut hl = annots.create_highlight_annotation().unwrap();
+        let q = PdfQuadPoints::new(
+            PdfPoints::new(72.0),
+            PdfPoints::new(750.0),
+            PdfPoints::new(200.0),
+            PdfPoints::new(750.0),
+            PdfPoints::new(200.0),
+            PdfPoints::new(730.0),
+            PdfPoints::new(72.0),
+            PdfPoints::new(730.0),
+        );
+        hl.attachment_points_mut()
+            .create_attachment_point_at_end(q)
+            .unwrap();
+    }
+    {
+        let mut pages = doc.pages_mut();
+        let mut page = pages.get(0).unwrap();
+        let mut annots = page.annotations_mut();
+        let annot = annots.get(0).unwrap();
+        annots.delete_annotation(annot).unwrap();
+    }
+    let saved = doc.save_to_bytes().unwrap();
+    let doc2 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
+    assert_eq!(doc2.pages().get(0).unwrap().annotations().len(), 0);
+}

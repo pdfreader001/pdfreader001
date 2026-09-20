@@ -1,4 +1,5 @@
 pub mod document;
+pub mod edit;
 pub mod error;
 pub mod pages;
 pub mod render;
@@ -32,7 +33,11 @@ pub fn run() {
             pages::split_document,
             pages::get_bookmarks,
             watermark::add_text_watermark,
-            watermark::add_image_watermark
+            watermark::add_image_watermark,
+            edit::list_annotations,
+            edit::add_annotation,
+            edit::delete_annotation,
+            edit::clear_annotations
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
