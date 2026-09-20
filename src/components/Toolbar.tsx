@@ -28,6 +28,7 @@ export default function Toolbar({
   const setViewMode = useApp((s) => s.setViewMode);
   const setSearchOpen = useApp((s) => s.setSearchOpen);
   const searchOpen = useApp((s) => s.searchOpen);
+  const setHelpOpen = useApp((s) => s.setHelpOpen);
 
   return (
     <header className="toolbar">
@@ -95,6 +96,13 @@ export default function Toolbar({
         title="全文搜索（Ctrl+F）"
       >
         🔍 搜索
+      </button>
+      <button
+        className="tbtn"
+        onClick={() => setHelpOpen(true)}
+        title="帮助（? 或 F1）"
+      >
+        ?
       </button>
     </header>
   );

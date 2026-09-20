@@ -47,6 +47,7 @@ interface AppState {
   leftVisible: boolean;
   task: TaskId;
   searchOpen: boolean;
+  helpOpen: boolean;
 
   // 搜索
   searchQuery: string;
@@ -85,6 +86,7 @@ interface AppState {
   openTask: (t: TaskId) => void;
   closeTask: () => void;
   setSearchOpen: (b: boolean) => void;
+  setHelpOpen: (b: boolean) => void;
   setSearch: (query: string, hits: SearchHit[]) => void;
   setSearchActive: (i: number) => void;
   setSearching: (b: boolean) => void;
@@ -150,6 +152,7 @@ export const useApp = create<AppState>((set, get) => ({
   leftVisible: true,
   task: null,
   searchOpen: false,
+  helpOpen: false,
 
   searchQuery: "",
   searchHits: [],
@@ -231,6 +234,7 @@ export const useApp = create<AppState>((set, get) => ({
   openTask: (t) => set({ task: t, searchOpen: false }),
   closeTask: () => set({ task: null }),
   setSearchOpen: (b) => set({ searchOpen: b }),
+  setHelpOpen: (b) => set({ helpOpen: b }),
   setSearch: (query, hits) => set({ searchQuery: query, searchHits: hits, searchActive: hits.length ? 0 : -1 }),
   setSearchActive: (i) => set({ searchActive: i }),
   setSearching: (b) => set({ searching: b }),

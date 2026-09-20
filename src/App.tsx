@@ -20,6 +20,7 @@ import ThumbnailPanel from "./components/ThumbnailPanel";
 import SearchPanel from "./components/SearchPanel";
 import TaskPanel from "./components/TaskPanel";
 import StatusBar from "./components/StatusBar";
+import HelpPanel from "./components/HelpPanel";
 import "./index.css";
 
 function BookmarkTree({
@@ -346,12 +347,16 @@ export default function App() {
         e.preventDefault();
         st.jumpToPage(Math.max(0, st.pageCount - 1));
       } else if (e.key === "Escape") {
-        // 关闭搜索/任务面板
+        // 关闭搜索/任务/帮助面板
         st.setSearchOpen(false);
+        st.setHelpOpen(false);
         st.closeTask();
       } else if (e.key === "F3") {
         e.preventDefault();
         st.setSearchOpen(true);
+      } else if (e.key === "F1" || e.key === "?") {
+        e.preventDefault();
+        st.setHelpOpen(true);
       } else if (mod && e.key === "g") {
         // 切换左面板可见性
         e.preventDefault();
@@ -406,6 +411,7 @@ export default function App() {
       <SearchPanel />
       <StatusBar />
       {pwdPath && <PasswordDialog path={pwdPath} onDone={() => setPwdPath(null)} />}
+      <HelpPanel />
       <div className="toasts">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.kind}`} onClick={() => dismissToast(t.id)}>
