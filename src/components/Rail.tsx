@@ -1,8 +1,9 @@
 import { useApp } from "../state/store";
+import { useT } from "../i18n";
 
-const RAIL: { id: "thumbnails" | "bookmarks"; icon: string; label: string }[] = [
-  { id: "thumbnails", icon: "▦", label: "页面缩略图" },
-  { id: "bookmarks", icon: "🔖", label: "书签" },
+const RAIL: { id: "thumbnails" | "bookmarks"; icon: string; labelKey: string }[] = [
+  { id: "thumbnails", icon: "▦", labelKey: "页面缩略图" },
+  { id: "bookmarks", icon: "🔖", labelKey: "书签" },
 ];
 
 export default function Rail() {
@@ -12,13 +13,14 @@ export default function Rail() {
   const toggleLeft = useApp((s) => s.toggleLeft);
   const theme = useApp((s) => s.theme);
   const setTheme = useApp((s) => s.setTheme);
+  const t = useT();
 
   return (
     <nav className="rail">
       {RAIL.map((r) => (
         <button
           key={r.id}
-          title={r.label}
+          title={t(r.labelKey)}
           className={leftVisible && leftTab === r.id ? "active" : ""}
           onClick={() => {
             if (leftVisible && leftTab === r.id) toggleLeft();
@@ -30,7 +32,7 @@ export default function Rail() {
       ))}
       <span style={{ flex: 1 }} />
       <button
-        title={theme === "dark" ? "切换浅色主题" : "切换深色主题"}
+        title={theme === "dark" ? t("切换浅色主题") : t("切换深色主题")}
         onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
       >
         {theme === "dark" ? "☀" : "🌙"}

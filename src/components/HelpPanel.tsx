@@ -1,52 +1,48 @@
 import { useApp } from "../state/store";
+import { useT } from "../i18n";
 
-interface Shortcut {
-  keys: string;
-  desc: string;
-}
-
-const SHORTCUTS: { group: string; items: Shortcut[] }[] = [
+const SHORTCUT_KEYS = [
   {
-    group: "文件与文档",
+    groupKey: "文件与文档",
     items: [
-      { keys: "Ctrl + O", desc: "打开 PDF" },
-      { keys: "Ctrl + S", desc: "保存到磁盘" },
-      { keys: "F1 / ?", desc: "打开帮助面板" },
+      { keys: "Ctrl + O", descKey: "打开 PDF" },
+      { keys: "Ctrl + S", descKey: "保存到磁盘" },
+      { keys: "F1 / ?", descKey: "打开帮助面板" },
     ],
   },
   {
-    group: "导航",
+    groupKey: "导航",
     items: [
-      { keys: "PageDown / PageUp", desc: "下一页 / 上一页" },
-      { keys: "Home / End", desc: "跳到首页 / 末页" },
-      { keys: "Ctrl + G", desc: "切换左侧面板可见性" },
-      { keys: "F3", desc: "打开搜索" },
-      { keys: "Esc", desc: "关闭搜索/任务面板/帮助" },
+      { keys: "PageDown / PageUp", descKey: "下一页 / 上一页" },
+      { keys: "Home / End", descKey: "跳到首页 / 末页" },
+      { keys: "Ctrl + G", descKey: "切换左侧面板可见性" },
+      { keys: "F3", descKey: "打开搜索" },
+      { keys: "Esc", descKey: "关闭搜索/任务面板/帮助" },
     ],
   },
   {
-    group: "视图",
+    groupKey: "视图",
     items: [
-      { keys: "Ctrl + +", desc: "放大" },
-      { keys: "Ctrl + -", desc: "缩小" },
-      { keys: "Ctrl + 滚轮", desc: "以光标为中心缩放" },
-      { keys: "Ctrl + 0", desc: "重置为适应宽度" },
+      { keys: "Ctrl + +", descKey: "放大" },
+      { keys: "Ctrl + -", descKey: "缩小" },
+      { keys: "Ctrl + 滚轮", descKey: "以光标为中心缩放" },
+      { keys: "Ctrl + 0", descKey: "重置为适应宽度" },
     ],
   },
   {
-    group: "编辑",
+    groupKey: "编辑操作",
     items: [
-      { keys: "Ctrl + Z", desc: "撤销" },
-      { keys: "Ctrl + Y", desc: "重做" },
-      { keys: "Ctrl + Shift + Z", desc: "重做（备用）" },
-      { keys: "Ctrl + F", desc: "打开全文搜索" },
+      { keys: "Ctrl + Z", descKey: "撤销" },
+      { keys: "Ctrl + Y", descKey: "重做" },
+      { keys: "Ctrl + Shift + Z", descKey: "重做（备用）" },
+      { keys: "Ctrl + F", descKey: "打开全文搜索" },
     ],
   },
 ];
 
-const FEATURES: { group: string; items: string[] }[] = [
+const FEATURE_KEYS = [
   {
-    group: "文档核心",
+    groupKey: "文档核心",
     items: [
       "打开 / 保存 PDF（自动加密解密支持）",
       "全文搜索（命中跨页 flash 高亮）",
@@ -55,7 +51,7 @@ const FEATURES: { group: string; items: string[] }[] = [
     ],
   },
   {
-    group: "页面管理（M3）",
+    groupKey: "页面管理（M3）",
     items: [
       "旋转 / 删除 / 复制 / 插入空白页",
       "拖拽缩略图重排",
@@ -64,7 +60,7 @@ const FEATURES: { group: string; items: string[] }[] = [
     ],
   },
   {
-    group: "水印（M4）",
+    groupKey: "水印（M4）",
     items: [
       "文字水印（字号 / 颜色 / 字体回退到系统中文字体）",
       "图片水印（任意 png/jpg/webp/bmp）",
@@ -73,7 +69,7 @@ const FEATURES: { group: string; items: string[] }[] = [
     ],
   },
   {
-    group: "注释（M5）",
+    groupKey: "注释（M5）",
     items: [
       "高亮 / 下划线 / 删除线",
       "便签 / 自由文本框 / 矩形标注",
@@ -81,7 +77,7 @@ const FEATURES: { group: string; items: string[] }[] = [
     ],
   },
   {
-    group: "文档安全（M6）",
+    groupKey: "文档安全（M6）",
     items: [
       "查看加密状态与 8 项权限",
       "导出明文副本 / 在内存中去除加密",
@@ -89,7 +85,7 @@ const FEATURES: { group: string; items: string[] }[] = [
     ],
   },
   {
-    group: "格式互转（M7–M10）",
+    groupKey: "格式互转（M7–M10）",
     items: [
       "PDF ↔ PNG / JPEG（PDF→图按 DPI；图→PDF 多图合并）",
       "Office → PDF（依赖 LibreOffice）",
@@ -102,6 +98,7 @@ const FEATURES: { group: string; items: string[] }[] = [
 export default function HelpPanel() {
   const helpOpen = useApp((s) => s.helpOpen);
   const setHelpOpen = useApp((s) => s.setHelpOpen);
+  const t = useT();
 
   if (!helpOpen) return null;
 
@@ -131,22 +128,22 @@ export default function HelpPanel() {
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h2 style={{ margin: 0 }}>PDFe 帮助</h2>
-          <button onClick={() => setHelpOpen(false)} title="关闭（Esc）">✕</button>
+          <h2 style={{ margin: 0 }}>{t("PDFe 帮助")}</h2>
+          <button onClick={() => setHelpOpen(false)} title={t("关闭（Esc）")}>✕</button>
         </div>
 
-        <h3 style={{ marginTop: 12, marginBottom: 8 }}>快捷键</h3>
-        {SHORTCUTS.map((g) => (
-          <div key={g.group} style={{ marginBottom: 14 }}>
-            <div style={{ color: "var(--fg-dim)", fontSize: 12, marginBottom: 4 }}>{g.group}</div>
+        <h3 style={{ marginTop: 12, marginBottom: 8 }}>{t("快捷键")}</h3>
+        {SHORTCUT_KEYS.map((g) => (
+          <div key={g.groupKey} style={{ marginBottom: 14 }}>
+            <div style={{ color: "var(--fg-dim)", fontSize: 12, marginBottom: 4 }}>{t(g.groupKey)}</div>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <tbody>
                 {g.items.map((s) => (
-                  <tr key={s.desc}>
+                  <tr key={s.descKey}>
                     <td style={{ padding: "3px 6px", color: "var(--accent)", fontFamily: "Consolas, monospace", whiteSpace: "nowrap" }}>
                       {s.keys}
                     </td>
-                    <td style={{ padding: "3px 6px", color: "var(--fg-dim)" }}>{s.desc}</td>
+                    <td style={{ padding: "3px 6px", color: "var(--fg-dim)" }}>{t(s.descKey)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -154,14 +151,14 @@ export default function HelpPanel() {
           </div>
         ))}
 
-        <h3 style={{ marginTop: 20, marginBottom: 8 }}>功能清单</h3>
-        {FEATURES.map((g) => (
-          <div key={g.group} style={{ marginBottom: 14 }}>
-            <div style={{ color: "var(--fg-dim)", fontSize: 12, marginBottom: 4 }}>{g.group}</div>
+        <h3 style={{ marginTop: 20, marginBottom: 8 }}>{t("功能清单")}</h3>
+        {FEATURE_KEYS.map((g) => (
+          <div key={g.groupKey} style={{ marginBottom: 14 }}>
+            <div style={{ color: "var(--fg-dim)", fontSize: 12, marginBottom: 4 }}>{t(g.groupKey)}</div>
             <ul style={{ margin: 0, paddingLeft: 20 }}>
               {g.items.map((it) => (
                 <li key={it} style={{ margin: "3px 0", color: "var(--fg)", fontSize: 13, lineHeight: 1.5 }}>
-                  {it}
+                  {t(it)}
                 </li>
               ))}
             </ul>
@@ -169,7 +166,7 @@ export default function HelpPanel() {
         ))}
 
         <div style={{ marginTop: 24, padding: "10px 12px", background: "var(--bg)", borderRadius: 6, fontSize: 12, color: "var(--fg-dim)" }}>
-          💡 提示：按 <kbd style={{ background: "var(--bg-active)", padding: "1px 5px", borderRadius: 3, fontFamily: "monospace" }}>F1</kbd> 或 <kbd style={{ background: "var(--bg-active)", padding: "1px 5px", borderRadius: 3, fontFamily: "monospace" }}>?</kbd> 随时打开此面板；按 <kbd style={{ background: "var(--bg-active)", padding: "1px 5px", borderRadius: 3, fontFamily: "monospace" }}>Esc</kbd> 关闭。
+          💡 {t("💡 提示：按 F1 或 ? 随时打开此面板；按 Esc 关闭。")}
         </div>
       </div>
     </div>

@@ -11,6 +11,7 @@ import {
   insertBlankPage,
   reorderPages,
 } from "../lib/ipc";
+import { useT } from "../i18n";
 
 const THUMB_W = 150;
 const ITEM_PAD = 12;
@@ -114,6 +115,7 @@ export default function ThumbnailPanel() {
   const errorToast = useApp((s) => s.errorToast);
   const pushToast = useApp((s) => s.pushToast);
   const clearSelection = useApp((s) => s.clearSelection);
+  const t = useT();
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -169,7 +171,7 @@ export default function ThumbnailPanel() {
       updatePages(info);
       markDirty(true);
       setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
-      pushToast("info", `已旋转 ${pages.length} 页`);
+      pushToast("info", t("已旋转 {n} 页", { n: pages.length }));
     } catch (e) {
       errorToast(e);
     }
@@ -179,14 +181,14 @@ export default function ThumbnailPanel() {
     if (docId === null || !contextMenu) return;
     const pages = selectedPages.size > 0 ? Array.from(selectedPages) : [contextMenu.pageIndex];
     setContextMenu(null);
-    if (!confirm(`确定删除 ${pages.length} 页？此操作可撤销。`)) return;
+    if (!confirm(t("确定删除 {n} 页？此操作可撤销。", { n: pages.length }))) return;
     try {
       const info = await deletePages(docId, pages);
       updatePages(info);
       markDirty(true);
       clearSelection();
       setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
-      pushToast("info", `已删除 ${pages.length} 页`);
+      pushToast("info", t("已删除 {n} 页", { n: pages.length }));
     } catch (e) {
       errorToast(e);
     }
@@ -202,7 +204,7 @@ export default function ThumbnailPanel() {
       updatePages(info);
       markDirty(true);
       setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
-      pushToast("info", `已复制 ${pages.length} 页`);
+      pushToast("info", t("已复制 {n} 页", { n: pages.length }));
     } catch (e) {
       errorToast(e);
     }
@@ -220,7 +222,7 @@ export default function ThumbnailPanel() {
       updatePages(info);
       markDirty(true);
       setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
-      pushToast("info", "已插入空白页");
+      pushToast("info", t("已插入空白页"));
     } catch (e) {
       errorToast(e);
     }
@@ -274,7 +276,7 @@ export default function ThumbnailPanel() {
       updatePages(info);
       markDirty(true);
       setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
-      pushToast("info", `已移动 ${indices.length} 页`);
+      pushToast("info", t("已移动 {n} 页", { n: indices.length }));
     } catch (err) {
       errorToast(err);
     }
@@ -342,17 +344,17 @@ export default function ThumbnailPanel() {
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
-          <button onClick={() => handleRotate(-90)}>↺ 逆时针旋转 90°</button>
-          <button onClick={() => handleRotate(90)}>↻ 顺时针旋转 90°</button>
-          <button onClick={() => handleRotate(180)}>⟲ 旋转 180°</button>
+          <button onClick={() => handleRotate(-90)}>{t("↺ 逆时针旋转 90°")}</button>
+          <button onClick={() => handleRotate(90)}>{t("↻ 顺时针旋转 90°")}</button>
+          <button onClick={() => handleRotate(180)}>{t("⟲ 旋转 180°")}</button>
           <div className="ctx-sep" />
-          <button onClick={handleDuplicate}>📋 复制页面</button>
-          <button onClick={handleInsertBlank}>➕ 插入空白页</button>
+          <button onClick={handleDuplicate}>{t("📋 复制页面")}</button>
+          <button onClick={handleInsertBlank}>{t("➕ 插入空白页")}</button>
           <button onClick={handleDelete} style={{ color: "var(--danger)" }}>
-            🗑 删除页面
+            {t("🗑 删除页面")}
           </button>
           <div className="ctx-sep" />
-          <button onClick={() => setContextMenu(null)}>📤 提取为新文档</button>
+          <button onClick={() => setContextMenu(null)}>{t("📤 提取为新文档")}</button>
         </div>
       )}
     </div>

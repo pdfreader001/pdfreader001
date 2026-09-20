@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useApp } from "../state/store";
 import type { SearchHit } from "../state/store";
 import { getPageText } from "../lib/ipc";
+import { useT } from "../i18n";
 
 /** 全文搜索面板：逐页提取文本 → 匹配 → 结果列表；F3/Shift+F3 遍历 */
 export default function SearchPanel() {
@@ -21,6 +22,7 @@ export default function SearchPanel() {
   const [input, setInput] = useState(query);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const runRef = useRef(0);
+  const t = useT();
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
@@ -62,7 +64,7 @@ export default function SearchPanel() {
     if (runRef.current === run) {
       setSearching(false);
       if (collected.length === 0) {
-        useApp.getState().pushToast("info", `未找到“${q}”`);
+        useApp.getState().pushToast("info", t('未找到 "{q}"', { q }));
       }
     }
   };
@@ -104,16 +106,28 @@ export default function SearchPanel() {
     <div className="search-results">
       <div className="head">
         <span>
-          {searching ? "搜索中…" : hits.length ? `${Math.min(active + 1, hits.length)} / ${hits.length} 个结果` : "输入关键词后回车"}
+          {searching
+            ? t("搜索中…")
+            : hits.length
+              ? `${Math.min(active + 1, hits.length)} / ${hits.length} ${t("个结果")}`
+              : t("输入关键词后回车")}
         </span>
         <span>
-          <button title="上一个（Shift+F3）" onClick={() => gotoActive(active - 1)} disabled={!hits.length}>
+          <button
+            title={t("上一个（Shift+F3）")}
+            onClick={() => gotoActive(active - 1)}
+            disabled={!hits.length}
+          >
             ↑
           </button>
-          <button title="下一个（F3）" onClick={() => gotoActive(active + 1)} disabled={!hits.length}>
+          <button
+            title={t("下一个（F3）")}
+            onClick={() => gotoActive(active + 1)}
+            disabled={!hits.length}
+          >
             ↓
           </button>
-          <button title="关闭" onClick={() => setOpen(false)}>
+          <button title={t("关闭")} onClick={() => setOpen(false)}>
             ✕
           </button>
         </span>
@@ -122,7 +136,7 @@ export default function SearchPanel() {
         <input
           ref={inputRef}
           style={{ width: "100%" }}
-          placeholder="全文搜索，回车确认；F3 遍历结果"
+          placeholder={t("全文搜索，回车确认；F3 遍历结果")}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && runSearch()}
@@ -134,7 +148,7 @@ export default function SearchPanel() {
           className={`search-hit${i === active ? " active" : ""}`}
           onClick={() => gotoActive(i)}
         >
-          <span className="pg">第 {h.pageIndex + 1} 页</span>
+          <span className="pg">{t("第 {n} 页", { n: h.pageIndex + 1 })}</span>
           <Highlighted text={h.snippet} query={q} />
         </div>
       ))}

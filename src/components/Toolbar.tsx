@@ -1,5 +1,6 @@
 import { useApp } from "../state/store";
 import type { TaskId } from "../state/store";
+import { useT } from "../i18n";
 
 const TOOLS: { id: Exclude<TaskId, null>; label: string; icon: string }[] = [
   { id: "merge", label: "合并", icon: "🗂" },
@@ -19,6 +20,7 @@ export default function Toolbar({
   onUndo: () => void;
   onRedo: () => void;
 }) {
+  const t = useT();
   const task = useApp((s) => s.task);
   const openTask = useApp((s) => s.openTask);
   const hasDoc = useApp((s) => s.docId !== null);
@@ -29,18 +31,20 @@ export default function Toolbar({
   const setSearchOpen = useApp((s) => s.setSearchOpen);
   const searchOpen = useApp((s) => s.searchOpen);
   const setHelpOpen = useApp((s) => s.setHelpOpen);
+  const locale = useApp((s) => s.locale);
+  const setLocale = useApp((s) => s.setLocale);
 
   return (
     <header className="toolbar">
       <span className="logo">PDFe</span>
-      <button className="tbtn" onClick={onOpenFile} title="打开 PDF（Ctrl+O）">
-        📂 打开
+      <button className="tbtn" onClick={onOpenFile} title={t("打开 PDF（Ctrl+O）")}>
+        📂 {t("打开")}
       </button>
       <button
         className="tbtn"
         disabled={!hasDoc || !canUndo}
         onClick={onUndo}
-        title="撤销（Ctrl+Z）"
+        title={t("撤销（Ctrl+Z）")}
       >
         ↶
       </button>
@@ -48,19 +52,19 @@ export default function Toolbar({
         className="tbtn"
         disabled={!hasDoc || !canRedo}
         onClick={onRedo}
-        title="重做（Ctrl+Y）"
+        title={t("重做（Ctrl+Y）")}
       >
         ↷
       </button>
       <span className="sep" />
-      {TOOLS.map((t) => (
+      {TOOLS.map((item) => (
         <button
-          key={t.id}
-          className={`tbtn${task === t.id ? " active" : ""}`}
+          key={item.id}
+          className={`tbtn${task === item.id ? " active" : ""}`}
           disabled={!hasDoc}
-          onClick={() => openTask(task === t.id ? null : t.id)}
+          onClick={() => openTask(task === item.id ? null : item.id)}
         >
-          {t.icon} {t.label}
+          {item.icon} {t(item.label)}
         </button>
       ))}
       <span className="spacer" />
@@ -68,39 +72,46 @@ export default function Toolbar({
         className={`tbtn${viewMode === "continuous" ? " active" : ""}`}
         disabled={!hasDoc}
         onClick={() => setViewMode("continuous")}
-        title="连续滚动"
+        title={t("连续滚动")}
       >
-        连续
+        {t("连续")}
       </button>
       <button
         className={`tbtn${viewMode === "single" ? " active" : ""}`}
         disabled={!hasDoc}
         onClick={() => setViewMode("single")}
-        title="单页"
+        title={t("单页")}
       >
-        单页
+        {t("单页")}
       </button>
       <button
         className={`tbtn${viewMode === "dual" ? " active" : ""}`}
         disabled={!hasDoc}
         onClick={() => setViewMode("dual")}
-        title="双页对开"
+        title={t("双页对开")}
       >
-        双页
+        {t("双页")}
       </button>
       <span className="sep" />
       <button
         className={`tbtn${searchOpen ? " active" : ""}`}
         disabled={!hasDoc}
         onClick={() => setSearchOpen(!searchOpen)}
-        title="全文搜索（Ctrl+F）"
+        title={t("全文搜索（Ctrl+F）")}
       >
-        🔍 搜索
+        🔍 {t("搜索")}
+      </button>
+      <button
+        className="tbtn"
+        onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
+        title={locale === "zh" ? "Switch to English" : "切换到中文"}
+      >
+        {locale === "zh" ? "中" : "EN"}
       </button>
       <button
         className="tbtn"
         onClick={() => setHelpOpen(true)}
-        title="帮助（? 或 F1）"
+        title={t("帮助（? 或 F1）")}
       >
         ?
       </button>

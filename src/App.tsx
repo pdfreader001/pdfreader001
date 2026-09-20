@@ -21,6 +21,7 @@ import SearchPanel from "./components/SearchPanel";
 import TaskPanel from "./components/TaskPanel";
 import StatusBar from "./components/StatusBar";
 import HelpPanel from "./components/HelpPanel";
+import { useT } from "./i18n";
 import "./index.css";
 
 function BookmarkTree({
@@ -30,8 +31,9 @@ function BookmarkTree({
   nodes: BookmarkNode[];
   onJump: (page: number) => void;
 }) {
+  const t = useT();
   if (nodes.length === 0) {
-    return <div style={{ padding: 16, color: "var(--fg-dim)" }}>文档没有书签</div>;
+    return <div style={{ padding: 16, color: "var(--fg-dim)" }}>{t("文档没有书签")}</div>;
   }
   return (
     <div className="bookmark-tree">
@@ -42,7 +44,7 @@ function BookmarkTree({
             style={{ paddingLeft: 8 + node.level * 16 }}
             onClick={() => onJump(node.pageIndex)}
           >
-            {node.title || "（无标题）"}
+            {node.title || t("（无标题）")}
           </div>
           {node.children.length > 0 && (
             <BookmarkTree nodes={node.children} onJump={onJump} />
@@ -64,6 +66,7 @@ function LeftPanel() {
   const setBookmarksLoading = useApp((s) => s.setBookmarksLoading);
   const jumpToPage = useApp((s) => s.jumpToPage);
   const errorToast = useApp((s) => s.errorToast);
+  const t = useT();
 
   useEffect(() => {
     if (docId === null || leftTab !== "bookmarks") return;
@@ -91,29 +94,29 @@ function LeftPanel() {
           className={leftTab === "thumbnails" ? "active" : ""}
           onClick={() => setLeftTab("thumbnails")}
         >
-          缩略图
+          {t("缩略图")}
         </button>
         <button
           className={leftTab === "bookmarks" ? "active" : ""}
           onClick={() => setLeftTab("bookmarks")}
         >
-          书签
+          {t("书签")}
         </button>
       </div>
       {leftTab === "thumbnails" ? (
         hasDoc ? (
           <ThumbnailPanel />
         ) : (
-          <div style={{ padding: 16, color: "var(--fg-dim)" }}>打开文档后显示缩略图</div>
+          <div style={{ padding: 16, color: "var(--fg-dim)" }}>{t("打开文档后显示缩略图")}</div>
         )
       ) : hasDoc ? (
         bookmarksLoading ? (
-          <div style={{ padding: 16, color: "var(--fg-dim)" }}>加载中…</div>
+          <div style={{ padding: 16, color: "var(--fg-dim)" }}>{t("加载中…")}</div>
         ) : (
           <BookmarkTree nodes={bookmarks} onJump={(p) => jumpToPage(p, true)} />
         )
       ) : (
-        <div style={{ padding: 16, color: "var(--fg-dim)" }}>打开文档后显示书签</div>
+        <div style={{ padding: 16, color: "var(--fg-dim)" }}>{t("打开文档后显示书签")}</div>
       )}
     </aside>
   );
@@ -131,6 +134,7 @@ function PasswordDialog({
   const [err, setErr] = useState("");
   const setDoc = useApp((s) => s.setDoc);
   const pushToast = useApp((s) => s.pushToast);
+  const t = useT();
 
   const submit = async () => {
     setBusy(true);
@@ -140,10 +144,10 @@ function PasswordDialog({
       setDoc(info, path);
       const pos = loadReadingPos(info.fileName, info.pageCount);
       if (pos) useApp.getState().jumpToPage(pos.page);
-      pushToast("info", `已打开 ${info.fileName}（${info.pageCount} 页）`);
+      pushToast("info", t("已打开 {name}（{n} 页）", { name: info.fileName, n: info.pageCount }));
       onDone();
     } catch (e) {
-      setErr(isApiError(e) ? (e.code === "password" ? "密码错误，请重试" : e.message) : String(e));
+      setErr(isApiError(e) ? (e.code === "password" ? t("密码错误，请重试") : e.message) : String(e));
     } finally {
       setBusy(false);
     }
@@ -172,8 +176,8 @@ function PasswordDialog({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ marginBottom: 10 }}>该文档已加密</h3>
-        <p style={{ color: "var(--fg-dim)", marginBottom: 10 }}>请输入打开密码：</p>
+        <h3 style={{ marginBottom: 10 }}>{t("该文档已加密")}</h3>
+        <p style={{ color: "var(--fg-dim)", marginBottom: 10 }}>{t("请输入打开密码：")}</p>
         <input
           type="password"
           autoFocus
@@ -184,9 +188,9 @@ function PasswordDialog({
         />
         {err && <p style={{ color: "var(--danger)", marginTop: 8 }}>{err}</p>}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
-          <button onClick={onDone}>取消</button>
+          <button onClick={onDone}>{t("取消")}</button>
           <button className="btn-primary" disabled={busy || !pwd} onClick={submit}>
-            {busy ? "验证中…" : "打开"}
+            {busy ? t("验证中…") : t("打开")}
           </button>
         </div>
       </div>
@@ -203,6 +207,7 @@ export default function App() {
   const loading = useApp((s) => s.loading);
   const toasts = useApp((s) => s.toasts);
   const dismissToast = useApp((s) => s.dismissToast);
+  const t = useT();
 
   const [pwdPath, setPwdPath] = useState<string | null>(null);
 
@@ -229,7 +234,7 @@ export default function App() {
         st.setDoc(info, path);
         const pos = loadReadingPos(info.fileName, info.pageCount);
         if (pos) st.jumpToPage(pos.page);
-        st.pushToast("info", `已打开 ${info.fileName}（${info.pageCount} 页）`);
+        st.pushToast("info", t("已打开 {name}（{n} 页）", { name: info.fileName, n: info.pageCount }));
         canUndo(info.docId).then(st.setCanUndo).catch(() => {});
         canRedo(info.docId).then(st.setCanRedo).catch(() => {});
       } catch (e) {
@@ -242,16 +247,16 @@ export default function App() {
         useApp.getState().setLoading(false);
       }
     },
-    [],
+    [t],
   );
 
   const onOpenFile = useCallback(async () => {
     const picked = await open({
       multiple: false,
-      filters: [{ name: "PDF 文档", extensions: ["pdf"] }],
+      filters: [{ name: t("PDF 文档"), extensions: ["pdf"] }],
     });
     if (typeof picked === "string") doOpen(picked);
-  }, [doOpen]);
+  }, [doOpen, t]);
 
   const onSave = useCallback(async () => {
     const st = useApp.getState();
@@ -259,11 +264,11 @@ export default function App() {
     try {
       await saveDocument(st.docId);
       st.markDirty(false);
-      st.pushToast("info", "已保存");
+      st.pushToast("info", t("已保存"));
     } catch (e) {
       st.errorToast(e);
     }
-  }, []);
+  }, [t]);
 
   const onUndo = useCallback(async () => {
     const st = useApp.getState();
@@ -273,11 +278,11 @@ export default function App() {
       st.updatePages(info);
       st.setCanUndo(await canUndo(st.docId));
       st.setCanRedo(await canRedo(st.docId));
-      st.pushToast("info", "已撤销");
+      st.pushToast("info", t("已撤销"));
     } catch (e) {
       st.errorToast(e);
     }
-  }, []);
+  }, [t]);
 
   const onRedo = useCallback(async () => {
     const st = useApp.getState();
@@ -287,11 +292,11 @@ export default function App() {
       st.updatePages(info);
       st.setCanUndo(await canUndo(st.docId));
       st.setCanRedo(await canRedo(st.docId));
-      st.pushToast("info", "已重做");
+      st.pushToast("info", t("已重做"));
     } catch (e) {
       st.errorToast(e);
     }
-  }, []);
+  }, [t]);
 
   const zoomBy = useCallback((factor: number) => {
     const st = useApp.getState();
@@ -399,11 +404,11 @@ export default function App() {
         <div className="canvas-wrap">
           <div className="empty">
             <span className="big">📄</span>
-            <span>打开一个 PDF 文件开始阅读</span>
+            <span>{t("打开一个 PDF 文件开始阅读")}</span>
             <button onClick={onOpenFile} disabled={loading}>
-              {loading ? "加载中…" : "打开文件"}
+              {loading ? t("加载中…") : t("打开文件")}
             </button>
-            <span style={{ fontSize: 12 }}>Ctrl+O 打开 · Ctrl+F 搜索 · Ctrl+滚轮缩放</span>
+            <span style={{ fontSize: 12 }}>{t("Ctrl+O 打开 · Ctrl+F 搜索 · Ctrl+滚轮缩放")}</span>
           </div>
         </div>
       )}

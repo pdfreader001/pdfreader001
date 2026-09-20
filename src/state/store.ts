@@ -58,6 +58,9 @@ interface AppState {
   // 主题
   theme: "light" | "dark";
 
+  // 语言
+  locale: "zh" | "en";
+
   // 缩略图选择
   selectedPages: Set<number>;
   thumbFocus: number;
@@ -91,6 +94,7 @@ interface AppState {
   setSearchActive: (i: number) => void;
   setSearching: (b: boolean) => void;
   setTheme: (t: "light" | "dark") => void;
+  setLocale: (l: "zh" | "en") => void;
   toggleSelect: (page: number, ctrl: boolean, shift: boolean) => void;
   clearSelection: () => void;
   markDirty: (b: boolean) => void;
@@ -160,6 +164,8 @@ export const useApp = create<AppState>((set, get) => ({
   searching: false,
 
   theme: window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+
+  locale: (localStorage.getItem("pdfe:locale") as "zh" | "en") || "zh",
 
   selectedPages: new Set(),
   thumbFocus: -1,
@@ -239,6 +245,10 @@ export const useApp = create<AppState>((set, get) => ({
   setSearchActive: (i) => set({ searchActive: i }),
   setSearching: (b) => set({ searching: b }),
   setTheme: (t) => set({ theme: t }),
+  setLocale: (l) => {
+    localStorage.setItem("pdfe:locale", l);
+    set({ locale: l });
+  },
   toggleSelect: (page, ctrl, shift) => {
     const { selectedPages, thumbFocus } = get();
     const next = new Set(selectedPages);

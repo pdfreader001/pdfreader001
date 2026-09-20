@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useApp } from "../state/store";
+import { useT } from "../i18n";
 
 export default function StatusBar() {
   const fileName = useApp((s) => s.fileName);
@@ -12,11 +13,12 @@ export default function StatusBar() {
   const currentPage = useApp((s) => s.currentPage);
   const jumpToPage = useApp((s) => s.jumpToPage);
   const [pageText, setPageText] = useState("");
+  const t = useT();
 
   if (docId === null) {
     return (
       <footer className="statusbar">
-        <span>未打开文档</span>
+        <span>{t("未打开文档")}</span>
         <span className="grow" />
       </footer>
     );
@@ -31,11 +33,11 @@ export default function StatusBar() {
   return (
     <footer className="statusbar">
       <span title={fileName}>
-        {fileName} · 共 {pageCount} 页{dirty ? " · 未保存" : ""}
+        {fileName} · {t("共")} {pageCount} {t("页")}{dirty ? ` · ${t("未保存")}` : ""}
       </span>
       <span className="grow" />
       <span>
-        第
+        {t("第 ")}
         <input
           className="pageinput"
           value={pageText || String(currentPage + 1)}
@@ -44,23 +46,23 @@ export default function StatusBar() {
           onBlur={commitPage}
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
         />
-        / {pageCount} 页
+        {t(" / ")} {pageCount}
       </span>
       <span className="zoomctl">
-        <button onClick={() => setScale(scale / 1.2)} title="缩小">
+        <button onClick={() => setScale(scale / 1.2)} title={t("缩小")}>
           −
         </button>
         <button
           style={{ width: 52 }}
           onClick={() => setFitMode("width")}
-          title="适应宽度"
+          title={t("适应宽度")}
         >
           {Math.round(scale * 100)}%
         </button>
-        <button onClick={() => setScale(scale * 1.2)} title="放大">
+        <button onClick={() => setScale(scale * 1.2)} title={t("放大")}>
           ＋
         </button>
-        <button onClick={() => setFitMode("page")} title="适应页面">
+        <button onClick={() => setFitMode("page")} title={t("适应页面")}>
           ⤢
         </button>
       </span>

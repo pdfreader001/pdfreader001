@@ -32,24 +32,7 @@ import type {
   OfficeProbe,
   EbookToolProbe,
 } from "../lib/ipc";
-
-const TITLES: Record<Exclude<TaskId, null>, string> = {
-  merge: "合并文档",
-  split: "拆分文档",
-  watermark: "水印",
-  edit: "内容编辑",
-  security: "文档安全",
-  export: "导出图片",
-};
-
-const DESC: Record<Exclude<TaskId, null>, string> = {
-  merge: "将多个 PDF 按顺序合并为一个文档，可对每个文件选择页码范围。",
-  split: "按固定页数、自定义范围或书签层级，将文档拆分为多个文件。",
-  watermark: "为页面添加文字或图片水印，支持位置、透明度与平铺。",
-  edit: "为当前页添加 PDF 注释：高亮、下划线、删除线、便签、自由文本框、矩形标注。",
-  security: "查看文档加密状态与权限矩阵；导出明文副本或在内存中去除加密后另存。",
-  export: "PDF 与图片互转：PDF → PNG/JPEG（按页可调 DPI）；PNG/JPG/JPEG/BMP/WebP → PDF（多图合并）。",
-};
+import { useT } from "../i18n";
 
 interface MergeItem {
   path: string;
@@ -65,11 +48,12 @@ function MergePanel() {
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
   const closeTask = useApp((s) => s.closeTask);
+  const t = useT();
 
   const addFiles = async () => {
     const picked = await open({
       multiple: true,
-      filters: [{ name: "PDF 文档", extensions: ["pdf"] }],
+      filters: [{ name: t("PDF 文档"), extensions: ["pdf"] }],
     });
     if (Array.isArray(picked)) {
       setItems((prev) => [
@@ -85,9 +69,9 @@ function MergePanel() {
 
   const pickOutput = async () => {
     const p = await save({
-      title: "选择合并结果保存位置",
+      title: t("选择合并结果保存位置"),
       defaultPath: "merged.pdf",
-      filters: [{ name: "PDF 文档", extensions: ["pdf"] }],
+      filters: [{ name: t("PDF 文档"), extensions: ["pdf"] }],
     });
     if (typeof p === "string") setOutputPath(p);
   };
@@ -123,8 +107,8 @@ function MergePanel() {
       pushToast(
         "info",
         outputPath
-          ? `合并完成并已保存：${outputPath}（共 ${info.pageCount} 页）`
-          : `合并完成，共 ${info.pageCount} 页`,
+          ? t("合并完成并已保存：{path}（共 {n} 页）", { path: outputPath, n: info.pageCount })
+          : t("合并完成，共 {n} 页", { n: info.pageCount }),
       );
       closeTask();
     } catch (e) {
@@ -137,11 +121,11 @@ function MergePanel() {
   return (
     <div className="task-body">
       <button className="btn-primary" onClick={addFiles} disabled={busy}>
-        ➕ 添加文件
+        {t("➕ 添加文件")}
       </button>
       <div className="merge-list">
         {items.length === 0 && (
-          <p className="placeholder">点击上方按钮添加要合并的 PDF 文件</p>
+          <p className="placeholder">{t("点击上方按钮添加要合并的 PDF 文件")}</p>
         )}
         {items.map((it, idx) => (
           <div key={idx} className="merge-item">
@@ -167,7 +151,7 @@ function MergePanel() {
             </div>
             <input
               type="text"
-              placeholder="页码范围，如 1,3,5-7（留空为全部页）"
+              placeholder={t("页码范围，如 1,3,5-7（留空为全部页）")}
               value={it.ranges}
               onChange={(e) => updateRanges(idx, e.target.value)}
               style={{ marginTop: 4, fontSize: 12 }}
@@ -176,19 +160,19 @@ function MergePanel() {
         ))}
       </div>
       <div className="merge-output">
-        <label>输出</label>
+        <label>{t("输出")}</label>
         <span
           className="merge-output-path"
           title={outputPath ?? undefined}
           style={outputPath ? undefined : { color: "var(--fg-dim)" }}
         >
-          {outputPath ?? "未选择（结果仅打开到查看器）"}
+          {outputPath ?? t("未选择（结果仅打开到查看器）")}
         </span>
         <button onClick={pickOutput} disabled={busy}>
-          选择…
+          {t("选择…")}
         </button>
         {outputPath && (
-          <button title="清除" onClick={() => setOutputPath(null)} disabled={busy}>
+          <button title={t("清除")} onClick={() => setOutputPath(null)} disabled={busy}>
             ✕
           </button>
         )}
@@ -199,7 +183,7 @@ function MergePanel() {
           onClick={doMerge}
           disabled={busy || items.length === 0}
         >
-          {busy ? "合并中…" : "开始合并"}
+          {busy ? t("合并中…") : t("开始合并")}
         </button>
       </div>
     </div>
@@ -212,6 +196,7 @@ function SplitPanel() {
   const selectedPages = useApp((s) => s.selectedPages);
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
+  const t = useT();
 
   const [mode, setMode] = useState<"every_n" | "ranges" | "by_bookmark" | "selected">(
     "every_n",
@@ -230,7 +215,7 @@ function SplitPanel() {
         break;
       case "ranges":
         if (!ranges.trim()) {
-          pushToast("info", "请输入页码范围");
+          pushToast("info", t("请输入页码范围"));
           return;
         }
         modePayload = { mode: "ranges", payload: { ranges } };
@@ -240,21 +225,21 @@ function SplitPanel() {
         break;
       case "selected":
         if (selectedPages.size === 0) {
-          pushToast("info", "请先在缩略图中选择页面");
+          pushToast("info", t("请先在缩略图中选择页面"));
           return;
         }
         modePayload = { mode: "selected", payload: { pages: Array.from(selectedPages) } };
         break;
     }
     const outDir = await open({
-      title: "选择输出目录",
+      title: t("选择输出目录"),
       directory: true,
     });
     if (typeof outDir !== "string") return;
     setBusy(true);
     try {
       const outputs = await splitDocument(docId, modePayload, outDir);
-      pushToast("info", `拆分完成，共生成 ${outputs.length} 个文件`);
+      pushToast("info", t("拆分完成，共生成 {n} 个文件", { n: outputs.length }));
       canUndo(docId).then(() => {}).catch(() => {});
     } catch (e) {
       errorToast(e);
@@ -263,15 +248,17 @@ function SplitPanel() {
     }
   };
 
+  const splitModes = [
+    { k: "every_n", label: t("每 N 页一份") },
+    { k: "ranges", label: t("自定义范围") },
+    { k: "by_bookmark", label: t("按书签顶层") },
+    { k: "selected", label: t("提取选中页") },
+  ];
+
   return (
     <div className="task-body">
       <div className="split-modes">
-        {[
-          { k: "every_n", label: "每 N 页一份" },
-          { k: "ranges", label: "自定义范围" },
-          { k: "by_bookmark", label: "按书签顶层" },
-          { k: "selected", label: "提取选中页" },
-        ].map((m) => (
+        {splitModes.map((m) => (
           <label
             key={m.k}
             className={`split-mode${mode === m.k ? " active" : ""}`}
@@ -288,7 +275,7 @@ function SplitPanel() {
       </div>
       {mode === "every_n" && (
         <div className="form-row">
-          <label>每</label>
+          <label>{t("每")}</label>
           <input
             type="number"
             min={1}
@@ -297,14 +284,14 @@ function SplitPanel() {
             onChange={(e) => setEveryN(Math.max(1, parseInt(e.target.value) || 1))}
             style={{ width: 60 }}
           />
-          <label>页拆分为一份</label>
+          <label>{t("页拆分为一份")}</label>
         </div>
       )}
       {mode === "ranges" && (
         <div className="form-row">
           <input
             type="text"
-            placeholder="如 1-3,5,7-9"
+            placeholder={t("如 1-3,5,7-9")}
             value={ranges}
             onChange={(e) => setRanges(e.target.value)}
             style={{ flex: 1 }}
@@ -313,7 +300,7 @@ function SplitPanel() {
       )}
       {mode === "by_bookmark" && (
         <div className="form-row">
-          <label>按第</label>
+          <label>{t("按第")}</label>
           <input
             type="number"
             min={1}
@@ -324,12 +311,12 @@ function SplitPanel() {
             }
             style={{ width: 60 }}
           />
-          <label>级书签拆分</label>
+          <label>{t("级书签拆分")}</label>
         </div>
       )}
       {mode === "selected" && (
         <p className="placeholder">
-          已选择 {selectedPages.size} 页，每页将单独保存为一个文件。
+          {t("已选择 {n} 页，每页将单独保存为一个文件。", { n: selectedPages.size })}
         </p>
       )}
       <div className="task-footer">
@@ -338,7 +325,7 @@ function SplitPanel() {
           onClick={doSplit}
           disabled={busy || docId === null}
         >
-          {busy ? "拆分中…" : "开始拆分"}
+          {busy ? t("拆分中…") : t("开始拆分")}
         </button>
       </div>
     </div>
@@ -368,6 +355,7 @@ function WatermarkPanel() {
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
   const closeTask = useApp((s) => s.closeTask);
+  const t = useT();
 
   const [kind, setKind] = useState<"text" | "image">("text");
   const [text, setText] = useState("仅供内部使用");
@@ -388,7 +376,7 @@ function WatermarkPanel() {
     const picked = await open({
       multiple: false,
       filters: [
-        { name: "图片", extensions: ["png", "jpg", "jpeg", "webp", "bmp"] },
+        { name: t("图片"), extensions: ["png", "jpg", "jpeg", "webp", "bmp"] },
       ],
     });
     if (typeof picked === "string") {
@@ -404,7 +392,7 @@ function WatermarkPanel() {
         ? Array.from(selectedPages).sort((a, b) => a - b)
         : Array.from({ length: pageCount }, (_, i) => i);
     if (pages.length === 0) {
-      pushToast("info", "没有可应用的页面");
+      pushToast("info", t("没有可应用的页面"));
       return;
     }
     const style: WatermarkStyle = { opacity, rotation, position, tiled, tileSpacing };
@@ -421,7 +409,7 @@ function WatermarkPanel() {
       updatePages(info);
       markDirty(true);
       setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
-      pushToast("info", `已为 ${pages.length} 页添加水印`);
+      pushToast("info", t("已为 {n} 页添加水印", { n: pages.length }));
       closeTask();
     } catch (e) {
       errorToast(e);
@@ -442,7 +430,7 @@ function WatermarkPanel() {
             onChange={() => setKind("text")}
             style={{ display: "none" }}
           />
-          文字水印
+          {t("文字水印")}
         </label>
         <label className={`split-mode${kind === "image" ? " active" : ""}`}>
           <input
@@ -451,23 +439,23 @@ function WatermarkPanel() {
             onChange={() => setKind("image")}
             style={{ display: "none" }}
           />
-          图片水印
+          {t("图片水印")}
         </label>
       </div>
 
       {kind === "text" ? (
         <>
           <div className="field">
-            <label>水印文字</label>
+            <label>{t("水印文字")}</label>
             <input
               type="text"
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="支持中文"
+              placeholder={t("支持中文")}
             />
           </div>
           <div className="form-row">
-            <label>字号</label>
+            <label>{t("字号")}</label>
             <input
               type="number"
               min={8}
@@ -478,7 +466,7 @@ function WatermarkPanel() {
               }
               style={{ width: 64 }}
             />
-            <label>颜色</label>
+            <label>{t("颜色")}</label>
             <input
               type="color"
               value={color}
@@ -490,13 +478,13 @@ function WatermarkPanel() {
       ) : (
         <>
           <div className="form-row">
-            <button onClick={pickImage}>选择图片…</button>
+            <button onClick={pickImage}>{t("选择图片…")}</button>
             <span className="merge-name" title={imagePath ?? undefined}>
-              {imageName || "未选择"}
+              {imageName || t("未选择")}
             </span>
           </div>
           <div className="form-row">
-            <label>宽度占页</label>
+            <label>{t("宽度占页")}</label>
             <input
               type="number"
               min={5}
@@ -513,7 +501,7 @@ function WatermarkPanel() {
       )}
 
       <div className="form-row">
-        <label>透明度</label>
+        <label>{t("透明度")}</label>
         <input
           type="range"
           min={5}
@@ -527,7 +515,7 @@ function WatermarkPanel() {
         </span>
       </div>
       <div className="form-row">
-        <label>旋转角度</label>
+        <label>{t("旋转角度")}</label>
         <input
           type="number"
           min={-180}
@@ -536,11 +524,11 @@ function WatermarkPanel() {
           onChange={(e) => setRotation(parseInt(e.target.value) || 0)}
           style={{ width: 64 }}
         />
-        <label>度（顺时针）</label>
+        <label>{t("度（顺时针）")}</label>
       </div>
 
       <div className="field">
-        <label>位置</label>
+        <label>{t("位置")}</label>
         <div className="pos-grid">
           {POSITIONS.map((p) => (
             <button
@@ -561,11 +549,11 @@ function WatermarkPanel() {
             checked={tiled}
             onChange={(e) => setTiled(e.target.checked)}
           />
-          平铺整页
+          {t("平铺整页")}
         </label>
         {tiled && (
           <>
-            <label>间距</label>
+            <label>{t("间距")}</label>
             <input
               type="number"
               min={20}
@@ -588,7 +576,7 @@ function WatermarkPanel() {
             checked={onlySelected}
             onChange={(e) => setOnlySelected(e.target.checked)}
           />
-          仅应用到选中的 {selectedPages.size} 页
+          {t("仅应用到选中的 {n} 页", { n: selectedPages.size })}
         </label>
       )}
 
@@ -598,20 +586,20 @@ function WatermarkPanel() {
           onClick={apply}
           disabled={busy || docId === null || !valid}
         >
-          {busy ? "添加中…" : "添加水印"}
+          {busy ? t("添加中…") : t("添加水印")}
         </button>
       </div>
     </div>
   );
 }
 
-const ANNOT_KINDS: { k: AnnotationKind; label: string; icon: string }[] = [
-  { k: "Highlight", label: "高亮", icon: "🖍" },
-  { k: "Underline", label: "下划线", icon: "U̲" },
-  { k: "Strikeout", label: "删除线", icon: "S̶" },
-  { k: "StickyNote", label: "便签", icon: "📝" },
-  { k: "FreeText", label: "文字框", icon: "T" },
-  { k: "Square", label: "矩形", icon: "▭" },
+const ANNOT_KINDS: { k: AnnotationKind; labelKey: string; icon: string }[] = [
+  { k: "Highlight", labelKey: "高亮", icon: "🖍" },
+  { k: "Underline", labelKey: "下划线", icon: "U̲" },
+  { k: "Strikeout", labelKey: "删除线", icon: "S̶" },
+  { k: "StickyNote", labelKey: "便签", icon: "📝" },
+  { k: "FreeText", labelKey: "文字框", icon: "T" },
+  { k: "Square", labelKey: "矩形", icon: "▭" },
 ];
 
 function EditPanel() {
@@ -624,6 +612,7 @@ function EditPanel() {
   const setCanRedo = useApp((s) => s.setCanRedo);
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
+  const t = useT();
 
   const [kind, setKind] = useState<AnnotationKind>("Highlight");
   const [color, setColor] = useState("#ffeb3b");
@@ -673,7 +662,8 @@ function EditPanel() {
       updatePages(info);
       markDirty(true);
       setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
-      pushToast("info", `已添加 ${ANNOT_KINDS.find((x) => x.k === kind)?.label ?? ""}`);
+      const kindLabel = ANNOT_KINDS.find((x) => x.k === kind)?.labelKey ?? "";
+      pushToast("info", t("已添加 {kind}", { kind: t(kindLabel) }));
       setContents("");
       await reload();
     } catch (e) {
@@ -701,14 +691,14 @@ function EditPanel() {
 
   const clearAll = async () => {
     if (docId === null) return;
-    if (!confirm(`清空当前页（${list.length} 个注释）？`)) return;
+    if (!confirm(t("清空当前页（{n} 个注释）？", { n: list.length }))) return;
     setBusy(true);
     try {
       const info = await clearAnnotations(docId, [currentPage]);
       updatePages(info);
       markDirty(true);
       setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
-      pushToast("info", "已清空当前页注释");
+      pushToast("info", t("已清空当前页注释"));
       await reload();
     } catch (e) {
       errorToast(e);
@@ -720,7 +710,10 @@ function EditPanel() {
   return (
     <div className="task-body">
       <p className="placeholder">
-        第 {currentPage + 1} / {pageCount || "?"} 页。点击下方按钮即可在页面顶部插入所选类型的注释。
+        {t("第 {n} / {total} 页。点击下方按钮即可在页面顶部插入所选类型的注释。", {
+          n: currentPage + 1,
+          total: pageCount || "?",
+        })}
       </p>
       <div className="annot-kinds">
         {ANNOT_KINDS.map((a) => (
@@ -728,11 +721,11 @@ function EditPanel() {
             key={a.k}
             className={kind === a.k ? "active" : ""}
             onClick={() => setKind(a.k)}
-            title={a.label}
+            title={t(a.labelKey)}
           >
             <span style={{ fontSize: 16 }}>{a.icon}</span>
             <br />
-            {a.label}
+            {t(a.labelKey)}
           </button>
         ))}
       </div>
@@ -742,7 +735,7 @@ function EditPanel() {
         kind === "FreeText" ||
         kind === "Square") && (
         <div className="form-row">
-          <label>颜色</label>
+          <label>{t("颜色")}</label>
           <input
             type="color"
             value={color}
@@ -752,12 +745,12 @@ function EditPanel() {
         </div>
       )}
       <div className="field">
-        <label>备注文本（可选）</label>
+        <label>{t("备注文本（可选）")}</label>
         <input
           type="text"
           value={contents}
           onChange={(e) => setContents(e.target.value)}
-          placeholder="如：此处需补充说明"
+          placeholder={t("如：此处需补充说明")}
         />
       </div>
       <div className="task-footer">
@@ -766,21 +759,21 @@ function EditPanel() {
           onClick={add}
           disabled={busy || docId === null}
         >
-          {busy ? "添加中…" : "添加到当前页"}
+          {busy ? t("添加中…") : t("添加到当前页")}
         </button>
       </div>
 
       <div className="annot-list-head">
-        <span>本页注释（{loading ? "…" : list.length}）</span>
+        <span>{t("本页注释（{n}）", { n: loading ? "…" : list.length })}</span>
         {list.length > 0 && (
           <button onClick={clearAll} disabled={busy} style={{ color: "var(--danger)" }}>
-            清空本页
+            {t("清空本页")}
           </button>
         )}
       </div>
       <div className="annot-list">
         {list.length === 0 && !loading && (
-          <p className="placeholder">本页还没有注释</p>
+          <p className="placeholder">{t("本页还没有注释")}</p>
         )}
         {list.map((a, i) => (
           <div key={i} className="annot-item">
@@ -790,12 +783,12 @@ function EditPanel() {
             />
             <span className="annot-kind">{a.kind}</span>
             <span className="annot-contents" title={a.contents}>
-              {a.contents || "（无文本）"}
+              {a.contents || t("（无文本）")}
             </span>
             <button
               onClick={() => remove(a.index)}
               disabled={busy}
-              title="删除"
+              title={t("删除")}
               style={{ color: "var(--danger)" }}
             >
               ✕
@@ -809,18 +802,18 @@ function EditPanel() {
 
 interface PermRow {
   key: keyof Omit<SecurityStatus, "handlerRevision">;
-  label: string;
+  labelKey: string;
 }
 
 const PERM_ROWS: PermRow[] = [
-  { key: "canPrintHighQuality", label: "高质量打印" },
-  { key: "canPrintLowQuality", label: "低质量打印" },
-  { key: "canModifyDocument", label: "修改文档内容" },
-  { key: "canExtractTextAndGraphics", label: "抽取文本与图形" },
-  { key: "canAddAnnotations", label: "添加或修改注释" },
-  { key: "canFillFormFields", label: "填写表单字段" },
-  { key: "canAssembleDocument", label: "组装文档（插页/旋转/删页等）" },
-  { key: "canCreateNewFormFields", label: "创建新表单字段" },
+  { key: "canPrintHighQuality", labelKey: "高质量打印" },
+  { key: "canPrintLowQuality", labelKey: "低质量打印" },
+  { key: "canModifyDocument", labelKey: "修改文档内容" },
+  { key: "canExtractTextAndGraphics", labelKey: "抽取文本与图形" },
+  { key: "canAddAnnotations", labelKey: "添加或修改注释" },
+  { key: "canFillFormFields", labelKey: "填写表单字段" },
+  { key: "canAssembleDocument", labelKey: "组装文档（插页/旋转/删页等）" },
+  { key: "canCreateNewFormFields", labelKey: "创建新表单字段" },
 ];
 
 function SecurityPanel() {
@@ -831,6 +824,7 @@ function SecurityPanel() {
   const setCanRedo = useApp((s) => s.setCanRedo);
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
+  const t = useT();
 
   const [status, setStatus] = useState<SecurityStatus | null>(null);
   const [loading, setLoading] = useState(false);
@@ -860,9 +854,9 @@ function SecurityPanel() {
   const onExportPlain = async () => {
     if (docId === null) return;
     const p = await save({
-      title: "导出明文副本",
+      title: t("导出明文副本"),
       defaultPath: "plain.pdf",
-      filters: [{ name: "PDF 文档", extensions: ["pdf"] }],
+      filters: [{ name: t("PDF 文档"), extensions: ["pdf"] }],
     });
     if (!p) return;
     setBusy(true);
@@ -873,7 +867,7 @@ function SecurityPanel() {
       updatePages(info);
       markDirty(true);
       setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
-      pushToast("info", `已导出明文副本：${p}`);
+      pushToast("info", t("已导出明文副本：{path}", { path: p }));
       await reload();
     } catch (e) {
       errorToast(e);
@@ -884,14 +878,14 @@ function SecurityPanel() {
 
   const onStripInMemory = async () => {
     if (docId === null) return;
-    if (!confirm("去除当前文档的密码/加密？文件需另存到磁盘生效。")) return;
+    if (!confirm(t("去除当前文档的密码/加密？文件需另存到磁盘生效。"))) return;
     setBusy(true);
     try {
       const info = await reloadPlain(docId);
       updatePages(info);
       markDirty(true);
       setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
-      pushToast("info", "已去除内存中的加密，请立即 Ctrl+S 另存");
+      pushToast("info", t("已去除内存中的加密，请立即 Ctrl+S 另存"));
       await reload();
     } catch (e) {
       errorToast(e);
@@ -903,19 +897,20 @@ function SecurityPanel() {
   return (
     <div className="task-body">
       <p className="placeholder">
-        pdfium-render 仅支持读取文档的加密状态与权限矩阵，不支持修改加密设置。
-        加密文档可以导出为明文副本，或在内存中去加密后另存为。
+        {t("pdfium-render 仅支持读取文档的加密状态与权限矩阵，不支持修改加密设置。加密文档可以导出为明文副本，或在内存中去加密后另存为。")}
       </p>
 
-      {loading && <p className="placeholder">加载中…</p>}
+      {loading && <p className="placeholder">{t("加载中…")}</p>}
       {status && (
         <>
           <div className="security-status">
-            <span className="security-status-label">加密状态</span>
+            <span className="security-status-label">{t("加密状态")}</span>
             <span
               className={`security-badge ${isProtected ? "protected" : "unprotected"}`}
             >
-              {isProtected ? `已加密（${status.handlerRevision}）` : "未加密"}
+              {isProtected
+                ? t("已加密（{handler}）", { handler: status.handlerRevision })
+                : t("未加密")}
             </span>
           </div>
 
@@ -925,8 +920,8 @@ function SecurityPanel() {
               return (
                 <div key={row.key} className="perm-row">
                   <span className={`perm-dot ${ok ? "ok" : "deny"}`} />
-                  <span className="perm-label">{row.label}</span>
-                  <span className="perm-result">{ok ? "允许" : "禁止"}</span>
+                  <span className="perm-label">{t(row.labelKey)}</span>
+                  <span className="perm-result">{ok ? t("允许") : t("禁止")}</span>
                 </div>
               );
             })}
@@ -938,7 +933,7 @@ function SecurityPanel() {
               onClick={onExportPlain}
               disabled={busy || docId === null}
             >
-              {busy ? "导出中…" : isProtected ? "导出明文副本" : "导出当前文档"}
+              {busy ? t("导出中…") : isProtected ? t("导出明文副本") : t("导出当前文档")}
             </button>
             {isProtected && (
               <button
@@ -946,7 +941,7 @@ function SecurityPanel() {
                 disabled={busy}
                 style={{ marginLeft: 6 }}
               >
-                在内存中去除加密
+                {t("在内存中去除加密")}
               </button>
             )}
           </div>
@@ -963,6 +958,7 @@ function ConvertPanel() {
   const selectedPages = useApp((s) => s.selectedPages);
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
+  const t = useT();
 
   const [mode, setMode] = useState<"pdf2img" | "img2pdf" | "office2pdf" | "ebook2pdf">("pdf2img");
   const [imgPaths, setImgPaths] = useState<string[]>([]);
@@ -1001,10 +997,10 @@ function ConvertPanel() {
     if (docId === null) return;
     const pages = effectivePages().filter((p) => p >= 0 && p < pageCount);
     if (pages.length === 0) {
-      pushToast("info", "请指定至少一页");
+      pushToast("info", t("请指定至少一页"));
       return;
     }
-    const outDir = await open({ title: "选择输出目录", directory: true });
+    const outDir = await open({ title: t("选择输出目录"), directory: true });
     if (typeof outDir !== "string") return;
     setBusy(true);
     try {
@@ -1013,7 +1009,7 @@ function ConvertPanel() {
         { pages, dpi, format },
         outDir,
       );
-      pushToast("info", `已导出 ${outputs.length} 张图片`);
+      pushToast("info", t("已导出 {n} 张图片", { n: outputs.length }));
     } catch (e) {
       errorToast(e);
     } finally {
@@ -1026,7 +1022,7 @@ function ConvertPanel() {
       multiple: true,
       filters: [
         {
-          name: "图片",
+          name: t("图片"),
           extensions: ["png", "jpg", "jpeg", "bmp", "webp"],
         },
       ],
@@ -1038,13 +1034,13 @@ function ConvertPanel() {
 
   const onImg2Pdf = async () => {
     if (imgPaths.length === 0) {
-      pushToast("info", "请添加至少一张图片");
+      pushToast("info", t("请添加至少一张图片"));
       return;
     }
     const outPath = await save({
-      title: "图片另存为 PDF",
+      title: t("图片另存为 PDF"),
       defaultPath: "images.pdf",
-      filters: [{ name: "PDF 文档", extensions: ["pdf"] }],
+      filters: [{ name: t("PDF 文档"), extensions: ["pdf"] }],
     });
     if (typeof outPath !== "string") return;
     setBusy(true);
@@ -1053,7 +1049,7 @@ function ConvertPanel() {
         { imagePaths: imgPaths, pageSize, layout },
         outPath,
       );
-      pushToast("info", `已生成 PDF：${p}（${imgPaths.length} 页）`);
+      pushToast("info", t("已生成 PDF：{path}（{n} 页）", { path: p, n: imgPaths.length }));
     } catch (e) {
       errorToast(e);
     } finally {
@@ -1071,7 +1067,7 @@ function ConvertPanel() {
             onChange={() => setMode("pdf2img")}
             style={{ display: "none" }}
           />
-          PDF → 图片
+          {t("PDF → 图片")}
         </label>
         <label className={`split-mode${mode === "img2pdf" ? " active" : ""}`}>
           <input
@@ -1080,7 +1076,7 @@ function ConvertPanel() {
             onChange={() => setMode("img2pdf")}
             style={{ display: "none" }}
           />
-          图片 → PDF
+          {t("图片 → PDF")}
         </label>
         <label className={`split-mode${mode === "office2pdf" ? " active" : ""}`}>
           <input
@@ -1089,7 +1085,7 @@ function ConvertPanel() {
             onChange={() => setMode("office2pdf")}
             style={{ display: "none" }}
           />
-          Office → PDF
+          {t("Office → PDF")}
         </label>
         <label className={`split-mode${mode === "ebook2pdf" ? " active" : ""}`}>
           <input
@@ -1098,38 +1094,38 @@ function ConvertPanel() {
             onChange={() => setMode("ebook2pdf")}
             style={{ display: "none" }}
           />
-          电子书 → PDF
+          {t("电子书 → PDF")}
         </label>
       </div>
 
       {mode === "pdf2img" ? (
         <>
           <div className="field">
-            <label>页码范围（留空 = 当前页，多个则逗号分隔，如 1,3,5-7）</label>
+            <label>{t("页码范围（留空 = 当前页，多个则逗号分隔，如 1,3,5-7）")}</label>
             <input
               type="text"
               value={pagesStr}
               onChange={(e) => setPagesStr(e.target.value)}
-              placeholder={`第 ${currentPage + 1} 页`}
+              placeholder={t("第 {n} 页", { n: currentPage + 1 })}
             />
             {selectedPages.size > 0 && (
               <p className="placeholder" style={{ marginTop: 4 }}>
-                已选中 {selectedPages.size} 页，留空将导出这些页
+                {t("已选中 {n} 页，留空将导出这些页", { n: selectedPages.size })}
               </p>
             )}
           </div>
           <div className="form-row">
-            <label>格式</label>
+            <label>{t("格式")}</label>
             <select
               value={format}
               onChange={(e) => setFormat(e.target.value as "png" | "jpeg")}
             >
-              <option value="png">PNG（无损）</option>
-              <option value="jpeg">JPEG（体积小）</option>
+              <option value="png">{t("PNG（无损）")}</option>
+              <option value="jpeg">{t("JPEG（体积小）")}</option>
             </select>
           </div>
           <div className="form-row">
-            <label>DPI</label>
+            <label>{t("DPI")}</label>
             <input
               type="number"
               min={36}
@@ -1140,7 +1136,7 @@ function ConvertPanel() {
               }
               style={{ width: 80 }}
             />
-            <label>（36–600）</label>
+            <label>{t("（36–600）")}</label>
           </div>
           <div className="task-footer">
             <button
@@ -1148,7 +1144,7 @@ function ConvertPanel() {
               onClick={onPdf2Img}
               disabled={busy || docId === null}
             >
-              {busy ? "导出中…" : "导出图片"}
+              {busy ? t("导出中…") : t("导出图片")}
             </button>
           </div>
         </>
@@ -1156,7 +1152,7 @@ function ConvertPanel() {
         <>
           <div className="merge-output">
             <button onClick={addImages} disabled={busy}>
-              添加图片…
+              {t("添加图片…")}
             </button>
             <span
               className="merge-output-path"
@@ -1164,37 +1160,37 @@ function ConvertPanel() {
               title={imgPaths.join("\n")}
             >
               {imgPaths.length > 0
-                ? `已选 ${imgPaths.length} 张`
-                : "未选择"}
+                ? t("已选 {n} 张", { n: imgPaths.length })
+                : t("未选择")}
             </span>
             {imgPaths.length > 0 && (
               <button onClick={() => setImgPaths([])} disabled={busy}>
-                清空
+                {t("清空")}
               </button>
             )}
           </div>
           <div className="form-row">
-            <label>页面尺寸</label>
+            <label>{t("页面尺寸")}</label>
             <select
               value={pageSize}
               onChange={(e) =>
                 setPageSize(e.target.value as "fit" | "a4" | "letter" | "auto")
               }
             >
-              <option value="fit">按图片（每页不同）</option>
-              <option value="a4">统一 A4</option>
-              <option value="letter">统一 Letter</option>
-              <option value="auto">取最大</option>
+              <option value="fit">{t("按图片（每页不同）")}</option>
+              <option value="a4">{t("统一 A4")}</option>
+              <option value="letter">{t("统一 Letter")}</option>
+              <option value="auto">{t("取最大")}</option>
             </select>
           </div>
           <div className="form-row">
-            <label>布局</label>
+            <label>{t("布局")}</label>
             <select
               value={layout}
               onChange={(e) => setLayout(e.target.value as "fit" | "fill")}
             >
-              <option value="fit">按比例居中（推荐）</option>
-              <option value="fill">拉伸铺满</option>
+              <option value="fit">{t("按比例居中（推荐）")}</option>
+              <option value="fill">{t("拉伸铺满")}</option>
             </select>
           </div>
           <div className="task-footer">
@@ -1203,18 +1199,18 @@ function ConvertPanel() {
               onClick={onImg2Pdf}
               disabled={busy || imgPaths.length === 0}
             >
-              {busy ? "生成中…" : "生成 PDF"}
+              {busy ? t("生成中…") : t("生成 PDF")}
             </button>
           </div>
         </>
       )}
 
       {mode === "office2pdf" && (
-        <Office2PdfSection busy={busy} setBusy={setBusy} pushToast={pushToast} errorToast={errorToast} />
+        <Office2PdfSection busy={busy} setBusy={setBusy} pushToast={pushToast} errorToast={errorToast} t={t} />
       )}
 
       {mode === "ebook2pdf" && (
-        <Ebook2PdfSection busy={busy} setBusy={setBusy} pushToast={pushToast} errorToast={errorToast} />
+        <Ebook2PdfSection busy={busy} setBusy={setBusy} pushToast={pushToast} errorToast={errorToast} t={t} />
       )}
     </div>
   );
@@ -1225,11 +1221,13 @@ function Office2PdfSection({
   setBusy,
   pushToast,
   errorToast,
+  t,
 }: {
   busy: boolean;
   setBusy: (b: boolean) => void;
   pushToast: (k: "info" | "error", msg: string) => void;
   errorToast: (e: unknown) => void;
+  t: (zh: string, vars?: Record<string, string | number>) => string;
 }) {
   const [probe, setProbe] = useState<OfficeProbe | null>(null);
   const [probing, setProbing] = useState(false);
@@ -1252,7 +1250,7 @@ function Office2PdfSection({
       multiple: false,
       filters: [
         {
-          name: "Office 文档",
+          name: t("Office 文档"),
           extensions: ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp", "rtf"],
         },
       ],
@@ -1265,15 +1263,15 @@ function Office2PdfSection({
 
   const convert = async () => {
     if (!probe?.installed || !probe.path || !src) {
-      pushToast("info", "请先探测 LibreOffice 并选择源文件");
+      pushToast("info", t("请先探测 LibreOffice 并选择源文件"));
       return;
     }
-    const outDir = await open({ title: "选择输出目录", directory: true });
+    const outDir = await open({ title: t("选择输出目录"), directory: true });
     if (typeof outDir !== "string") return;
     setBusy(true);
     try {
       const p = await convertOfficeToPdf(probe.path, src, outDir);
-      pushToast("info", `已生成 PDF：${p}`);
+      pushToast("info", t("已生成 PDF：{path}", { path: p }));
     } catch (e) {
       errorToast(e);
     } finally {
@@ -1285,7 +1283,7 @@ function Office2PdfSection({
     <>
       <div className="merge-output">
         <button onClick={runProbe} disabled={probing || busy}>
-          {probing ? "探测中…" : probe ? "重新探测" : "探测 LibreOffice"}
+          {probing ? t("探测中…") : probe ? t("重新探测") : t("探测 LibreOffice")}
         </button>
         {probe && (
           probe.installed ? (
@@ -1293,28 +1291,28 @@ function Office2PdfSection({
               className="merge-output-path"
               title={probe.path ?? undefined}
             >
-              ✓ {probe.version ?? "已安装"}
+              ✓ {probe.version ?? t("已安装")}
             </span>
           ) : (
             <span
               className="merge-output-path"
               style={{ color: "var(--danger)" }}
             >
-              未安装 LibreOffice，请先下载安装（libreoffice.org）
+              {t("未安装 LibreOffice，请先下载安装（libreoffice.org）")}
             </span>
           )
         )}
       </div>
       <div className="merge-output">
         <button onClick={pickFile} disabled={busy}>
-          选择 Office 文件…
+          {t("选择 Office 文件…")}
         </button>
         <span
           className="merge-output-path"
           title={src ?? undefined}
           style={src ? undefined : { color: "var(--fg-dim)" }}
         >
-          {srcName || "未选择"}
+          {srcName || t("未选择")}
         </span>
         {src && (
           <button onClick={() => { setSrc(null); setSrcName(""); }} disabled={busy}>
@@ -1323,8 +1321,7 @@ function Office2PdfSection({
         )}
       </div>
       <p className="placeholder" style={{ marginTop: 8, fontSize: 11 }}>
-        支持 .doc / .docx / .xls / .xlsx / .ppt / .pptx / .odt / .ods / .odp / .rtf
-        转换为 PDF。PDF → Office 不支持（请使用专业工具）。
+        {t("支持 .doc / .docx / .xls / .xlsx / .ppt / .pptx / .odt / .ods / .odp / .rtf 转换为 PDF。PDF → Office 不支持（请使用专业工具）。")}
       </p>
       <div className="task-footer">
         <button
@@ -1332,7 +1329,7 @@ function Office2PdfSection({
           onClick={convert}
           disabled={busy || !probe?.installed || !src}
         >
-          {busy ? "转换中…" : "转换为 PDF"}
+          {busy ? t("转换中…") : t("转换为 PDF")}
         </button>
       </div>
     </>
@@ -1344,11 +1341,13 @@ function Ebook2PdfSection({
   setBusy,
   pushToast,
   errorToast,
+  t,
 }: {
   busy: boolean;
   setBusy: (b: boolean) => void;
   pushToast: (k: "info" | "error", msg: string) => void;
   errorToast: (e: unknown) => void;
+  t: (zh: string, vars?: Record<string, string | number>) => string;
 }) {
   const [probe, setProbe] = useState<EbookToolProbe | null>(null);
   const [probing, setProbing] = useState(false);
@@ -1373,7 +1372,7 @@ function Ebook2PdfSection({
       multiple: false,
       filters: [
         {
-          name: "电子书",
+          name: t("电子书"),
           extensions: [
             "epub", "mobi", "azw", "azw3", "fb2", "lit",
             "html", "htm", "rtf", "odt", "docx", "txt",
@@ -1389,13 +1388,13 @@ function Ebook2PdfSection({
 
   const convert = async () => {
     if (!probe?.installed || !probe.path || !src) {
-      pushToast("info", "请先探测 Calibre 并选择源文件");
+      pushToast("info", t("请先探测 Calibre 并选择源文件"));
       return;
     }
     const outPath = await save({
-      title: "电子书另存为 PDF",
+      title: t("电子书另存为 PDF"),
       defaultPath: "ebook.pdf",
-      filters: [{ name: "PDF 文档", extensions: ["pdf"] }],
+      filters: [{ name: t("PDF 文档"), extensions: ["pdf"] }],
     });
     if (typeof outPath !== "string") return;
     setBusy(true);
@@ -1406,7 +1405,7 @@ function Ebook2PdfSection({
         title: title.trim() || null,
         author: author.trim() || null,
       });
-      pushToast("info", `已生成 PDF：${p}`);
+      pushToast("info", t("已生成 PDF：{path}", { path: p }));
     } catch (e) {
       errorToast(e);
     } finally {
@@ -1418,29 +1417,29 @@ function Ebook2PdfSection({
     <>
       <div className="merge-output">
         <button onClick={runProbe} disabled={probing || busy}>
-          {probing ? "探测中…" : probe ? "重新探测" : "探测 Calibre"}
+          {probing ? t("探测中…") : probe ? t("重新探测") : t("探测 Calibre")}
         </button>
         {probe &&
           (probe.installed ? (
             <span className="merge-output-path" title={probe.path ?? undefined}>
-              ✓ {probe.version ?? "已安装"}
+              ✓ {probe.version ?? t("已安装")}
             </span>
           ) : (
             <span className="merge-output-path" style={{ color: "var(--danger)" }}>
-              未安装 Calibre，请先下载安装（calibre-ebook.com）
+              {t("未安装 Calibre，请先下载安装（calibre-ebook.com）")}
             </span>
           ))}
       </div>
       <div className="merge-output">
         <button onClick={pickFile} disabled={busy}>
-          选择电子书…
+          {t("选择电子书…")}
         </button>
         <span
           className="merge-output-path"
           title={src ?? undefined}
           style={src ? undefined : { color: "var(--fg-dim)" }}
         >
-          {srcName || "未选择"}
+          {srcName || t("未选择")}
         </span>
         {src && (
           <button
@@ -1455,26 +1454,25 @@ function Ebook2PdfSection({
         )}
       </div>
       <div className="form-row">
-        <label>标题</label>
+        <label>{t("标题")}</label>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="可选，写入 PDF 元数据"
+          placeholder={t("可选，写入 PDF 元数据")}
         />
       </div>
       <div className="form-row">
-        <label>作者</label>
+        <label>{t("作者")}</label>
         <input
           type="text"
           value={author}
           onChange={(e) => setAuthor(e.target.value)}
-          placeholder="可选，写入 PDF 元数据"
+          placeholder={t("可选，写入 PDF 元数据")}
         />
       </div>
       <p className="placeholder" style={{ marginTop: 8, fontSize: 11 }}>
-        支持 EPUB / MOBI / AZW / AZW3 / FB2 / LIT / HTML / RTF / ODT / DOCX / TXT
-        转换为 PDF。需本机安装 Calibre（含 ebook-convert）。
+        {t("支持 EPUB / MOBI / AZW / AZW3 / FB2 / LIT / HTML / RTF / ODT / DOCX / TXT 转换为 PDF。需本机安装 Calibre（含 ebook-convert）。")}
       </p>
       <div className="task-footer">
         <button
@@ -1482,7 +1480,7 @@ function Ebook2PdfSection({
           onClick={convert}
           disabled={busy || !probe?.installed || !src}
         >
-          {busy ? "转换中…" : "转换为 PDF"}
+          {busy ? t("转换中…") : t("转换为 PDF")}
         </button>
       </div>
     </>
@@ -1492,6 +1490,25 @@ function Ebook2PdfSection({
 export default function TaskPanel() {
   const task = useApp((s) => s.task);
   const closeTask = useApp((s) => s.closeTask);
+  const t = useT();
+
+  const TITLES: Record<Exclude<TaskId, null>, string> = {
+    merge: t("合并文档"),
+    split: t("拆分文档"),
+    watermark: t("水印"),
+    edit: t("内容编辑"),
+    security: t("文档安全"),
+    export: t("导出图片"),
+  };
+
+  const DESC: Record<Exclude<TaskId, null>, string> = {
+    merge: t("将多个 PDF 按顺序合并为一个文档，可对每个文件选择页码范围。"),
+    split: t("按固定页数、自定义范围或书签层级，将文档拆分为多个文件。"),
+    watermark: t("为页面添加文字或图片水印，支持位置、透明度与平铺。"),
+    edit: t("为当前页添加 PDF 注释：高亮、下划线、删除线、便签、自由文本框、矩形标注。"),
+    security: t("查看文档加密状态与权限矩阵；导出明文副本或在内存中去除加密后另存。"),
+    export: t("PDF 与图片互转：PDF → PNG/JPEG（按页可调 DPI）；PNG/JPG/JPEG/BMP/WebP → PDF（多图合并）。"),
+  };
 
   if (task === null) return null;
 
@@ -1499,7 +1516,7 @@ export default function TaskPanel() {
     <aside className="task">
       <h3>
         <span>{TITLES[task]}</span>
-        <button title="关闭面板" onClick={closeTask}>
+        <button title={t("关闭面板")} onClick={closeTask}>
           ✕
         </button>
       </h3>
@@ -1514,7 +1531,7 @@ export default function TaskPanel() {
           <>
             <p className="placeholder">{DESC[task]}</p>
             <p className="placeholder" style={{ marginTop: 12 }}>
-              该功能将在后续里程碑（M4–M6）中交付。
+              {t("该功能将在后续里程碑（M4–M6）中交付。")}
             </p>
           </>
         )}
