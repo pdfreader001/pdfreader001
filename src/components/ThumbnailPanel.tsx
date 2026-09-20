@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../state/store";
 import { thumbCache, thumbKey } from "../lib/bitmapCache";
 import {
   renderThumbnail,
   canUndo,
+  canRedo,
   rotatePages,
   deletePages,
   duplicatePages,
@@ -108,6 +109,7 @@ export default function ThumbnailPanel() {
   const jumpToPage = useApp((s) => s.jumpToPage);
   const updatePages = useApp((s) => s.updatePages);
   const setCanUndo = useApp((s) => s.setCanUndo);
+  const setCanRedo = useApp((s) => s.setCanRedo);
   const markDirty = useApp((s) => s.markDirty);
   const errorToast = useApp((s) => s.errorToast);
   const pushToast = useApp((s) => s.pushToast);
@@ -166,7 +168,7 @@ export default function ThumbnailPanel() {
       const info = await rotatePages(docId, pages, delta);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId));
+      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
       pushToast("info", `已旋转 ${pages.length} 页`);
     } catch (e) {
       errorToast(e);
@@ -183,7 +185,7 @@ export default function ThumbnailPanel() {
       updatePages(info);
       markDirty(true);
       clearSelection();
-      setCanUndo(await canUndo(docId));
+      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
       pushToast("info", `已删除 ${pages.length} 页`);
     } catch (e) {
       errorToast(e);
@@ -199,7 +201,7 @@ export default function ThumbnailPanel() {
       const info = await duplicatePages(docId, pages, dest);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId));
+      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
       pushToast("info", `已复制 ${pages.length} 页`);
     } catch (e) {
       errorToast(e);
@@ -217,7 +219,7 @@ export default function ThumbnailPanel() {
       const info = await insertBlankPage(docId, atIndex, width, height);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId));
+      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
       pushToast("info", "已插入空白页");
     } catch (e) {
       errorToast(e);
@@ -271,7 +273,7 @@ export default function ThumbnailPanel() {
       const info = await reorderPages(docId, indices, toIndex);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId));
+      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
       pushToast("info", `已移动 ${indices.length} 页`);
     } catch (err) {
       errorToast(err);
@@ -356,3 +358,5 @@ export default function ThumbnailPanel() {
     </div>
   );
 }
+
+

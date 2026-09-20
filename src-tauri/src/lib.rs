@@ -23,6 +23,8 @@ pub fn run() {
             document::save_document,
             document::undo_document,
             document::can_undo,
+            document::redo_document,
+            document::can_redo,
             render::render_page,
             render::render_thumbnail,
             render::get_page_text,

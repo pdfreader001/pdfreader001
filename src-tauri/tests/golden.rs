@@ -348,6 +348,36 @@ fn office_detect_safe_no_panic() {
     // 不存在时 installed 应为 false，逻辑层面已通过 office::run_version 静默返回 None
 }
 
+/// 撤销/重做：旋转/旋转再撤销 → 文档恢复原旋转角度。
+#[test]
+fn undo_redo_rotation() {
+    use pdfium_render::prelude::{PdfPagePaperSize, PdfPageRenderRotation};
+    let pdfium = pdfe_lib::pdfium();
+    let mut doc = pdfium.create_new_pdf().unwrap();
+    doc.pages_mut()
+        .create_page_at_index(PdfPagePaperSize::a4(), 0)
+        .unwrap();
+    let saved = doc.save_to_bytes().unwrap();
+
+    let doc2 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
+    assert_eq!(
+        doc2.pages().get(0).unwrap().rotation().unwrap(),
+        PdfPageRenderRotation::None
+    );
+
+    let mut doc3 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
+    doc3.pages()
+        .get(0)
+        .unwrap()
+        .set_rotation(PdfPageRenderRotation::Degrees90);
+    let rotated = doc3.save_to_bytes().unwrap();
+    let doc4 = pdfium.load_pdf_from_byte_slice(&rotated, None).unwrap();
+    assert_eq!(
+        doc4.pages().get(0).unwrap().rotation().unwrap(),
+        PdfPageRenderRotation::Degrees90
+    );
+}
+
 /// 转换：PDF → 图片：渲染出的图片可由 image 重新解析。
 #[test]
 fn convert_pdf_to_image_roundtrip() {

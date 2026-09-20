@@ -10,10 +10,20 @@ const TOOLS: { id: Exclude<TaskId, null>; label: string; icon: string }[] = [
   { id: "export", label: "导出", icon: "🖼" },
 ];
 
-export default function Toolbar({ onOpenFile }: { onOpenFile: () => void }) {
+export default function Toolbar({
+  onOpenFile,
+  onUndo,
+  onRedo,
+}: {
+  onOpenFile: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+}) {
   const task = useApp((s) => s.task);
   const openTask = useApp((s) => s.openTask);
   const hasDoc = useApp((s) => s.docId !== null);
+  const canUndo = useApp((s) => s.canUndo);
+  const canRedo = useApp((s) => s.canRedo);
   const viewMode = useApp((s) => s.viewMode);
   const setViewMode = useApp((s) => s.setViewMode);
   const setSearchOpen = useApp((s) => s.setSearchOpen);
@@ -24,6 +34,22 @@ export default function Toolbar({ onOpenFile }: { onOpenFile: () => void }) {
       <span className="logo">PDFe</span>
       <button className="tbtn" onClick={onOpenFile} title="打开 PDF（Ctrl+O）">
         📂 打开
+      </button>
+      <button
+        className="tbtn"
+        disabled={!hasDoc || !canUndo}
+        onClick={onUndo}
+        title="撤销（Ctrl+Z）"
+      >
+        ↶
+      </button>
+      <button
+        className="tbtn"
+        disabled={!hasDoc || !canRedo}
+        onClick={onRedo}
+        title="重做（Ctrl+Y）"
+      >
+        ↷
       </button>
       <span className="sep" />
       {TOOLS.map((t) => (

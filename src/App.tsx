@@ -8,6 +8,8 @@ import {
   saveDocument,
   undoDocument,
   canUndo,
+  redoDocument,
+  canRedo,
   getBookmarks,
 } from "./lib/ipc";
 import type { BookmarkNode } from "./lib/ipc";
@@ -228,6 +230,7 @@ export default function App() {
         if (pos) st.jumpToPage(pos.page);
         st.pushToast("info", `已打开 ${info.fileName}（${info.pageCount} 页）`);
         canUndo(info.docId).then(st.setCanUndo).catch(() => {});
+        canRedo(info.docId).then(st.setCanRedo).catch(() => {});
       } catch (e) {
         if (isApiError(e) && e.code === "password") {
           setPwdPath(path);
@@ -268,10 +271,34 @@ export default function App() {
       const info = await undoDocument(st.docId);
       st.updatePages(info);
       st.setCanUndo(await canUndo(st.docId));
+      st.setCanRedo(await canRedo(st.docId));
       st.pushToast("info", "已撤销");
     } catch (e) {
       st.errorToast(e);
     }
+  }, []);
+
+  const onRedo = useCallback(async () => {
+    const st = useApp.getState();
+    if (st.docId === null) return;
+    try {
+      const info = await redoDocument(st.docId);
+      st.updatePages(info);
+      st.setCanUndo(await canUndo(st.docId));
+      st.setCanRedo(await canRedo(st.docId));
+      st.pushToast("info", "已重做");
+    } catch (e) {
+      st.errorToast(e);
+    }
+  }, []);
+
+  const zoomBy = useCallback((factor: number) => {
+    const st = useApp.getState();
+    st.setScale(st.scale * factor);
+  }, []);
+
+  const resetZoom = useCallback(() => {
+    useApp.getState().setFitMode("width");
   }, []);
 
   // 快捷键
@@ -279,29 +306,61 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "o") {
+      const mod = e.ctrlKey || e.metaKey;
+      const st = useApp.getState();
+      if (mod && e.key.toLowerCase() === "o") {
         e.preventDefault();
         onOpenFile();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      } else if (mod && e.key.toLowerCase() === "s") {
         e.preventDefault();
         onSave();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
+      } else if (mod && e.key.toLowerCase() === "f") {
         e.preventDefault();
-        useApp.getState().setSearchOpen(true);
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        st.setSearchOpen(true);
+      } else if (mod && e.key.toLowerCase() === "z") {
         e.preventDefault();
         onUndo();
+      } else if (mod && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) {
+        // Ctrl+Y 或 Ctrl+Shift+Z 都触发重做
+        e.preventDefault();
+        onRedo();
+      } else if (mod && e.key === "0") {
+        e.preventDefault();
+        resetZoom();
+      } else if (mod && (e.key === "=" || e.key === "+")) {
+        e.preventDefault();
+        zoomBy(1.2);
+      } else if (mod && e.key === "-") {
+        e.preventDefault();
+        zoomBy(1 / 1.2);
       } else if (e.key === "PageDown") {
         e.preventDefault();
-        useApp.getState().jumpToPage(useApp.getState().currentPage + 1);
+        st.jumpToPage(st.currentPage + 1);
       } else if (e.key === "PageUp") {
         e.preventDefault();
-        useApp.getState().jumpToPage(useApp.getState().currentPage - 1);
+        st.jumpToPage(st.currentPage - 1);
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        st.jumpToPage(0);
+      } else if (e.key === "End") {
+        e.preventDefault();
+        st.jumpToPage(Math.max(0, st.pageCount - 1));
+      } else if (e.key === "Escape") {
+        // 关闭搜索/任务面板
+        st.setSearchOpen(false);
+        st.closeTask();
+      } else if (e.key === "F3") {
+        e.preventDefault();
+        st.setSearchOpen(true);
+      } else if (mod && e.key === "g") {
+        // 切换左面板可见性
+        e.preventDefault();
+        st.toggleLeft();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onOpenFile, onSave, onUndo]);
+  }, [onOpenFile, onSave, onUndo, onRedo, zoomBy, resetZoom]);
 
   // 阅读位置记忆（节流保存）
   useEffect(() => {
@@ -326,7 +385,7 @@ export default function App() {
 
   return (
     <div className={`shell${leftVisible ? "" : " no-left"}`}>
-      <Toolbar onOpenFile={onOpenFile} />
+      <Toolbar onOpenFile={onOpenFile} onUndo={onUndo} onRedo={onRedo} />
       <Rail />
       <LeftPanel />
       {docId !== null ? (

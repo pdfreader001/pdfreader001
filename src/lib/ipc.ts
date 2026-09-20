@@ -53,6 +53,14 @@ export function canUndo(docId: number): Promise<boolean> {
   return invoke<boolean>("can_undo", { docId });
 }
 
+export function redoDocument(docId: number): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("redo_document", { docId });
+}
+
+export function canRedo(docId: number): Promise<boolean> {
+  return invoke<boolean>("can_redo", { docId });
+}
+
 export function getPageText(docId: number, pageIndex: number): Promise<string> {
   return invoke<string>("get_page_text", { docId, pageIndex });
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../state/store";
 import type { TaskId } from "../state/store";
@@ -6,6 +6,7 @@ import {
   mergeDocuments,
   splitDocument,
   canUndo,
+  canRedo,
   addTextWatermark,
   addImageWatermark,
   addAnnotation,
@@ -360,6 +361,7 @@ function WatermarkPanel() {
   const updatePages = useApp((s) => s.updatePages);
   const markDirty = useApp((s) => s.markDirty);
   const setCanUndo = useApp((s) => s.setCanUndo);
+  const setCanRedo = useApp((s) => s.setCanRedo);
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
   const closeTask = useApp((s) => s.closeTask);
@@ -415,7 +417,7 @@ function WatermarkPanel() {
             });
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId));
+      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
       pushToast("info", `已为 ${pages.length} 页添加水印`);
       closeTask();
     } catch (e) {
@@ -616,6 +618,7 @@ function EditPanel() {
   const updatePages = useApp((s) => s.updatePages);
   const markDirty = useApp((s) => s.markDirty);
   const setCanUndo = useApp((s) => s.setCanUndo);
+  const setCanRedo = useApp((s) => s.setCanRedo);
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
 
@@ -666,7 +669,7 @@ function EditPanel() {
       });
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId));
+      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
       pushToast("info", `已添加 ${ANNOT_KINDS.find((x) => x.k === kind)?.label ?? ""}`);
       setContents("");
       await reload();
@@ -684,7 +687,7 @@ function EditPanel() {
       const info = await deleteAnnotation(docId, currentPage, idx);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId));
+      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
       await reload();
     } catch (e) {
       errorToast(e);
@@ -701,7 +704,7 @@ function EditPanel() {
       const info = await clearAnnotations(docId, [currentPage]);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId));
+      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
       pushToast("info", "已清空当前页注释");
       await reload();
     } catch (e) {
@@ -822,6 +825,7 @@ function SecurityPanel() {
   const updatePages = useApp((s) => s.updatePages);
   const markDirty = useApp((s) => s.markDirty);
   const setCanUndo = useApp((s) => s.setCanUndo);
+  const setCanRedo = useApp((s) => s.setCanRedo);
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
 
@@ -865,7 +869,7 @@ function SecurityPanel() {
       const info = await reloadPlain(docId);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId));
+      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
       pushToast("info", `已导出明文副本：${p}`);
       await reload();
     } catch (e) {
@@ -883,7 +887,7 @@ function SecurityPanel() {
       const info = await reloadPlain(docId);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId));
+      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
       pushToast("info", "已去除内存中的加密，请立即 Ctrl+S 另存");
       await reload();
     } catch (e) {
@@ -1352,3 +1356,5 @@ export default function TaskPanel() {
     </aside>
   );
 }
+
+

@@ -30,6 +30,7 @@ interface AppState {
   pages: PageInfo[];
   dirty: boolean;
   canUndo: boolean;
+  canRedo: boolean;
   loading: boolean;
   /** 页面内容版本号（水印/旋转等修改后自增，触发画布重渲） */
   renderRevision: number;
@@ -92,6 +93,7 @@ interface AppState {
   clearSelection: () => void;
   markDirty: (b: boolean) => void;
   setCanUndo: (b: boolean) => void;
+  setCanRedo: (b: boolean) => void;
   setLoading: (b: boolean) => void;
   setBookmarks: (b: BookmarkNode[]) => void;
   setBookmarksLoading: (b: boolean) => void;
@@ -134,6 +136,7 @@ export const useApp = create<AppState>((set, get) => ({
   pages: [],
   dirty: false,
   canUndo: false,
+  canRedo: false,
   loading: false,
   renderRevision: 0,
 
@@ -196,6 +199,7 @@ export const useApp = create<AppState>((set, get) => ({
       pages: info.pages,
       dirty: false,
       canUndo: false,
+      canRedo: false,
       currentPage: 0,
       scrollTop: 0,
       selectedPages: new Set(),
@@ -249,6 +253,7 @@ export const useApp = create<AppState>((set, get) => ({
   clearSelection: () => set({ selectedPages: new Set(), thumbFocus: -1 }),
   markDirty: (b) => set({ dirty: b }),
   setCanUndo: (b) => set({ canUndo: b }),
+  setCanRedo: (b) => set({ canRedo: b }),
   setLoading: (b) => set({ loading: b }),
   setBookmarks: (b) => set({ bookmarks: b }),
   setBookmarksLoading: (b) => set({ bookmarksLoading: b }),

@@ -58,11 +58,12 @@ pub(crate) struct DocEntry {
     pub(crate) path: Option<std::path::PathBuf>,
 }
 
-/// Tauri 托管状态：文档字节表 + 每文档撤销快照栈。
+/// Tauri 托管状态：文档字节表 + 每文档撤销/重做快照栈。
 #[derive(Default)]
 pub struct AppState {
     pub(crate) docs: Mutex<HashMap<u64, DocEntry>>,
     pub(crate) undo: Mutex<HashMap<u64, Vec<Vec<u8>>>>,
+    pub(crate) redo: Mutex<HashMap<u64, Vec<Vec<u8>>>>,
     next_id: std::sync::atomic::AtomicU64,
 }
 
@@ -210,15 +211,31 @@ pub fn atomic_write(target: &Path, bytes: &[u8]) -> AppResult<()> {
     Ok(())
 }
 
-/// 修改文档前调用：压入当前快照。
+/// 修改文档前调用：压入当前快照，并清空 redo 栈（标准撤销/重做语义）。
 pub fn push_snapshot(state: &AppState, doc_id: u64) {
     let docs = state.docs.lock().unwrap();
     let Some(entry) = docs.get(&doc_id) else {
         return;
     };
+    push_snapshot_inner(state, doc_id, entry.bytes.clone());
+    drop(docs);
+    // 一旦有新的修改，redo 栈失效
+    state.redo.lock().unwrap().remove(&doc_id);
+}
+
+pub(crate) fn push_snapshot_inner(state: &AppState, doc_id: u64, bytes: Vec<u8>) {
     let mut undo = state.undo.lock().unwrap();
     let stack = undo.entry(doc_id).or_default();
-    stack.push(entry.bytes.clone());
+    stack.push(bytes);
+    if stack.len() > UNDO_LIMIT {
+        stack.remove(0);
+    }
+}
+
+pub(crate) fn push_redo_snapshot(state: &AppState, doc_id: u64, bytes: Vec<u8>) {
+    let mut redo = state.redo.lock().unwrap();
+    let stack = redo.entry(doc_id).or_default();
+    stack.push(bytes);
     if stack.len() > UNDO_LIMIT {
         stack.remove(0);
     }
@@ -237,6 +254,30 @@ pub async fn undo_document(state: State<'_, AppState>, doc_id: u64) -> AppResult
         };
         snap
     };
+    // 把撤销前的当前 bytes 推入 redo 栈
+    push_redo_snapshot(&state, doc_id, snapshot.clone());
+    let mut docs = state.docs.lock().unwrap();
+    let entry = docs.get_mut(&doc_id).ok_or(AppError::NotFound)?;
+    entry.bytes = snapshot;
+    let (count, pages) = inspect(&entry.bytes, None)?;
+    Ok(build_info(doc_id, entry, count, pages))
+}
+
+/// 重做一步（撤销的反向操作）
+#[tauri::command]
+pub async fn redo_document(state: State<'_, AppState>, doc_id: u64) -> AppResult<DocumentInfo> {
+    let snapshot = {
+        let mut redo = state.redo.lock().unwrap();
+        let Some(stack) = redo.get_mut(&doc_id) else {
+            return Err(AppError::Internal("没有可重做的操作".into()));
+        };
+        let Some(snap) = stack.pop() else {
+            return Err(AppError::Internal("没有可重做的操作".into()));
+        };
+        snap
+    };
+    // 把当前 bytes 推回 undo 栈（保证再撤销仍可用）
+    push_snapshot_inner(&state, doc_id, snapshot.clone());
     let mut docs = state.docs.lock().unwrap();
     let entry = docs.get_mut(&doc_id).ok_or(AppError::NotFound)?;
     entry.bytes = snapshot;
@@ -249,4 +290,11 @@ pub async fn undo_document(state: State<'_, AppState>, doc_id: u64) -> AppResult
 pub async fn can_undo(state: State<'_, AppState>, doc_id: u64) -> AppResult<bool> {
     let undo = state.undo.lock().unwrap();
     Ok(undo.get(&doc_id).map(|s| !s.is_empty()).unwrap_or(false))
+}
+
+/// 是否可重做。
+#[tauri::command]
+pub async fn can_redo(state: State<'_, AppState>, doc_id: u64) -> AppResult<bool> {
+    let redo = state.redo.lock().unwrap();
+    Ok(redo.get(&doc_id).map(|s| !s.is_empty()).unwrap_or(false))
 }
