@@ -31,6 +31,8 @@ interface AppState {
   dirty: boolean;
   canUndo: boolean;
   loading: boolean;
+  /** 页面内容版本号（水印/旋转等修改后自增，触发画布重渲） */
+  renderRevision: number;
 
   // 视图
   viewMode: ViewMode;
@@ -133,6 +135,7 @@ export const useApp = create<AppState>((set, get) => ({
   dirty: false,
   canUndo: false,
   loading: false,
+  renderRevision: 0,
 
   viewMode: "continuous",
   fitMode: "width",
@@ -174,11 +177,12 @@ export const useApp = create<AppState>((set, get) => ({
   updatePages: (info) => {
     pageCache.clear();
     thumbCache.clear();
-    set({
+    set((s) => ({
       pageCount: info.pageCount,
       pages: info.pages,
       dirty: true,
-    });
+      renderRevision: s.renderRevision + 1,
+    }));
   },
 
   setDoc: (info, path) => {

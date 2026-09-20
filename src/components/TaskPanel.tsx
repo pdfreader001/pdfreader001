@@ -2,8 +2,8 @@ import { useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../state/store";
 import type { TaskId } from "../state/store";
-import { mergeDocuments, splitDocument, canUndo } from "../lib/ipc";
-import type { SplitMode } from "../lib/ipc";
+import { mergeDocuments, splitDocument, canUndo, addTextWatermark, addImageWatermark } from "../lib/ipc";
+import type { SplitMode, WatermarkStyle } from "../lib/ipc";
 
 const TITLES: Record<Exclude<TaskId, null>, string> = {
   merge: "合并文档",
@@ -317,6 +317,265 @@ function SplitPanel() {
   );
 }
 
+const POSITIONS: { k: string; label: string }[] = [
+  { k: "top-left", label: "◤" },
+  { k: "top-center", label: "▲" },
+  { k: "top-right", label: "◥" },
+  { k: "middle-left", label: "◀" },
+  { k: "center", label: "◉" },
+  { k: "middle-right", label: "▶" },
+  { k: "bottom-left", label: "◣" },
+  { k: "bottom-center", label: "▼" },
+  { k: "bottom-right", label: "◢" },
+];
+
+function WatermarkPanel() {
+  const docId = useApp((s) => s.docId);
+  const pageCount = useApp((s) => s.pageCount);
+  const selectedPages = useApp((s) => s.selectedPages);
+  const updatePages = useApp((s) => s.updatePages);
+  const markDirty = useApp((s) => s.markDirty);
+  const setCanUndo = useApp((s) => s.setCanUndo);
+  const pushToast = useApp((s) => s.pushToast);
+  const errorToast = useApp((s) => s.errorToast);
+  const closeTask = useApp((s) => s.closeTask);
+
+  const [kind, setKind] = useState<"text" | "image">("text");
+  const [text, setText] = useState("仅供内部使用");
+  const [fontSize, setFontSize] = useState(48);
+  const [color, setColor] = useState("#ff0000");
+  const [imagePath, setImagePath] = useState<string | null>(null);
+  const [imageName, setImageName] = useState("");
+  const [scale, setScale] = useState(30);
+  const [opacity, setOpacity] = useState(30);
+  const [rotation, setRotation] = useState(45);
+  const [position, setPosition] = useState("center");
+  const [tiled, setTiled] = useState(false);
+  const [tileSpacing, setTileSpacing] = useState(120);
+  const [onlySelected, setOnlySelected] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const pickImage = async () => {
+    const picked = await open({
+      multiple: false,
+      filters: [
+        { name: "图片", extensions: ["png", "jpg", "jpeg", "webp", "bmp"] },
+      ],
+    });
+    if (typeof picked === "string") {
+      setImagePath(picked);
+      setImageName(picked.split(/[\\/]/).pop() || picked);
+    }
+  };
+
+  const apply = async () => {
+    if (docId === null) return;
+    const pages =
+      onlySelected && selectedPages.size > 0
+        ? Array.from(selectedPages).sort((a, b) => a - b)
+        : Array.from({ length: pageCount }, (_, i) => i);
+    if (pages.length === 0) {
+      pushToast("info", "没有可应用的页面");
+      return;
+    }
+    const style: WatermarkStyle = { opacity, rotation, position, tiled, tileSpacing };
+    setBusy(true);
+    try {
+      const info =
+        kind === "text"
+          ? await addTextWatermark(docId, pages, { text, fontSize, color, style })
+          : await addImageWatermark(docId, pages, {
+              imagePath: imagePath as string,
+              scale: scale / 100,
+              style,
+            });
+      updatePages(info);
+      markDirty(true);
+      setCanUndo(await canUndo(docId));
+      pushToast("info", `已为 ${pages.length} 页添加水印`);
+      closeTask();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const valid = kind === "text" ? text.trim().length > 0 : imagePath !== null;
+
+  return (
+    <div className="task-body">
+      <div className="split-modes">
+        <label className={`split-mode${kind === "text" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={kind === "text"}
+            onChange={() => setKind("text")}
+            style={{ display: "none" }}
+          />
+          文字水印
+        </label>
+        <label className={`split-mode${kind === "image" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={kind === "image"}
+            onChange={() => setKind("image")}
+            style={{ display: "none" }}
+          />
+          图片水印
+        </label>
+      </div>
+
+      {kind === "text" ? (
+        <>
+          <div className="field">
+            <label>水印文字</label>
+            <input
+              type="text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="支持中文"
+            />
+          </div>
+          <div className="form-row">
+            <label>字号</label>
+            <input
+              type="number"
+              min={8}
+              max={200}
+              value={fontSize}
+              onChange={(e) =>
+                setFontSize(Math.min(200, Math.max(8, parseInt(e.target.value) || 48)))
+              }
+              style={{ width: 64 }}
+            />
+            <label>颜色</label>
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              style={{ width: 40, padding: 0, height: 28 }}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="form-row">
+            <button onClick={pickImage}>选择图片…</button>
+            <span className="merge-name" title={imagePath ?? undefined}>
+              {imageName || "未选择"}
+            </span>
+          </div>
+          <div className="form-row">
+            <label>宽度占页</label>
+            <input
+              type="number"
+              min={5}
+              max={100}
+              value={scale}
+              onChange={(e) =>
+                setScale(Math.min(100, Math.max(5, parseInt(e.target.value) || 30)))
+              }
+              style={{ width: 64 }}
+            />
+            <label>%</label>
+          </div>
+        </>
+      )}
+
+      <div className="form-row">
+        <label>透明度</label>
+        <input
+          type="range"
+          min={5}
+          max={100}
+          value={opacity}
+          onChange={(e) => setOpacity(parseInt(e.target.value))}
+          style={{ flex: 1 }}
+        />
+        <span style={{ width: 34, textAlign: "right", color: "var(--fg-dim)" }}>
+          {opacity}%
+        </span>
+      </div>
+      <div className="form-row">
+        <label>旋转角度</label>
+        <input
+          type="number"
+          min={-180}
+          max={180}
+          value={rotation}
+          onChange={(e) => setRotation(parseInt(e.target.value) || 0)}
+          style={{ width: 64 }}
+        />
+        <label>度（顺时针）</label>
+      </div>
+
+      <div className="field">
+        <label>位置</label>
+        <div className="pos-grid">
+          {POSITIONS.map((p) => (
+            <button
+              key={p.k}
+              className={position === p.k ? "active" : ""}
+              onClick={() => setPosition(p.k)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="form-row">
+        <label className="chk">
+          <input
+            type="checkbox"
+            checked={tiled}
+            onChange={(e) => setTiled(e.target.checked)}
+          />
+          平铺整页
+        </label>
+        {tiled && (
+          <>
+            <label>间距</label>
+            <input
+              type="number"
+              min={20}
+              max={600}
+              value={tileSpacing}
+              onChange={(e) =>
+                setTileSpacing(Math.max(20, parseInt(e.target.value) || 120))
+              }
+              style={{ width: 64 }}
+            />
+            <label>pt</label>
+          </>
+        )}
+      </div>
+
+      {selectedPages.size > 0 && (
+        <label className="chk">
+          <input
+            type="checkbox"
+            checked={onlySelected}
+            onChange={(e) => setOnlySelected(e.target.checked)}
+          />
+          仅应用到选中的 {selectedPages.size} 页
+        </label>
+      )}
+
+      <div className="task-footer">
+        <button
+          className="btn-primary"
+          onClick={apply}
+          disabled={busy || docId === null || !valid}
+        >
+          {busy ? "添加中…" : "添加水印"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function TaskPanel() {
   const task = useApp((s) => s.task);
   const closeTask = useApp((s) => s.closeTask);
@@ -334,7 +593,8 @@ export default function TaskPanel() {
       <div className="body">
         {task === "merge" && <MergePanel />}
         {task === "split" && <SplitPanel />}
-        {task !== "merge" && task !== "split" && (
+        {task === "watermark" && <WatermarkPanel />}
+        {task !== "merge" && task !== "split" && task !== "watermark" && (
           <>
             <p className="placeholder">{DESC[task]}</p>
             <p className="placeholder" style={{ marginTop: 12 }}>

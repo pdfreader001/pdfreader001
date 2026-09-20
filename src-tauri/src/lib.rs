@@ -2,6 +2,7 @@ pub mod document;
 pub mod error;
 pub mod pages;
 pub mod render;
+pub mod watermark;
 
 pub use document::pdfium;
 
@@ -29,7 +30,9 @@ pub fn run() {
             pages::extract_pages,
             pages::merge_documents,
             pages::split_document,
-            pages::get_bookmarks
+            pages::get_bookmarks,
+            watermark::add_text_watermark,
+            watermark::add_image_watermark
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

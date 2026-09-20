@@ -645,3 +645,41 @@ input:focus {
 .bookmark-item:hover {
   background: var(--bg-hover);
 }
+
+/* ---------- M4：水印面板 ---------- */
+.pos-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.pos-grid button {
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--fg-dim);
+}
+.pos-grid button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0, 103, 192, 0.08);
+}
+.chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.chk input {
+  width: auto;
+}
+input[type="range"] {
+  accent-color: var(--accent);
+  padding: 0;
+  border: none;
+  background: none;
+}
+input[type="color"] {
+  padding: 2px;
+}

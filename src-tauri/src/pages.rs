@@ -24,7 +24,7 @@ pub struct BookmarkNode {
     pub children: Vec<BookmarkNode>,
 }
 
-fn load_doc<'a>(pdfium: &'a Pdfium, bytes: &'a [u8]) -> AppResult<PdfDocument<'a>> {
+pub(crate) fn load_doc<'a>(pdfium: &'a Pdfium, bytes: &'a [u8]) -> AppResult<PdfDocument<'a>> {
     Ok(pdfium.load_pdf_from_byte_slice(bytes, None)?)
 }
 
@@ -58,7 +58,7 @@ fn build_info_from_doc(
     })
 }
 
-fn commit_and_return(
+pub(crate) fn commit_and_return(
     state: &AppState,
     doc_id: u64,
     new_bytes: Vec<u8>,
@@ -75,7 +75,7 @@ fn to_u16(i: u32) -> AppResult<u16> {
     u16::try_from(i).map_err(|_| AppError::PageOutOfRange)
 }
 
-fn normalize_indices(pages: &[u32], total: u32) -> AppResult<Vec<u16>> {
+pub(crate) fn normalize_indices(pages: &[u32], total: u32) -> AppResult<Vec<u16>> {
     let mut out = Vec::with_capacity(pages.len());
     for &p in pages {
         if p >= total {

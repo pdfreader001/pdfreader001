@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { renderPage } from "../lib/ipc";
 import { pageCache, pageKey } from "../lib/bitmapCache";
+import { useApp } from "../state/store";
 
 /**
  * 渲染单页位图到 ImageBitmap。
@@ -39,6 +40,7 @@ export function usePageCanvas(
 ) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const [ready, setReady] = useState(false);
+  const renderRevision = useApp((s) => s.renderRevision);
 
   useEffect(() => {
     if (docId === null) return;
@@ -60,7 +62,7 @@ export function usePageCanvas(
     return () => {
       cancelled = true;
     };
-  }, [docId, pageIndex, scale, cssWidth, cssHeight]);
+  }, [docId, pageIndex, scale, cssWidth, cssHeight, renderRevision]);
 
   return { ref, ready };
 }

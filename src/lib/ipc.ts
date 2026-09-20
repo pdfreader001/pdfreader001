@@ -146,6 +146,51 @@ export function getBookmarks(docId: number): Promise<BookmarkNode[]> {
   return invoke<BookmarkNode[]>("get_bookmarks", { docId });
 }
 
+// ---------- 水印（M4） ----------
+
+export interface WatermarkStyle {
+  /** 0–100 */
+  opacity: number;
+  /** 顺时针角度 */
+  rotation: number;
+  /** 九宫格：top-left … center … bottom-right */
+  position: string;
+  tiled: boolean;
+  /** 平铺间距（pt） */
+  tileSpacing: number;
+}
+
+export interface TextWatermarkOpts {
+  text: string;
+  fontSize: number;
+  /** "#RRGGBB" */
+  color: string;
+  style: WatermarkStyle;
+}
+
+export interface ImageWatermarkOpts {
+  imagePath: string;
+  /** 水印宽度占页宽比例 0.05–1 */
+  scale: number;
+  style: WatermarkStyle;
+}
+
+export function addTextWatermark(
+  docId: number,
+  pages: number[],
+  opts: TextWatermarkOpts,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("add_text_watermark", { docId, pages, opts });
+}
+
+export function addImageWatermark(
+  docId: number,
+  pages: number[],
+  opts: ImageWatermarkOpts,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("add_image_watermark", { docId, pages, opts });
+}
+
 // ---------- 二进制渲染 ----------
 
 /**

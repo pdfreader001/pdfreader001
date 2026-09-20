@@ -50,6 +50,7 @@ function ThumbItem({
   onDragEnd: () => void;
 }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
+  const renderRevision = useApp((s) => s.renderRevision);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,7 +77,7 @@ function ThumbItem({
     return () => {
       cancelled = true;
     };
-  }, [docId, pageIndex]);
+  }, [docId, pageIndex, renderRevision]);
 
   return (
     <div

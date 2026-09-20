@@ -158,3 +158,70 @@ fn new_document_save_roundtrip() {
     let doc2 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
     assert_eq!(doc2.pages().len(), 2);
 }
+
+/// 文字水印 → 保存往返后文本可提取（含 alpha 填充色与旋转）。
+#[test]
+fn text_watermark_extractable() {
+    use pdfium_render::prelude::{
+        PdfColor, PdfPageObjectCommon, PdfPageObjectsCommon, PdfPagePaperSize, PdfPoints,
+    };
+    let pdfium = pdfe_lib::pdfium();
+    let mut doc = pdfium.create_new_pdf().unwrap();
+    let size = PdfPagePaperSize::a4();
+    doc.pages_mut().create_page_at_index(size, 0).unwrap();
+    // 先取字体 token，避免与 pages_mut 借用冲突
+    let token = doc.fonts_mut().helvetica();
+    {
+        let mut pages = doc.pages_mut();
+        let mut page = pages.get(0).unwrap();
+        let mut obj = page
+            .objects_mut()
+            .create_text_object(
+                PdfPoints::new(100.0),
+                PdfPoints::new(400.0),
+                "CONFIDENTIAL",
+                token,
+                PdfPoints::new(48.0),
+            )
+            .expect("创建文本对象失败");
+        obj.set_fill_color(PdfColor::new(255, 0, 0, 100)).unwrap();
+        obj.rotate_clockwise_degrees(45.0).unwrap();
+    }
+    let saved = doc.save_to_bytes().unwrap();
+    let doc2 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
+    let text = doc2.pages().get(0).unwrap().text().unwrap().all();
+    assert!(text.contains("CONFIDENTIAL"), "水印文本应可提取: {text:?}");
+}
+
+/// 图片水印 → 对象数量增加且可保存往返。
+#[test]
+fn image_watermark_persists() {
+    use pdfium_render::prelude::{PdfPageObjectsCommon, PdfPagePaperSize, PdfPoints};
+    let pdfium = pdfe_lib::pdfium();
+    let mut doc = pdfium.create_new_pdf().unwrap();
+    let size = PdfPagePaperSize::a4();
+    doc.pages_mut().create_page_at_index(size, 0).unwrap();
+    // 生成 8x8 红色纯色图作为水印
+    let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+        8,
+        8,
+        image::Rgba([255, 0, 0, 128]),
+    ));
+    {
+        let mut pages = doc.pages_mut();
+        let mut page = pages.get(0).unwrap();
+        page.objects_mut()
+            .create_image_object(
+                PdfPoints::new(100.0),
+                PdfPoints::new(400.0),
+                &img,
+                Some(PdfPoints::new(100.0)),
+                Some(PdfPoints::new(100.0)),
+            )
+            .expect("创建图片对象失败");
+    }
+    let saved = doc.save_to_bytes().unwrap();
+    let doc2 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
+    let page = doc2.pages().get(0).unwrap();
+    assert_eq!(page.objects().len(), 1, "应包含 1 个水印图片对象");
+}
