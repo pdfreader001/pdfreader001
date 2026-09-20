@@ -464,3 +464,166 @@ input:focus {
   background: var(--accent);
   filter: brightness(1.12);
 }
+
+/* ---------- M3：右键菜单 ---------- */
+.context-menu {
+  position: fixed;
+  z-index: 150;
+  min-width: 180px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--page-shadow);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.context-menu button {
+  text-align: left;
+  padding: 7px 12px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.ctx-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 6px;
+}
+
+/* ---------- M3：缩略图拖拽指示线 ---------- */
+.thumb-item {
+  position: relative;
+}
+.thumb-item.drop-before::before,
+.thumb-item.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.thumb-item.drop-before::before {
+  top: -2px;
+}
+.thumb-item.drop-after::after {
+  bottom: -2px;
+}
+
+/* ---------- M3：任务面板表单 ---------- */
+.task-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.task-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.form-row label {
+  color: var(--fg-dim);
+}
+
+/* ---------- M3：合并文档列表 ---------- */
+.merge-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 46vh;
+  overflow: auto;
+}
+.merge-item {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  background: var(--bg);
+}
+.merge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.merge-idx {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--bg-active);
+  color: var(--fg-dim);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.merge-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.merge-actions {
+  display: flex;
+  gap: 2px;
+}
+.merge-actions button {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+/* ---------- M3：拆分模式选择 ---------- */
+.split-modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.split-mode {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 6px;
+  text-align: center;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--fg-dim);
+}
+.split-mode:hover {
+  background: var(--bg-hover);
+}
+.split-mode.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0, 103, 192, 0.08);
+}
+
+/* ---------- M3：书签树 ---------- */
+.bookmark-tree {
+  flex: 1;
+  overflow: auto;
+  padding: 6px 4px;
+}
+.bookmark-item {
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.bookmark-item:hover {
+  background: var(--bg-hover);
+}

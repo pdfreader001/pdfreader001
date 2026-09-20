@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { DocumentInfo, PageInfo } from "../lib/ipc";
+import type { DocumentInfo, PageInfo, BookmarkNode } from "../lib/ipc";
 import { isApiError } from "../lib/ipc";
 import { pageCache, thumbCache } from "../lib/bitmapCache";
 
@@ -58,6 +58,10 @@ interface AppState {
   selectedPages: Set<number>;
   thumbFocus: number;
 
+  // 书签
+  bookmarks: BookmarkNode[];
+  bookmarksLoading: boolean;
+
   toasts: Toast[];
   jumpTarget: { page: number; nonce: number };
   flashTarget: { page: number; nonce: number };
@@ -87,6 +91,8 @@ interface AppState {
   markDirty: (b: boolean) => void;
   setCanUndo: (b: boolean) => void;
   setLoading: (b: boolean) => void;
+  setBookmarks: (b: BookmarkNode[]) => void;
+  setBookmarksLoading: (b: boolean) => void;
   pushToast: (kind: Toast["kind"], message: string) => void;
   dismissToast: (id: number) => void;
   errorToast: (e: unknown) => void;
@@ -149,6 +155,9 @@ export const useApp = create<AppState>((set, get) => ({
   selectedPages: new Set(),
   thumbFocus: -1,
 
+  bookmarks: [],
+  bookmarksLoading: false,
+
   toasts: [],
   jumpTarget: { page: 0, nonce: 0 },
   flashTarget: { page: -1, nonce: 0 },
@@ -162,12 +171,15 @@ export const useApp = create<AppState>((set, get) => ({
       }
       return { ...base, jumpTarget: { page: p, nonce: s.jumpTarget.nonce + 1 } };
     }),
-  updatePages: (info) =>
+  updatePages: (info) => {
+    pageCache.clear();
+    thumbCache.clear();
     set({
       pageCount: info.pageCount,
       pages: info.pages,
-      dirty: false,
-    }),
+      dirty: true,
+    });
+  },
 
   setDoc: (info, path) => {
     pageCache.clear();
@@ -234,6 +246,8 @@ export const useApp = create<AppState>((set, get) => ({
   markDirty: (b) => set({ dirty: b }),
   setCanUndo: (b) => set({ canUndo: b }),
   setLoading: (b) => set({ loading: b }),
+  setBookmarks: (b) => set({ bookmarks: b }),
+  setBookmarksLoading: (b) => set({ bookmarksLoading: b }),
   pushToast: (kind, message) => {
     const id = ++toastSeq;
     set((s) => ({ toasts: [...s.toasts, { id, kind, message }] }));

@@ -67,3 +67,94 @@ fn damaged_document() {
     let pdfium = pdfe_lib::pdfium();
     assert!(pdfium.load_pdf_from_byte_slice(&bytes, None).is_err());
 }
+
+/// 旋转页面 → 校验旋转状态可保存并读取。
+#[test]
+fn rotate_page_persists() {
+    use pdfium_render::prelude::PdfPageRenderRotation;
+    let bytes = fs::read(fixture("sample.pdf")).unwrap();
+    let pdfium = pdfe_lib::pdfium();
+    let mut doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
+    {
+        let mut page = doc.pages().get(0).unwrap();
+        page.set_rotation(PdfPageRenderRotation::Degrees90);
+    }
+    let saved = doc.save_to_bytes().unwrap();
+    let doc2 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
+    let page = doc2.pages().get(0).unwrap();
+    let rot = page.rotation().unwrap();
+    assert!(
+        matches!(rot, PdfPageRenderRotation::Degrees90),
+        "期望旋转 90°，实际: {:?}",
+        rot
+    );
+}
+
+/// 删除页面 → 校验页数减少。
+#[test]
+fn delete_page_reduces_count() {
+    let bytes = fs::read(fixture("sample.pdf")).unwrap();
+    let pdfium = pdfe_lib::pdfium();
+    let mut doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
+    assert_eq!(doc.pages().len(), 2);
+    let page = doc.pages().get(1).unwrap();
+    page.delete().unwrap();
+    assert_eq!(doc.pages().len(), 1);
+}
+
+/// 复制页面 → 校验页数增加。
+#[test]
+fn copy_page_increases_count() {
+    let bytes = fs::read(fixture("sample.pdf")).unwrap();
+    let pdfium = pdfe_lib::pdfium();
+    let src_doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
+    let mut doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
+    assert_eq!(doc.pages().len(), 2);
+    doc.pages_mut().copy_page_from_document(&src_doc, 0, 2).unwrap();
+    assert_eq!(doc.pages().len(), 3);
+}
+
+/// 插入空白页 → 校验尺寸与页数。
+#[test]
+fn insert_blank_page() {
+    use pdfium_render::prelude::PdfPagePaperSize;
+    let bytes = fs::read(fixture("sample.pdf")).unwrap();
+    let pdfium = pdfe_lib::pdfium();
+    let mut doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
+    let size = PdfPagePaperSize::a4();
+    doc.pages_mut().create_page_at_index(size, 0).unwrap();
+    assert_eq!(doc.pages().len(), 3);
+    let page = doc.pages().get(0).unwrap();
+    assert!((page.width().value - 595.0).abs() < 1.0);
+    assert!((page.height().value - 842.0).abs() < 1.0);
+}
+
+/// 跨文档复制 → 合并两页。
+#[test]
+fn copy_between_documents() {
+    let bytes = fs::read(fixture("sample.pdf")).unwrap();
+    let pdfium = pdfe_lib::pdfium();
+    let doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
+    let mut new_doc = pdfium.create_new_pdf().unwrap();
+    let size = pdfium_render::prelude::PdfPagePaperSize::a4();
+    new_doc.pages_mut().create_page_at_index(size, 0).unwrap();
+    new_doc
+        .pages_mut()
+        .copy_page_range_from_document(&doc, 0..=1, 1)
+        .unwrap();
+    assert_eq!(new_doc.pages().len(), 3);
+}
+
+/// 新文档保存往返 → 页数一致。
+#[test]
+fn new_document_save_roundtrip() {
+    use pdfium_render::prelude::PdfPagePaperSize;
+    let pdfium = pdfe_lib::pdfium();
+    let mut doc = pdfium.create_new_pdf().unwrap();
+    let size = PdfPagePaperSize::a4();
+    doc.pages_mut().create_page_at_index(size, 0).unwrap();
+    doc.pages_mut().create_page_at_index(size, 1).unwrap();
+    let saved = doc.save_to_bytes().unwrap();
+    let doc2 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
+    assert_eq!(doc2.pages().len(), 2);
+}

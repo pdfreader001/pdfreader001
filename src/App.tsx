@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useApp, saveReadingPos, loadReadingPos } from "./state/store";
-import { closeDocument, isApiError, openDocument, saveDocument, undoDocument, canUndo } from "./lib/ipc";
+import {
+  closeDocument,
+  isApiError,
+  openDocument,
+  saveDocument,
+  undoDocument,
+  canUndo,
+  getBookmarks,
+} from "./lib/ipc";
+import type { BookmarkNode } from "./lib/ipc";
 import Toolbar from "./components/Toolbar";
 import Rail from "./components/Rail";
 import Canvas from "./components/Canvas";
@@ -11,10 +20,66 @@ import TaskPanel from "./components/TaskPanel";
 import StatusBar from "./components/StatusBar";
 import "./index.css";
 
+function BookmarkTree({
+  nodes,
+  onJump,
+}: {
+  nodes: BookmarkNode[];
+  onJump: (page: number) => void;
+}) {
+  if (nodes.length === 0) {
+    return <div style={{ padding: 16, color: "var(--fg-dim)" }}>文档没有书签</div>;
+  }
+  return (
+    <div className="bookmark-tree">
+      {nodes.map((node, i) => (
+        <div key={i}>
+          <div
+            className="bookmark-item"
+            style={{ paddingLeft: 8 + node.level * 16 }}
+            onClick={() => onJump(node.pageIndex)}
+          >
+            {node.title || "（无标题）"}
+          </div>
+          {node.children.length > 0 && (
+            <BookmarkTree nodes={node.children} onJump={onJump} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function LeftPanel() {
   const leftTab = useApp((s) => s.leftTab);
   const setLeftTab = useApp((s) => s.setLeftTab);
   const hasDoc = useApp((s) => s.docId !== null);
+  const docId = useApp((s) => s.docId);
+  const bookmarks = useApp((s) => s.bookmarks);
+  const bookmarksLoading = useApp((s) => s.bookmarksLoading);
+  const setBookmarks = useApp((s) => s.setBookmarks);
+  const setBookmarksLoading = useApp((s) => s.setBookmarksLoading);
+  const jumpToPage = useApp((s) => s.jumpToPage);
+  const errorToast = useApp((s) => s.errorToast);
+
+  useEffect(() => {
+    if (docId === null || leftTab !== "bookmarks") return;
+    let cancelled = false;
+    setBookmarksLoading(true);
+    getBookmarks(docId)
+      .then((b) => {
+        if (!cancelled) setBookmarks(b);
+      })
+      .catch((e) => {
+        if (!cancelled) errorToast(e);
+      })
+      .finally(() => {
+        if (!cancelled) setBookmarksLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [docId, leftTab]);
 
   return (
     <aside className="left">
@@ -38,10 +103,14 @@ function LeftPanel() {
         ) : (
           <div style={{ padding: 16, color: "var(--fg-dim)" }}>打开文档后显示缩略图</div>
         )
+      ) : hasDoc ? (
+        bookmarksLoading ? (
+          <div style={{ padding: 16, color: "var(--fg-dim)" }}>加载中…</div>
+        ) : (
+          <BookmarkTree nodes={bookmarks} onJump={(p) => jumpToPage(p, true)} />
+        )
       ) : (
-        <div style={{ padding: 16, color: "var(--fg-dim)", lineHeight: 1.7 }}>
-          书签导航将在后续里程碑交付。
-        </div>
+        <div style={{ padding: 16, color: "var(--fg-dim)" }}>打开文档后显示书签</div>
       )}
     </aside>
   );

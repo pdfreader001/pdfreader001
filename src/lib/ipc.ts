@@ -57,6 +57,95 @@ export function getPageText(docId: number, pageIndex: number): Promise<string> {
   return invoke<string>("get_page_text", { docId, pageIndex });
 }
 
+export interface BookmarkNode {
+  title: string;
+  pageIndex: number;
+  level: number;
+  children: BookmarkNode[];
+}
+
+export interface MergeSource {
+  path: string;
+  ranges?: string | null;
+}
+
+export type SplitMode =
+  | { mode: "every_n"; payload: { n: number } }
+  | { mode: "ranges"; payload: { ranges: string } }
+  | { mode: "by_bookmark"; payload: { level?: number | null } }
+  | { mode: "selected"; payload: { pages: number[] } };
+
+export function rotatePages(
+  docId: number,
+  pages: number[],
+  deltaDeg: number,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("rotate_pages", { docId, pages, deltaDeg });
+}
+
+export function deletePages(docId: number, pages: number[]): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("delete_pages", { docId, pages });
+}
+
+export function duplicatePages(
+  docId: number,
+  pages: number[],
+  destIndex: number,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("duplicate_pages", { docId, pages, destIndex });
+}
+
+export function insertBlankPage(
+  docId: number,
+  atIndex: number,
+  width: number,
+  height: number,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("insert_blank_page", { docId, atIndex, width, height });
+}
+
+export function reorderPages(
+  docId: number,
+  fromIndices: number[],
+  toIndex: number,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("reorder_pages", { docId, fromIndices, toIndex });
+}
+
+export function extractPages(
+  docId: number,
+  pages: number[],
+  outputPath?: string | null,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("extract_pages", {
+    docId,
+    pages,
+    outputPath: outputPath ?? null,
+  });
+}
+
+export function mergeDocuments(
+  sources: MergeSource[],
+  outputPath?: string | null,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("merge_documents", {
+    sources,
+    outputPath: outputPath ?? null,
+  });
+}
+
+export function splitDocument(
+  docId: number,
+  mode: SplitMode,
+  outputDir: string,
+): Promise<string[]> {
+  return invoke<string[]>("split_document", { docId, mode, outputDir });
+}
+
+export function getBookmarks(docId: number): Promise<BookmarkNode[]> {
+  return invoke<BookmarkNode[]>("get_bookmarks", { docId });
+}
+
 // ---------- 二进制渲染 ----------
 
 /**

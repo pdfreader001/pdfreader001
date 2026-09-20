@@ -1,5 +1,6 @@
 pub mod document;
 pub mod error;
+pub mod pages;
 pub mod render;
 
 pub use document::pdfium;
@@ -19,7 +20,16 @@ pub fn run() {
             document::can_undo,
             render::render_page,
             render::render_thumbnail,
-            render::get_page_text
+            render::get_page_text,
+            pages::rotate_pages,
+            pages::delete_pages,
+            pages::duplicate_pages,
+            pages::insert_blank_page,
+            pages::reorder_pages,
+            pages::extract_pages,
+            pages::merge_documents,
+            pages::split_document,
+            pages::get_bookmarks
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
