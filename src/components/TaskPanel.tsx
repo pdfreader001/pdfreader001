@@ -31,6 +31,7 @@ interface MergeItem {
 
 function MergePanel() {
   const [items, setItems] = useState<MergeItem[]>([]);
+  const [outputPath, setOutputPath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const setDoc = useApp((s) => s.setDoc);
   const pushToast = useApp((s) => s.pushToast);
@@ -52,6 +53,15 @@ function MergePanel() {
         })),
       ]);
     }
+  };
+
+  const pickOutput = async () => {
+    const p = await save({
+      title: "选择合并结果保存位置",
+      defaultPath: "merged.pdf",
+      filters: [{ name: "PDF 文档", extensions: ["pdf"] }],
+    });
+    if (typeof p === "string") setOutputPath(p);
   };
 
   const move = (idx: number, dir: -1 | 1) => {
@@ -80,9 +90,14 @@ function MergePanel() {
         path: it.path,
         ranges: it.ranges.trim() ? it.ranges : null,
       }));
-      const info = await mergeDocuments(sources, null);
-      setDoc(info, null);
-      pushToast("info", `合并完成，共 ${info.pageCount} 页`);
+      const info = await mergeDocuments(sources, outputPath);
+      setDoc(info, outputPath);
+      pushToast(
+        "info",
+        outputPath
+          ? `合并完成并已保存：${outputPath}（共 ${info.pageCount} 页）`
+          : `合并完成，共 ${info.pageCount} 页`,
+      );
       closeTask();
     } catch (e) {
       errorToast(e);
@@ -131,6 +146,24 @@ function MergePanel() {
             />
           </div>
         ))}
+      </div>
+      <div className="merge-output">
+        <label>输出</label>
+        <span
+          className="merge-output-path"
+          title={outputPath ?? undefined}
+          style={outputPath ? undefined : { color: "var(--fg-dim)" }}
+        >
+          {outputPath ?? "未选择（结果仅打开到查看器）"}
+        </span>
+        <button onClick={pickOutput} disabled={busy}>
+          选择…
+        </button>
+        {outputPath && (
+          <button title="清除" onClick={() => setOutputPath(null)} disabled={busy}>
+            ✕
+          </button>
+        )}
       </div>
       <div className="task-footer">
         <button
@@ -185,14 +218,14 @@ function SplitPanel() {
         modePayload = { mode: "selected", payload: { pages: Array.from(selectedPages) } };
         break;
     }
-    const outDir = await save({
+    const outDir = await open({
       title: "选择输出目录",
-      defaultPath: "split_output",
+      directory: true,
     });
-    if (!outDir) return;
+    if (typeof outDir !== "string") return;
     setBusy(true);
     try {
-      const outputs = await splitDocument(docId, modePayload, outDir as string);
+      const outputs = await splitDocument(docId, modePayload, outDir);
       pushToast("info", `拆分完成，共生成 ${outputs.length} 个文件`);
       canUndo(docId).then(() => {}).catch(() => {});
     } catch (e) {

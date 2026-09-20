@@ -584,6 +584,24 @@ input:focus {
   justify-content: center;
   font-size: 12px;
 }
+.merge-output {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.merge-output label {
+  flex: none;
+  color: var(--fg-dim);
+}
+.merge-output-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
 
 /* ---------- M3：拆分模式选择 ---------- */
 .split-modes {

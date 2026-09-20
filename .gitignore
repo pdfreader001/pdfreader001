@@ -6,6 +6,7 @@ node_modules/
 dist/
 dist-ssr/
 target/
+.webview2/
 *.local
 
 # 日志
