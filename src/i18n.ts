@@ -208,6 +208,10 @@ const en: Record<string, string> = {
     "Replace/delete image: replace the image entirely or just remove the image object.",
   "扫描版检测：判断页面是否几乎没有可识别文本（无文本层）。":
     "Scan detection: detects pages with almost no extractable text (no text layer).",
+  "操作说明：在画布上用鼠标拖拽矩形选中要重写的文字区域 → 松开后弹出输入框。":
+    "How to use: drag a rectangle on the canvas to select the text region to rewrite -> an input dialog appears after release.",
+  "已选区 · 第 {n} 页": "Selection - Page {n}",
+  "已重写第 {n} 页文字": "Rewrote text on page {n}.",
   "没有可应用的页面": "No pages to apply to",
   "已为 {n} 页添加水印": "Added watermark to {n} pages",
   "高亮": "Highlight",

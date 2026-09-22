@@ -221,6 +221,15 @@ input:focus {
   animation: flashfade 0.9s ease-out forwards;
   pointer-events: none;
 }
+.page-holder.selecting {
+  cursor: crosshair;
+}
+.selection-rect {
+  position: absolute;
+  border: 1px dashed var(--accent);
+  background: rgba(0, 103, 192, 0.15);
+  pointer-events: none;
+}
 @keyframes flashfade {
   from {
     opacity: 1;

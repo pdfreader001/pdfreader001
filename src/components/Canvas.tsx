@@ -29,10 +29,84 @@ function PageView({
     return () => clearTimeout(t);
   }, [flashNonce]);
 
+  // 选区交互：仅当 selectingFor 非空时启用
+  const selectingFor = useApp((s) => s.selectingFor);
+  const liveSelection = useApp((s) => s.liveSelection);
+  const setLiveSelection = useApp((s) => s.setLiveSelection);
+  const setCompletedSelection = useApp((s) => s.setCompletedSelection);
+  const setCurrentPage = useApp((s) => s.setCurrentPage);
+  const holderRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ x: number; y: number } | null>(null);
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    if (!selectingFor) return;
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = holderRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    dragRef.current = { x, y };
+    setLiveSelection({ left: x, top: y, right: x, bottom: y });
+    setCurrentPage(pageIndex);
+  };
+  const onMouseMove = (e: React.MouseEvent) => {
+    if (!dragRef.current || !holderRef.current) return;
+    const rect = holderRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(cssW, e.clientX - rect.left));
+    const y = Math.max(0, Math.min(cssH, e.clientY - rect.top));
+    const start = dragRef.current;
+    setLiveSelection({
+      left: Math.min(start.x, x),
+      top: Math.min(start.y, y),
+      right: Math.max(start.x, x),
+      bottom: Math.max(start.y, y),
+    });
+  };
+  const onMouseUp = () => {
+    if (!dragRef.current) return;
+    dragRef.current = null;
+    const live = useApp.getState().liveSelection;
+    if (!live || live.right - live.left < 4 || live.bottom - live.top < 4) {
+      setLiveSelection(null);
+      return;
+    }
+    setCompletedSelection({
+      pageIndex,
+      rect: live,
+      scale,
+    });
+  };
+
   return (
-    <div className={`page-holder${flash ? " flash" : ""}`} style={{ width: cssW, height: cssH }}>
+    <div
+      ref={holderRef}
+      className={`page-holder${flash ? " flash" : ""}${
+        selectingFor ? " selecting" : ""
+      }`}
+      style={{ width: cssW, height: cssH }}
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+      onMouseLeave={onMouseUp}
+    >
       <canvas ref={ref} style={{ width: cssW, height: cssH }} />
       <span className="page-number-tag">{pageIndex + 1}</span>
+      {selectingFor &&
+        liveSelection &&
+        liveSelection.right - liveSelection.left > 1 &&
+        liveSelection.bottom - liveSelection.top > 1 && (
+          <div
+            className="selection-rect"
+            style={{
+              left: liveSelection.left,
+              top: liveSelection.top,
+              width: liveSelection.right - liveSelection.left,
+              height: liveSelection.bottom - liveSelection.top,
+            }}
+          />
+        )}
     </div>
   );
 }

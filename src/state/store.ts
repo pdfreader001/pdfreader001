@@ -16,6 +16,22 @@ export interface SearchHit {
   snippet: string;
 }
 
+/** CSS 像素坐标的矩形（左上原点） */
+export interface CssRect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** 完成的画布选区（带页索引与缩放） */
+export interface CompletedSelection {
+  pageIndex: number;
+  rect: CssRect;
+  /** Canvas 渲染时使用的缩放因子（page.width * scale = cssW） */
+  scale: number;
+}
+
 export interface Toast {
   id: number;
   kind: "info" | "error";
@@ -70,6 +86,14 @@ interface AppState {
   bookmarks: BookmarkNode[];
   bookmarksLoading: boolean;
 
+  // 画布选区（CSS 像素坐标，存储的是 page-holder 内的相对坐标）
+  /** 哪个面板请求选区（'rewrite' 等）；null 表示无选区模式 */
+  selectingFor: string | null;
+  /** 当前正在拖拽的选区（实时）；松开鼠标后清空 */
+  liveSelection: CssRect | null;
+  /** 已完成的选区（CSS 像素坐标 + 当前页索引 + 缩放比例） */
+  completedSelection: CompletedSelection | null;
+
   toasts: Toast[];
   jumpTarget: { page: number; nonce: number };
   flashTarget: { page: number; nonce: number };
@@ -91,6 +115,9 @@ interface AppState {
   closeTask: () => void;
   setSearchOpen: (b: boolean) => void;
   setHelpOpen: (b: boolean) => void;
+  setSelectingFor: (mode: string | null) => void;
+  setLiveSelection: (rect: CssRect | null) => void;
+  setCompletedSelection: (s: CompletedSelection | null) => void;
   setSearch: (query: string, hits: SearchHit[]) => void;
   setSearchActive: (i: number) => void;
   setSearching: (b: boolean) => void;
@@ -156,6 +183,9 @@ export const useApp = create<AppState>((set, get) => ({
   leftTab: "thumbnails",
   leftVisible: true,
   task: null,
+  selectingFor: null,
+  liveSelection: null,
+  completedSelection: null,
   searchOpen: false,
   helpOpen: false,
 
@@ -242,6 +272,19 @@ export const useApp = create<AppState>((set, get) => ({
   closeTask: () => set({ task: null }),
   setSearchOpen: (b) => set({ searchOpen: b }),
   setHelpOpen: (b) => set({ helpOpen: b }),
+  setSelectingFor: (mode) =>
+    set({
+      selectingFor: mode,
+      liveSelection: null,
+      completedSelection: null,
+    }),
+  setLiveSelection: (rect) => set({ liveSelection: rect }),
+  setCompletedSelection: (s) =>
+    set({
+      completedSelection: s,
+      liveSelection: null,
+      selectingFor: null,
+    }),
   setSearch: (query, hits) => set({ searchQuery: query, searchHits: hits, searchActive: hits.length ? 0 : -1 }),
   setSearchActive: (i) => set({ searchActive: i }),
   setSearching: (b) => set({ searching: b }),

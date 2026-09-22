@@ -1196,6 +1196,7 @@ function DeepEditor() {
   const docId = useApp((s) => s.docId);
   const currentPage = useApp((s) => s.currentPage);
   const pageCount = useApp((s) => s.pageCount);
+  const pages = useApp((s) => s.pages);
   const updatePages = useApp((s) => s.updatePages);
   const markDirty = useApp((s) => s.markDirty);
   const setCanUndo = useApp((s) => s.setCanUndo);
@@ -1203,6 +1204,9 @@ function DeepEditor() {
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
   const closeTask = useApp((s) => s.closeTask);
+  const setSelectingFor = useApp((s) => s.setSelectingFor);
+  const completedSelection = useApp((s) => s.completedSelection);
+  const setCompletedSelection = useApp((s) => s.setCompletedSelection);
   const t = useT();
 
   type Mode = "rewrite" | "addtext" | "image" | "scandetect";
@@ -1216,9 +1220,9 @@ function DeepEditor() {
     right: 300,
     top: 200,
   });
-  const [newText, setNewText] = useState("");
-  const [rwFontSize, setRwFontSize] = useState(24);
-  const [rwColor, setRwColor] = useState("#000000");
+  const [newText] = useState("");
+  const [rwFontSize] = useState(24);
+  const [rwColor] = useState("#000000");
 
   // addtext
   const [textInput, setTextInput] = useState("");
@@ -1238,6 +1242,53 @@ function DeepEditor() {
   );
   const [detecting, setDetecting] = useState(false);
 
+  // 选区模式：仅"文字重写"允许使用画布选区
+  useEffect(() => {
+    if (mode === "rewrite") {
+      setSelectingFor("rewrite");
+    } else {
+      setSelectingFor(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
+  // 文字重写 modal 状态
+  const [rwModal, setRwModal] = useState<{
+    region: { left: number; bottom: number; right: number; top: number };
+    pageIndex: number;
+  } | null>(null);
+
+  // 选区到 PDF 点的坐标转换：CSS 像素 / scale = PDF 点
+  // Y 轴翻转：CSS 顶 → PDF 底（pdf_top = pageH_pdf - (css_top / scale)）
+  useEffect(() => {
+    if (!completedSelection || docId === null) return;
+    if (completedSelection.pageIndex !== currentPage && pages.length > 0) {
+      // 选中发生在别的页，自动切换
+      // 这里交给调用方处理；不强制切页，避免意外滚动
+    }
+    const sel = completedSelection;
+    const pageInfo = pages[sel.pageIndex];
+    if (!pageInfo) return;
+    const s = sel.scale;
+    if (s <= 0) return;
+    const pageH_pt = pageInfo.height;
+    const left_pt = sel.rect.left / s;
+    const top_css = sel.rect.top;
+    const right_pt = sel.rect.right / s;
+    const bottom_css = sel.rect.bottom;
+    // 转 PDF 点（左下原点）
+    const leftPdf = left_pt;
+    const rightPdf = right_pt;
+    const topPdf = pageH_pt - top_css / s;
+    const bottomPdf = pageH_pt - bottom_css / s;
+    setRwModal({
+      region: { left: leftPdf, bottom: bottomPdf, right: rightPdf, top: topPdf },
+      pageIndex: sel.pageIndex,
+    });
+    setCompletedSelection(null); // 用完清空
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [completedSelection]);
+
   const requireDoc = (): number | null => {
     if (docId === null) {
       pushToast("info", t("请打开文档后再操作"));
@@ -1246,25 +1297,35 @@ function DeepEditor() {
     return docId;
   };
 
-  const onRewrite = async () => {
+  const onRewrite = async (opts: {
+    region: { left: number; bottom: number; right: number; top: number };
+    pageIndex: number;
+    newText: string;
+    fontSize: number;
+    color: string;
+  }) => {
     const id = requireDoc();
     if (!id) return;
-    if (!newText.trim()) {
+    if (!opts.newText.trim()) {
       pushToast("info", t("文字不能为空"));
       return;
     }
     setBusy(true);
     try {
-      const info = await rewriteText(id, currentPage, region, {
-        newText: newText.trim(),
-        fontSize: rwFontSize,
-        color: rwColor,
+      const info = await rewriteText(id, opts.pageIndex, opts.region, {
+        newText: opts.newText.trim(),
+        fontSize: opts.fontSize,
+        color: opts.color,
       });
       updatePages(info);
       markDirty(true);
       setCanUndo(await canUndo(id));
       setCanRedo(await canRedo(id));
-      pushToast("info", t("已重写当前页文字"));
+      pushToast(
+        "info",
+        t("已重写第 {n} 页文字", { n: opts.pageIndex + 1 }),
+      );
+      setRwModal(null);
       closeTask();
     } catch (e) {
       errorToast(e);
@@ -1460,38 +1521,21 @@ function DeepEditor() {
 
       {mode === "rewrite" && (
         <>
+          <p
+            className="placeholder"
+            style={{
+              fontSize: 11,
+              background: "var(--accent-bg, rgba(0,103,192,0.08))",
+              border: "1px solid var(--accent)",
+              borderRadius: 4,
+              padding: 8,
+            }}
+          >
+            {t("操作说明：在画布上用鼠标拖拽矩形选中要重写的文字区域 → 松开后弹出输入框。")}
+          </p>
           <p className="placeholder" style={{ fontSize: 11 }}>
             {t("文字重写操作会用白色矩形覆盖原文字区域，然后按指定字号插入新文字；字体缺失时会自动回退到系统中文字体。")}
           </p>
-          <div className="form-row">
-            <label>{t("新文本内容")}</label>
-            <input
-              type="text"
-              value={newText}
-              onChange={(e) => setNewText(e.target.value)}
-              placeholder={t("如：修正后的标题")}
-            />
-          </div>
-          <div className="form-row">
-            <label>{t("字号（pt）")}</label>
-            <input
-              type="number"
-              min={8}
-              max={200}
-              value={rwFontSize}
-              onChange={(e) =>
-                setRwFontSize(Math.min(200, Math.max(8, parseInt(e.target.value) || 24)))
-              }
-              style={{ width: 64 }}
-            />
-            <label>{t("颜色")}</label>
-            <input
-              type="color"
-              value={rwColor}
-              onChange={(e) => setRwColor(e.target.value)}
-              style={{ width: 40, padding: 0, height: 28 }}
-            />
-          </div>
           <div className="field">
             <label>{t("矩形（PDF 点，左下原点）")}</label>
           </div>
@@ -1530,7 +1574,15 @@ function DeepEditor() {
           <div className="task-footer">
             <button
               className="btn-primary"
-              onClick={onRewrite}
+              onClick={() =>
+                onRewrite({
+                  region,
+                  pageIndex: currentPage,
+                  newText,
+                  fontSize: rwFontSize,
+                  color: rwColor,
+                })
+              }
               disabled={busy || !newText.trim() || docId === null}
             >
               {busy ? t("处理中…") : t("确认重写")}
@@ -1687,6 +1739,103 @@ function DeepEditor() {
           )}
         </>
       )}
+    </div>
+  );
+
+  // 文字重写 modal：在用户从画布完成选区后弹出
+  if (rwModal) {
+    const modal = rwModal!; // narrowed by `if (rwModal)`
+      return (
+        <RewriteModal
+          region={modal.region}
+          pageIndex={modal.pageIndex}
+          onCancel={() => setRwModal(null)}
+          onSubmit={(opts) => {
+            onRewrite({
+              region: modal.region,
+              pageIndex: modal.pageIndex,
+              newText: opts.newText,
+              fontSize: opts.fontSize,
+              color: opts.color,
+            });
+          }}
+          busy={busy}
+        />
+      );
+    }
+  }
+
+function RewriteModal({
+  region,
+  pageIndex,
+  onCancel,
+  onSubmit,
+  busy,
+}: {
+  region: { left: number; bottom: number; right: number; top: number };
+  pageIndex: number;
+  onCancel: () => void;
+  onSubmit: (opts: { newText: string; fontSize: number; color: string }) => void;
+  busy: boolean;
+}) {
+  const t = useT();
+  const [text, setText] = useState("");
+  const [fontSize, setFontSize] = useState(24);
+  const [color, setColor] = useState("#000000");
+  const width = region.right - region.left;
+  const height = region.top - region.bottom;
+  return (
+    <div className="task-body">
+      <h3 style={{ margin: "0 0 12px 0" }}>
+        {t("已选区 · 第 {n} 页", { n: pageIndex + 1 })}
+      </h3>
+      <p className="placeholder" style={{ fontSize: 12 }}>
+        {t("矩形")}：{region.left.toFixed(1)}, {region.bottom.toFixed(1)} – {region.right.toFixed(1)}, {region.top.toFixed(1)}
+        {" · "}
+        {width.toFixed(1)}×{height.toFixed(1)} pt
+      </p>
+      <div className="form-row">
+        <label>{t("新文本内容")}</label>
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={t("如：修正后的标题")}
+          autoFocus
+        />
+      </div>
+      <div className="form-row">
+        <label>{t("字号（pt）")}</label>
+        <input
+          type="number"
+          min={8}
+          max={200}
+          value={fontSize}
+          onChange={(e) =>
+            setFontSize(Math.min(200, Math.max(8, parseInt(e.target.value) || 24)))
+          }
+          style={{ width: 64 }}
+        />
+        <label>{t("颜色")}</label>
+        <input
+          type="color"
+          value={color}
+          onChange={(e) => setColor(e.target.value)}
+          style={{ width: 40, padding: 0, height: 28 }}
+        />
+      </div>
+      <div className="task-footer">
+        <button
+          className="btn-primary"
+          onClick={() => onSubmit({ newText: text, fontSize, color })}
+          disabled={busy || !text.trim()}
+        >
+          {busy ? t("处理中…") : t("确认重写")}
+        </button>
+        <button onClick={onCancel} disabled={busy} style={{ marginLeft: 6 }}>
+          {t("取消")}
+        </button>
+      </div>
     </div>
   );
 }
