@@ -84,6 +84,12 @@ pub enum AppError {
     #[error("Failed to write PDF")]
     PdfWriteFailed,
 
+    // ------ 水印去除 ------
+    #[error("Invalid rectangle: zero or negative size")]
+    InvalidRect,
+    #[error("No candidate watermarks detected")]
+    NoCandidates,
+
     // ------ Office / 电子书（外部工具） ------
     #[error("{tool} not found. Please install it first.")]
     ToolNotFound { tool: String },
@@ -161,6 +167,8 @@ impl AppError {
             AppError::NoImagesProvided => "no_images_provided",
             AppError::ImageReadFailed { .. } => "image_read_failed",
             AppError::PdfWriteFailed => "pdf_write_failed",
+            AppError::InvalidRect => "invalid_rect",
+            AppError::NoCandidates => "no_candidates",
             AppError::ToolNotFound { .. } => "tool_not_found",
             AppError::UnsupportedFormat { .. } => "unsupported_format",
             AppError::SourceNotFound { .. } => "source_not_found",
@@ -246,6 +254,8 @@ impl Serialize for AppError {
                 | AppError::ImageConstructFailed
                 | AppError::NoImagesProvided
                 | AppError::PdfWriteFailed
+                | AppError::InvalidRect
+                | AppError::NoCandidates
                 | AppError::CannotDetermineSourceName
                 | AppError::NoPdfGenerated
         );

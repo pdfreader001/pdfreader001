@@ -200,6 +200,71 @@ export function addImageWatermark(
   return invoke<DocumentInfo>("add_image_watermark", { docId, pages, opts });
 }
 
+// ---------- 水印去除（M4 part 2） ----------
+
+export interface Rect {
+  left: number;
+  bottom: number;
+  right: number;
+  top: number;
+}
+
+export interface ObjectFingerprint {
+  objectIndex: number;
+  kind: string;
+  left: number;
+  bottom: number;
+  right: number;
+  top: number;
+  occurrence: number;
+  totalSampled: number;
+}
+
+export interface DetectResult {
+  candidates: ObjectFingerprint[];
+  totalPages: number;
+  sampledPages: number;
+}
+
+export interface RemovedSummary {
+  info: DocumentInfo;
+  removedCount: number;
+}
+
+export function removeObjectsInRect(
+  docId: number,
+  pages: number[],
+  rect: Rect,
+): Promise<RemovedSummary> {
+  return invoke<RemovedSummary>("remove_objects_in_rect", {
+    docId,
+    pages,
+    rect,
+  });
+}
+
+export function detectWatermarkCandidates(
+  docId: number,
+  samplePages?: number,
+  threshold?: number,
+): Promise<DetectResult> {
+  return invoke<DetectResult>("detect_watermark_candidates", {
+    docId,
+    samplePages: samplePages ?? null,
+    threshold: threshold ?? null,
+  });
+}
+
+export function applyWatermarkRemoval(
+  docId: number,
+  selectedIndices: number[],
+): Promise<RemovedSummary> {
+  return invoke<RemovedSummary>("apply_watermark_removal", {
+    docId,
+    selectedIndices,
+  });
+}
+
 // ---------- 注释（M5） ----------
 
 export type AnnotationKind =

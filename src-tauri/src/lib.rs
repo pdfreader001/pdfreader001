@@ -8,6 +8,7 @@ pub mod pages;
 pub mod render;
 pub mod security;
 pub mod watermark;
+pub mod watermark_remove;
 
 pub use document::pdfium;
 
@@ -40,6 +41,9 @@ pub fn run() {
             pages::get_bookmarks,
             watermark::add_text_watermark,
             watermark::add_image_watermark,
+            watermark_remove::remove_objects_in_rect,
+            watermark_remove::detect_watermark_candidates,
+            watermark_remove::apply_watermark_removal,
             edit::list_annotations,
             edit::add_annotation,
             edit::delete_annotation,

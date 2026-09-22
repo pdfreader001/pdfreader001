@@ -9,6 +9,9 @@ import {
   canRedo,
   addTextWatermark,
   addImageWatermark,
+  removeObjectsInRect,
+  detectWatermarkCandidates,
+  applyWatermarkRemoval,
   addAnnotation,
   listAnnotations,
   deleteAnnotation,
@@ -31,6 +34,9 @@ import type {
   SecurityStatus,
   OfficeProbe,
   EbookToolProbe,
+  DetectResult,
+  ObjectFingerprint,
+  Rect as RemoveRect,
 } from "../lib/ipc";
 import { useT } from "../i18n";
 
@@ -345,6 +351,45 @@ const POSITIONS: { k: string; label: string }[] = [
 ];
 
 function WatermarkPanel() {
+  const [mode, setMode] = useState<"add" | "remove">("add");
+  return (
+    <>
+      <div className="split-modes" style={{ marginBottom: 12 }}>
+        <label className={`split-mode${mode === "add" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={mode === "add"}
+            onChange={() => setMode("add")}
+            style={{ display: "none" }}
+          />
+          <WatermarkAddLabel />
+        </label>
+        <label className={`split-mode${mode === "remove" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={mode === "remove"}
+            onChange={() => setMode("remove")}
+            style={{ display: "none" }}
+          />
+          <WatermarkRemoveLabel />
+        </label>
+      </div>
+      {mode === "add" ? <WatermarkAddPanel /> : <WatermarkRemovePanel />}
+    </>
+  );
+}
+
+function WatermarkAddLabel() {
+  const t = useT();
+  return <>{t("添加水印")}</>;
+}
+
+function WatermarkRemoveLabel() {
+  const t = useT();
+  return <>{t("去除水印")}</>;
+}
+
+function WatermarkAddPanel() {
   const docId = useApp((s) => s.docId);
   const pageCount = useApp((s) => s.pageCount);
   const selectedPages = useApp((s) => s.selectedPages);
@@ -590,6 +635,308 @@ function WatermarkPanel() {
         </button>
       </div>
     </div>
+  );
+}
+
+function WatermarkRemovePanel() {
+  const docId = useApp((s) => s.docId);
+  const pageCount = useApp((s) => s.pageCount);
+  const currentPage = useApp((s) => s.currentPage);
+  const updatePages = useApp((s) => s.updatePages);
+  const markDirty = useApp((s) => s.markDirty);
+  const setCanUndo = useApp((s) => s.setCanUndo);
+  const setCanRedo = useApp((s) => s.setCanRedo);
+  const pushToast = useApp((s) => s.pushToast);
+  const errorToast = useApp((s) => s.errorToast);
+  const closeTask = useApp((s) => s.closeTask);
+  const t = useT();
+
+  type SubMode = "manual" | "auto";
+  const [subMode, setSubMode] = useState<SubMode>("manual");
+  const [busy, setBusy] = useState(false);
+  // manual
+  const [rect, setRect] = useState<RemoveRect>({
+    left: 100,
+    bottom: 100,
+    right: 300,
+    top: 200,
+  });
+  const [onlyCurrent, setOnlyCurrent] = useState(true);
+  // auto
+  const [samplePages, setSamplePages] = useState(10);
+  const [threshold, setThreshold] = useState(0.6);
+  const [detectResult, setDetectResult] = useState<DetectResult | null>(null);
+  const [detecting, setDetecting] = useState(false);
+  const [selectedFp, setSelectedFp] = useState<Set<number>>(new Set());
+
+  const requireDoc = (): number | null => {
+    if (docId === null) {
+      pushToast("info", t("请打开文档后再操作"));
+      return null;
+    }
+    return docId;
+  };
+
+  const validRect =
+    rect.right > rect.left && rect.top > rect.bottom;
+
+  const applyManual = async () => {
+    const id = requireDoc();
+    if (!id || !validRect) {
+      pushToast("info", t("请检查矩形坐标"));
+      return;
+    }
+    const pages = onlyCurrent ? [currentPage] : Array.from({ length: pageCount }, (_, i) => i);
+    setBusy(true);
+    try {
+      const res = await removeObjectsInRect(id, pages, rect);
+      updatePages(res.info);
+      markDirty(true);
+      setCanUndo(await canUndo(id));
+      setCanRedo(await canRedo(id));
+      pushToast("info", t("已删除 {n} 个对象", { n: res.removedCount }));
+      closeTask();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runDetect = async () => {
+    const id = requireDoc();
+    if (!id) return;
+    setDetecting(true);
+    try {
+      const res = await detectWatermarkCandidates(id, samplePages, threshold);
+      setDetectResult(res);
+      setSelectedFp(new Set(res.candidates.map((c) => c.objectIndex)));
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setDetecting(false);
+    }
+  };
+
+  const applyAuto = async () => {
+    const id = requireDoc();
+    if (!id || !detectResult || selectedFp.size === 0) {
+      pushToast("info", t("未检测到候选水印。请先点击「开始检测」。"));
+      return;
+    }
+    const indices = Array.from(selectedFp).sort((a, b) => b - a);
+    setBusy(true);
+    try {
+      const res = await applyWatermarkRemoval(id, indices);
+      updatePages(res.info);
+      markDirty(true);
+      setCanUndo(await canUndo(id));
+      setCanRedo(await canRedo(id));
+      pushToast("info", t("已删除 {n} 个对象", { n: res.removedCount }));
+      closeTask();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleFp = (idx: number) => {
+    setSelectedFp((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  return (
+    <div className="task-body">
+      <p className="placeholder">
+        {t("在当前页用鼠标框选区域，或自动检测重复水印对象")}
+      </p>
+      <div className="split-modes">
+        <label className={`split-mode${subMode === "manual" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={subMode === "manual"}
+            onChange={() => setSubMode("manual")}
+            style={{ display: "none" }}
+          />
+          {t("手动框选")}
+        </label>
+        <label className={`split-mode${subMode === "auto" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={subMode === "auto"}
+            onChange={() => setSubMode("auto")}
+            style={{ display: "none" }}
+          />
+          {t("自动检测")}
+        </label>
+      </div>
+
+      {subMode === "manual" ? (
+        <>
+          <div className="field">
+            <label>{t("矩形坐标（PDF 点，左下原点）")}</label>
+          </div>
+          <div className="form-row">
+            <label>{t("左")}</label>
+            <input
+              type="number"
+              value={rect.left}
+              onChange={(e) => setRect({ ...rect, left: parseFloat(e.target.value) || 0 })}
+              style={{ width: 70 }}
+            />
+            <label>{t("下")}</label>
+            <input
+              type="number"
+              value={rect.bottom}
+              onChange={(e) => setRect({ ...rect, bottom: parseFloat(e.target.value) || 0 })}
+              style={{ width: 70 }}
+            />
+          </div>
+          <div className="form-row">
+            <label>{t("右")}</label>
+            <input
+              type="number"
+              value={rect.right}
+              onChange={(e) => setRect({ ...rect, right: parseFloat(e.target.value) || 0 })}
+              style={{ width: 70 }}
+            />
+            <label>{t("上")}</label>
+            <input
+              type="number"
+              value={rect.top}
+              onChange={(e) => setRect({ ...rect, top: parseFloat(e.target.value) || 0 })}
+              style={{ width: 70 }}
+            />
+          </div>
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={onlyCurrent}
+              onChange={(e) => setOnlyCurrent(e.target.checked)}
+            />
+            {t("应用到当前页")}
+          </label>
+          <p className="placeholder" style={{ marginTop: 8, fontSize: 11 }}>
+            {t("建议：先在画布上选区 → 自动获取矩形 → 确认。")}
+          </p>
+          <div className="task-footer">
+            <button
+              className="btn-primary"
+              onClick={applyManual}
+              disabled={busy || !validRect || docId === null}
+            >
+              {busy ? t("删除中…") : t("去除水印")}
+            </button>
+            <button
+              onClick={() => setRect({ left: 100, bottom: 100, right: 300, top: 200 })}
+              disabled={busy}
+              style={{ marginLeft: 6 }}
+            >
+              {t("清除")}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="form-row">
+            <label>{t("采样页数")}</label>
+            <input
+              type="number"
+              min={2}
+              max={50}
+              value={samplePages}
+              onChange={(e) =>
+                setSamplePages(Math.min(50, Math.max(2, parseInt(e.target.value) || 10)))
+              }
+              style={{ width: 60 }}
+            />
+            <label>{t("出现阈值")}</label>
+            <input
+              type="number"
+              min={0.3}
+              max={1.0}
+              step={0.05}
+              value={threshold}
+              onChange={(e) =>
+                setThreshold(Math.min(1.0, Math.max(0.3, parseFloat(e.target.value) || 0.6)))
+              }
+              style={{ width: 60 }}
+            />
+          </div>
+          <div className="task-footer">
+            <button
+              className="btn-primary"
+              onClick={runDetect}
+              disabled={detecting || busy || docId === null}
+            >
+              {detecting ? t("检测中…") : detectResult ? t("重新检测") : t("开始检测")}
+            </button>
+          </div>
+
+          {detectResult && (
+            <>
+              <p className="placeholder">
+                {t("候选水印（出现在多页）")}（{detectResult.candidates.length}）
+              </p>
+              {detectResult.candidates.length === 0 ? (
+                <p className="placeholder">{t("无候选水印")}</p>
+              ) : (
+                <div className="wm-candidate-list">
+                  {detectResult.candidates.map((fp) => (
+                    <WatermarkCandidateRow
+                      key={fp.objectIndex}
+                      fp={fp}
+                      totalSampled={detectResult.sampledPages}
+                      checked={selectedFp.has(fp.objectIndex)}
+                      onToggle={() => toggleFp(fp.objectIndex)}
+                    />
+                  ))}
+                </div>
+              )}
+              <div className="task-footer">
+                <button
+                  className="btn-primary"
+                  onClick={applyAuto}
+                  disabled={busy || selectedFp.size === 0}
+                >
+                  {busy ? t("删除中…") : t("应用去除")}
+                </button>
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function WatermarkCandidateRow({
+  fp,
+  totalSampled,
+  checked,
+  onToggle,
+}: {
+  fp: ObjectFingerprint;
+  totalSampled: number;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  const t = useT();
+  return (
+    <label className="wm-candidate-row">
+      <input type="checkbox" checked={checked} onChange={onToggle} />
+      <span className="wm-candidate-kind">
+        {fp.kind === "text" ? "T" : fp.kind === "image" ? "🖼" : "▭"}
+      </span>
+      <span className="wm-candidate-info">
+        {t("类型")}: {fp.kind} · {t("位置")}: ({fp.left.toFixed(0)}, {fp.bottom.toFixed(0)}) – ({fp.right.toFixed(0)}, {fp.top.toFixed(0)}) · {t("出现")}: {fp.occurrence}/{totalSampled}
+      </span>
+    </label>
   );
 }
 
