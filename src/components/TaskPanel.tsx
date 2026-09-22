@@ -12,6 +12,12 @@ import {
   removeObjectsInRect,
   detectWatermarkCandidates,
   applyWatermarkRemoval,
+  rewriteText,
+  addTextBox,
+  replaceImage,
+  deleteImageObject,
+  isScannedPage,
+  clearPageText,
   addAnnotation,
   listAnnotations,
   deleteAnnotation,
@@ -950,6 +956,45 @@ const ANNOT_KINDS: { k: AnnotationKind; labelKey: string; icon: string }[] = [
 ];
 
 function EditPanel() {
+  const [mode, setMode] = useState<"annot" | "deep">("annot");
+  return (
+    <>
+      <div className="split-modes" style={{ marginBottom: 12 }}>
+        <label className={`split-mode${mode === "annot" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={mode === "annot"}
+            onChange={() => setMode("annot")}
+            style={{ display: "none" }}
+          />
+          <EditAnnotLabel />
+        </label>
+        <label className={`split-mode${mode === "deep" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={mode === "deep"}
+            onChange={() => setMode("deep")}
+            style={{ display: "none" }}
+          />
+          <EditDeepLabel />
+        </label>
+      </div>
+      {mode === "annot" ? <AnnotationEditor /> : <DeepEditor />}
+    </>
+  );
+}
+
+function EditAnnotLabel() {
+  const t = useT();
+  return <>{t("注释")}</>;
+}
+
+function EditDeepLabel() {
+  const t = useT();
+  return <>{t("深度编辑")}</>;
+}
+
+function AnnotationEditor() {
   const docId = useApp((s) => s.docId);
   const currentPage = useApp((s) => s.currentPage);
   const pageCount = useApp((s) => s.pageCount);
@@ -1143,6 +1188,505 @@ function EditPanel() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function DeepEditor() {
+  const docId = useApp((s) => s.docId);
+  const currentPage = useApp((s) => s.currentPage);
+  const pageCount = useApp((s) => s.pageCount);
+  const updatePages = useApp((s) => s.updatePages);
+  const markDirty = useApp((s) => s.markDirty);
+  const setCanUndo = useApp((s) => s.setCanUndo);
+  const setCanRedo = useApp((s) => s.setCanRedo);
+  const pushToast = useApp((s) => s.pushToast);
+  const errorToast = useApp((s) => s.errorToast);
+  const closeTask = useApp((s) => s.closeTask);
+  const t = useT();
+
+  type Mode = "rewrite" | "addtext" | "image" | "scandetect";
+  const [mode, setMode] = useState<Mode>("rewrite");
+  const [busy, setBusy] = useState(false);
+
+  // rewrite
+  const [region, setRegion] = useState({
+    left: 100,
+    bottom: 100,
+    right: 300,
+    top: 200,
+  });
+  const [newText, setNewText] = useState("");
+  const [rwFontSize, setRwFontSize] = useState(24);
+  const [rwColor, setRwColor] = useState("#000000");
+
+  // addtext
+  const [textInput, setTextInput] = useState("");
+  const [tbFontSize, setTbFontSize] = useState(24);
+  const [tbColor, setTbColor] = useState("#000000");
+  const [tbX, setTbX] = useState(100);
+  const [tbY, setTbY] = useState(100);
+
+  // image
+  const [imgPath, setImgPath] = useState<string | null>(null);
+  const [imgName, setImgName] = useState("");
+  const [objIndex, setObjIndex] = useState(0);
+
+  // scandetect
+  const [scanState, setScanState] = useState<"unknown" | "scanned" | "not">(
+    "unknown",
+  );
+  const [detecting, setDetecting] = useState(false);
+
+  const requireDoc = (): number | null => {
+    if (docId === null) {
+      pushToast("info", t("请打开文档后再操作"));
+      return null;
+    }
+    return docId;
+  };
+
+  const onRewrite = async () => {
+    const id = requireDoc();
+    if (!id) return;
+    if (!newText.trim()) {
+      pushToast("info", t("文字不能为空"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const info = await rewriteText(id, currentPage, region, {
+        newText: newText.trim(),
+        fontSize: rwFontSize,
+        color: rwColor,
+      });
+      updatePages(info);
+      markDirty(true);
+      setCanUndo(await canUndo(id));
+      setCanRedo(await canRedo(id));
+      pushToast("info", t("已重写当前页文字"));
+      closeTask();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onAddText = async () => {
+    const id = requireDoc();
+    if (!id) return;
+    if (!textInput.trim()) {
+      pushToast("info", t("文字不能为空"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const info = await addTextBox(id, currentPage, {
+        text: textInput.trim(),
+        fontSize: tbFontSize,
+        color: tbColor,
+        x: tbX,
+        y: tbY,
+      });
+      updatePages(info);
+      markDirty(true);
+      setCanUndo(await canUndo(id));
+      setCanRedo(await canRedo(id));
+      pushToast("info", t("已添加文本"));
+      closeTask();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const pickImage = async () => {
+    const picked = await open({
+      multiple: false,
+      filters: [
+        {
+          name: t("图片"),
+          extensions: ["png", "jpg", "jpeg", "webp", "bmp"],
+        },
+      ],
+    });
+    if (typeof picked === "string") {
+      setImgPath(picked);
+      setImgName(picked.split(/[\\/]/).pop() || picked);
+    }
+  };
+
+  const onReplaceImage = async () => {
+    const id = requireDoc();
+    if (!id) return;
+    if (!imgPath) {
+      pushToast("info", t("请选择一张图片"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const info = await replaceImage(id, currentPage, objIndex, imgPath);
+      updatePages(info);
+      markDirty(true);
+      setCanUndo(await canUndo(id));
+      setCanRedo(await canRedo(id));
+      pushToast("info", t("已替换图片"));
+      closeTask();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onDeleteImage = async () => {
+    const id = requireDoc();
+    if (!id) return;
+    if (!confirm(t("删除第 {n} 页的对象 {i}？", { n: currentPage + 1, i: objIndex }))) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const info = await deleteImageObject(id, currentPage, objIndex);
+      updatePages(info);
+      markDirty(true);
+      setCanUndo(await canUndo(id));
+      setCanRedo(await canRedo(id));
+      pushToast("info", t("已删除图片"));
+      closeTask();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onClearPageText = async () => {
+    const id = requireDoc();
+    if (!id) return;
+    if (!confirm(t("清空第 {n} 页所有文字对象？图片和其他对象保留。", { n: currentPage + 1 }))) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const info = await clearPageText(id, [currentPage]);
+      updatePages(info);
+      markDirty(true);
+      setCanUndo(await canUndo(id));
+      setCanRedo(await canRedo(id));
+      pushToast("info", t("已清空页面文字"));
+      closeTask();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onDetect = async () => {
+    const id = requireDoc();
+    if (!id) return;
+    setDetecting(true);
+    try {
+      const scanned = await isScannedPage(id, currentPage);
+      setScanState(scanned ? "scanned" : "not");
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setDetecting(false);
+    }
+  };
+
+  return (
+    <div className="task-body">
+      <p className="placeholder">
+        {t("第 {n} / {total} 页。", { n: currentPage + 1, total: pageCount || "?" })}
+      </p>
+      <div className="split-modes">
+        <label className={`split-mode${mode === "rewrite" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={mode === "rewrite"}
+            onChange={() => setMode("rewrite")}
+            style={{ display: "none" }}
+          />
+          {t("文字重写")}
+        </label>
+        <label className={`split-mode${mode === "addtext" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={mode === "addtext"}
+            onChange={() => setMode("addtext")}
+            style={{ display: "none" }}
+          />
+          {t("新增文本")}
+        </label>
+        <label className={`split-mode${mode === "image" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={mode === "image"}
+            onChange={() => setMode("image")}
+            style={{ display: "none" }}
+          />
+          {t("图片")}
+        </label>
+        <label className={`split-mode${mode === "scandetect" ? " active" : ""}`}>
+          <input
+            type="radio"
+            checked={mode === "scandetect"}
+            onChange={() => setMode("scandetect")}
+            style={{ display: "none" }}
+          />
+          {t("扫描版")}
+        </label>
+      </div>
+
+      {scanState === "scanned" && (
+        <div
+          style={{
+            background: "var(--danger-bg, rgba(255,80,80,0.15))",
+            border: "1px solid var(--danger)",
+            borderRadius: 4,
+            padding: 8,
+            marginBottom: 8,
+            fontSize: 12,
+          }}
+        >
+          {t("扫描版提示")}
+        </div>
+      )}
+
+      {mode === "rewrite" && (
+        <>
+          <p className="placeholder" style={{ fontSize: 11 }}>
+            {t("文字重写操作会用白色矩形覆盖原文字区域，然后按指定字号插入新文字；字体缺失时会自动回退到系统中文字体。")}
+          </p>
+          <div className="form-row">
+            <label>{t("新文本内容")}</label>
+            <input
+              type="text"
+              value={newText}
+              onChange={(e) => setNewText(e.target.value)}
+              placeholder={t("如：修正后的标题")}
+            />
+          </div>
+          <div className="form-row">
+            <label>{t("字号（pt）")}</label>
+            <input
+              type="number"
+              min={8}
+              max={200}
+              value={rwFontSize}
+              onChange={(e) =>
+                setRwFontSize(Math.min(200, Math.max(8, parseInt(e.target.value) || 24)))
+              }
+              style={{ width: 64 }}
+            />
+            <label>{t("颜色")}</label>
+            <input
+              type="color"
+              value={rwColor}
+              onChange={(e) => setRwColor(e.target.value)}
+              style={{ width: 40, padding: 0, height: 28 }}
+            />
+          </div>
+          <div className="field">
+            <label>{t("矩形（PDF 点，左下原点）")}</label>
+          </div>
+          <div className="form-row">
+            <label>{t("左")}</label>
+            <input
+              type="number"
+              value={region.left}
+              onChange={(e) => setRegion({ ...region, left: parseFloat(e.target.value) || 0 })}
+              style={{ width: 70 }}
+            />
+            <label>{t("下")}</label>
+            <input
+              type="number"
+              value={region.bottom}
+              onChange={(e) => setRegion({ ...region, bottom: parseFloat(e.target.value) || 0 })}
+              style={{ width: 70 }}
+            />
+          </div>
+          <div className="form-row">
+            <label>{t("右")}</label>
+            <input
+              type="number"
+              value={region.right}
+              onChange={(e) => setRegion({ ...region, right: parseFloat(e.target.value) || 0 })}
+              style={{ width: 70 }}
+            />
+            <label>{t("上")}</label>
+            <input
+              type="number"
+              value={region.top}
+              onChange={(e) => setRegion({ ...region, top: parseFloat(e.target.value) || 0 })}
+              style={{ width: 70 }}
+            />
+          </div>
+          <div className="task-footer">
+            <button
+              className="btn-primary"
+              onClick={onRewrite}
+              disabled={busy || !newText.trim() || docId === null}
+            >
+              {busy ? t("处理中…") : t("确认重写")}
+            </button>
+          </div>
+        </>
+      )}
+
+      {mode === "addtext" && (
+        <>
+          <p className="placeholder" style={{ fontSize: 11 }}>
+            {t("新增文本框：在指定坐标插入一段新文本，不影响其他对象。")}
+          </p>
+          <div className="form-row">
+            <label>{t("新文本内容")}</label>
+            <input
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder={t("如：批注文字")}
+            />
+          </div>
+          <div className="form-row">
+            <label>{t("字号（pt）")}</label>
+            <input
+              type="number"
+              min={8}
+              max={200}
+              value={tbFontSize}
+              onChange={(e) =>
+                setTbFontSize(Math.min(200, Math.max(8, parseInt(e.target.value) || 24)))
+              }
+              style={{ width: 64 }}
+            />
+            <label>{t("颜色")}</label>
+            <input
+              type="color"
+              value={tbColor}
+              onChange={(e) => setTbColor(e.target.value)}
+              style={{ width: 40, padding: 0, height: 28 }}
+            />
+          </div>
+          <div className="form-row">
+            <label>{t("X 坐标（pt）")}</label>
+            <input
+              type="number"
+              value={tbX}
+              onChange={(e) => setTbX(parseFloat(e.target.value) || 0)}
+              style={{ width: 90 }}
+            />
+          </div>
+          <div className="form-row">
+            <label>{t("Y 坐标（pt）")}</label>
+            <input
+              type="number"
+              value={tbY}
+              onChange={(e) => setTbY(parseFloat(e.target.value) || 0)}
+              style={{ width: 90 }}
+            />
+          </div>
+          <div className="task-footer">
+            <button
+              className="btn-primary"
+              onClick={onAddText}
+              disabled={busy || !textInput.trim() || docId === null}
+            >
+              {busy ? t("添加中…") : t("添加文本框")}
+            </button>
+          </div>
+        </>
+      )}
+
+      {mode === "image" && (
+        <>
+          <p className="placeholder" style={{ fontSize: 11 }}>
+            {t("替换/删除图片：替换整张图片或仅删除该图片对象。")}
+          </p>
+          <div className="form-row">
+            <label>{t("对象索引")}</label>
+            <input
+              type="number"
+              min={0}
+              value={objIndex}
+              onChange={(e) => setObjIndex(Math.max(0, parseInt(e.target.value) || 0))}
+              style={{ width: 80 }}
+            />
+          </div>
+          <div className="merge-output">
+            <button onClick={pickImage} disabled={busy}>
+              {t("替换为新图片…")}
+            </button>
+            <span className="merge-output-path" title={imgPath ?? undefined}>
+              {imgName || t("未选择")}
+            </span>
+            {imgPath && (
+              <button onClick={() => { setImgPath(null); setImgName(""); }} disabled={busy}>
+                ✕
+              </button>
+            )}
+          </div>
+          <div className="task-footer">
+            <button
+              className="btn-primary"
+              onClick={onReplaceImage}
+              disabled={busy || !imgPath || docId === null}
+            >
+              {busy ? t("替换中…") : t("替换图片")}
+            </button>
+            <button
+              onClick={onDeleteImage}
+              disabled={busy || docId === null}
+              style={{ marginLeft: 6, color: "var(--danger)" }}
+            >
+              {busy ? t("删除中…") : t("删除图片")}
+            </button>
+          </div>
+          <button
+            onClick={onClearPageText}
+            disabled={busy || docId === null}
+            style={{ marginTop: 12, color: "var(--danger)" }}
+          >
+            {t("清空页面文字（仅当前页）")}
+          </button>
+        </>
+      )}
+
+      {mode === "scandetect" && (
+        <>
+          <p className="placeholder" style={{ fontSize: 11 }}>
+            {t("扫描版检测：判断页面是否几乎没有可识别文本（无文本层）。")}
+          </p>
+          <div className="task-footer">
+            <button
+              className="btn-primary"
+              onClick={onDetect}
+              disabled={detecting || docId === null}
+            >
+              {detecting ? t("正在检测…") : t("已扫描检测")}
+            </button>
+          </div>
+          {scanState !== "unknown" && (
+            <div style={{ marginTop: 12, fontSize: 13 }}>
+              {t("本页面是否为扫描版")}：
+              <span
+                style={{
+                  color: scanState === "scanned" ? "var(--danger)" : "var(--accent)",
+                  fontWeight: 600,
+                  marginLeft: 6,
+                }}
+              >
+                {scanState === "scanned" ? t("是") : t("否")}
+              </span>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

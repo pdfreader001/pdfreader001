@@ -91,7 +91,7 @@ fn anchor(position: &str, page_w: f32, page_h: f32, obj_w: f32, obj_h: f32) -> (
 }
 
 /// 按需加载字体：纯 ASCII 用内置 Helvetica；含中文则尝试系统中文字体（CID 加载）
-fn load_font_for_text(doc: &mut PdfDocument, text: &str) -> AppResult<PdfFontToken> {
+pub(crate) fn load_font_for_text(doc: &mut PdfDocument, text: &str) -> AppResult<PdfFontToken> {
     if text.chars().all(|c| c.is_ascii()) {
         return Ok(doc.fonts_mut().helvetica());
     }

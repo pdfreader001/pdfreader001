@@ -69,6 +69,8 @@ pub enum AppError {
     // ------ 注释 ------
     #[error("Annotation index out of range")]
     AnnotationOutOfRange,
+    #[error("Text cannot be empty")]
+    TextEmpty,
 
     // ------ 转换 ------
     #[error("No pages selected for export")]
@@ -161,6 +163,7 @@ impl AppError {
             AppError::NoPagesForWatermark => "no_pages_for_watermark",
             AppError::NoChineseFont => "no_chinese_font",
             AppError::AnnotationOutOfRange => "annotation_out_of_range",
+            AppError::TextEmpty => "text_empty",
             AppError::NoPagesToExport => "no_pages_to_export",
             AppError::DpiOutOfRange { .. } => "dpi_out_of_range",
             AppError::ImageConstructFailed => "image_construct_failed",
@@ -250,6 +253,7 @@ impl Serialize for AppError {
                 | AppError::NoPagesForWatermark
                 | AppError::NoChineseFont
                 | AppError::AnnotationOutOfRange
+                | AppError::TextEmpty
                 | AppError::NoPagesToExport
                 | AppError::ImageConstructFailed
                 | AppError::NoImagesProvided

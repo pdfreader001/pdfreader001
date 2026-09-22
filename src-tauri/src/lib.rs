@@ -1,6 +1,7 @@
 pub mod convert;
 pub mod document;
 pub mod edit;
+pub mod edit_ext;
 pub mod ebook;
 pub mod error;
 pub mod office;
@@ -48,6 +49,12 @@ pub fn run() {
             edit::add_annotation,
             edit::delete_annotation,
             edit::clear_annotations,
+            edit_ext::rewrite_text,
+            edit_ext::add_text_box,
+            edit_ext::replace_image,
+            edit_ext::delete_image_object,
+            edit_ext::is_scanned_page,
+            edit_ext::clear_page_text,
             security::get_security_status,
             security::export_plain_copy,
             security::reload_plain,

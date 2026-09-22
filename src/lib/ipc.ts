@@ -200,6 +200,95 @@ export function addImageWatermark(
   return invoke<DocumentInfo>("add_image_watermark", { docId, pages, opts });
 }
 
+// ---------- 深度编辑（M5） ----------
+
+export interface PtRect {
+  left: number;
+  bottom: number;
+  right: number;
+  top: number;
+}
+
+export interface RewriteTextOpts {
+  newText: string;
+  fontSize: number;
+  color: string;
+}
+
+export function rewriteText(
+  docId: number,
+  pageIndex: number,
+  region: PtRect,
+  opts: RewriteTextOpts,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("rewrite_text", {
+    docId,
+    pageIndex,
+    region,
+    opts,
+  });
+}
+
+export interface AddTextBoxOpts {
+  text: string;
+  fontSize: number;
+  color: string;
+  x: number;
+  y: number;
+}
+
+export function addTextBox(
+  docId: number,
+  pageIndex: number,
+  opts: AddTextBoxOpts,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("add_text_box", {
+    docId,
+    pageIndex,
+    opts,
+  });
+}
+
+export function replaceImage(
+  docId: number,
+  pageIndex: number,
+  objectIndex: number,
+  newImagePath: string,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("replace_image", {
+    docId,
+    pageIndex,
+    objectIndex,
+    newImagePath,
+  });
+}
+
+export function deleteImageObject(
+  docId: number,
+  pageIndex: number,
+  objectIndex: number,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("delete_image_object", {
+    docId,
+    pageIndex,
+    objectIndex,
+  });
+}
+
+export function isScannedPage(
+  docId: number,
+  pageIndex: number,
+): Promise<boolean> {
+  return invoke<boolean>("is_scanned_page", { docId, pageIndex });
+}
+
+export function clearPageText(
+  docId: number,
+  pages: number[],
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("clear_page_text", { docId, pages });
+}
+
 // ---------- 水印去除（M4 part 2） ----------
 
 export interface Rect {
