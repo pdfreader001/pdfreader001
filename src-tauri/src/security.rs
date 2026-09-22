@@ -92,7 +92,7 @@ pub async fn export_plain_copy(
         doc.save_to_bytes()?
     };
     std::fs::write(&output_path, &bytes)
-        .map_err(|e| AppError::Internal(format!("写入文件失败：{e}")))?;
+        .map_err(|e| AppError::Io(e))?;
     Ok(output_path)
 }
 

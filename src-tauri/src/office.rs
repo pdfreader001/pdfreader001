@@ -99,20 +99,14 @@ pub async fn convert_office_to_pdf(
     output_dir: String,
 ) -> AppResult<String> {
     if !Path::new(&soffice_path).is_file() {
-        return Err(AppError::Internal(format!(
-            "LibreOffice 可执行文件不存在：{}",
-            soffice_path
-        )));
+        return Err(AppError::ToolNotFound { tool: "LibreOffice".into() });
     }
     if !Path::new(&source).is_file() {
-        return Err(AppError::Internal(format!("源文件不存在：{}", source)));
+        return Err(AppError::SourceNotFound { path: source });
     }
     let out = Path::new(&output_dir);
     if !out.is_dir() {
-        return Err(AppError::Internal(format!(
-            "输出目录不存在：{}",
-            output_dir
-        )));
+        return Err(AppError::Internal(format!("输出目录不存在：{}", output_dir)));
     }
 
     let out_str = out.to_string_lossy().to_string();
@@ -127,25 +121,20 @@ pub async fn convert_office_to_pdf(
         .arg(&out_str)
         .arg(&source)
         .status()
-        .map_err(|e| AppError::Internal(format!("启动 LibreOffice 失败：{e}")))?;
+        .map_err(|e| AppError::ToolStartFailed { tool: "LibreOffice".into(), detail: e.to_string() })?;
 
     if !status.success() {
-        return Err(AppError::Internal(format!(
-            "LibreOffice 退出码 {}",
-            status.code().unwrap_or(-1)
-        )));
+        return Err(AppError::ToolFailed { tool: "LibreOffice".into(), code: status.code().unwrap_or(-1) });
     }
 
     // 推断输出 PDF 路径
     let src_stem = Path::new(&source)
         .file_stem()
         .and_then(|s| s.to_str())
-        .ok_or_else(|| AppError::Internal("无法获取源文件名".into()))?;
+        .ok_or(AppError::CannotDetermineSourceName)?;
     let pdf_path = out.join(format!("{src_stem}.pdf"));
     if !pdf_path.is_file() {
-        return Err(AppError::Internal(
-            "LibreOffice 未生成 PDF，请检查源文件格式是否受支持".into(),
-        ));
+        return Err(AppError::NoPdfGenerated);
     }
     Ok(pdf_path.to_string_lossy().into_owned())
 }

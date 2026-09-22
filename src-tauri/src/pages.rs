@@ -145,10 +145,10 @@ pub async fn delete_pages(
         let total = doc.pages().len() as u32;
         let indices = normalize_indices(&pages, total)?;
         if indices.is_empty() {
-            return Err(AppError::Internal("没有要删除的页面".into()));
+            return Err(AppError::NoPagesToDelete);
         }
         if indices.len() as u32 >= total {
-            return Err(AppError::Internal("不能删除全部页面".into()));
+            return Err(AppError::CannotDeleteAllPages);
         }
         for idx in indices.iter().rev() {
             let page = doc.pages().get(*idx)?;
@@ -178,7 +178,7 @@ pub async fn duplicate_pages(
         }
         let indices = normalize_indices(&pages, total)?;
         if indices.is_empty() {
-            return Err(AppError::Internal("没有要复制的页面".into()));
+            return Err(AppError::NoPagesToDuplicate);
         }
         let mut doc = load_doc(pdfium, &entry.bytes)?;
         let dest = to_u16(dest_index)?;
@@ -241,7 +241,7 @@ pub async fn reorder_pages(
         }
         let indices = normalize_indices(&from_indices, total)?;
         if indices.is_empty() {
-            return Err(AppError::Internal("没有要移动的页面".into()));
+            return Err(AppError::NoPagesToMove);
         }
         let count = indices.len() as u32;
         let first_from = indices[0] as u32;
@@ -294,7 +294,7 @@ pub async fn extract_pages(
         let total = doc.pages().len() as u32;
         let indices = normalize_indices(&pages, total)?;
         if indices.is_empty() {
-            return Err(AppError::Internal("没有要提取的页面".into()));
+            return Err(AppError::NoPagesToExtract);
         }
         let mut new_doc = pdfium.create_new_pdf()?;
         for (i, &idx) in indices.iter().enumerate() {
@@ -335,7 +335,7 @@ pub async fn merge_documents(
     output_path: Option<String>,
 ) -> AppResult<DocumentInfo> {
     if sources.is_empty() {
-        return Err(AppError::Internal("至少需要一个源文件".into()));
+        return Err(AppError::NeedAtLeastOneFile);
     }
     let pdfium = get_pdfium();
     let mut merged = pdfium.create_new_pdf()?;
@@ -361,7 +361,7 @@ pub async fn merge_documents(
         }
     }
     if merged.pages().len() == 0 {
-        return Err(AppError::Internal("合并结果为空文档".into()));
+        return Err(AppError::MergeResultEmpty);
     }
     let new_bytes = merged.save_to_bytes()?;
     let path = output_path.map(PathBuf::from);
@@ -402,21 +402,21 @@ fn parse_ranges(spec: &str, total: u32) -> AppResult<Vec<(u32, u32)>> {
             let start: u32 = a
                 .trim()
                 .parse()
-                .map_err(|_| AppError::Internal(format!("无效页码范围: {part}")))?;
+                .map_err(|_| AppError::InvalidPageRange { range: part.to_string() })?;
             let end: u32 = b
                 .trim()
                 .parse()
-                .map_err(|_| AppError::Internal(format!("无效页码范围: {part}")))?;
+                .map_err(|_| AppError::InvalidPageRange { range: part.to_string() })?;
             if start == 0 || end == 0 || start > end || end > total {
-                return Err(AppError::Internal(format!("页码超出范围: {part}")));
+                return Err(AppError::InvalidPageRange { range: part.to_string() });
             }
             out.push((start - 1, end - 1));
         } else {
             let n: u32 = part
                 .parse()
-                .map_err(|_| AppError::Internal(format!("无效页码: {part}")))?;
+                .map_err(|_| AppError::InvalidPageRange { range: part.to_string() })?;
             if n == 0 || n > total {
-                return Err(AppError::Internal(format!("页码超出范围: {part}")));
+                return Err(AppError::InvalidPageRange { range: part.to_string() });
             }
             out.push((n - 1, n - 1));
         }
@@ -445,7 +445,7 @@ pub async fn split_document(
     let groups: Vec<Vec<u16>> = match mode {
         SplitMode::EveryN { n } => {
             if n == 0 {
-                return Err(AppError::Internal("每页数量不能为 0".into()));
+                return Err(AppError::PagesPerFileZero);
             }
             let mut groups = Vec::new();
             let mut i = 0u32;
@@ -509,7 +509,7 @@ pub async fn split_document(
     };
 
     if groups.is_empty() {
-        return Err(AppError::Internal("没有可拆分的内容".into()));
+        return Err(AppError::NothingToSplit);
     }
 
     let mut outputs = Vec::new();

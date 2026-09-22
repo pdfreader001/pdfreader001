@@ -19,6 +19,7 @@ export interface DocumentInfo {
 export interface ApiError {
   code: string;
   message: string;
+  args?: Record<string, string>;
 }
 
 export function isApiError(e: unknown): e is ApiError {

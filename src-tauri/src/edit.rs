@@ -134,7 +134,7 @@ pub async fn list_annotations(
     let total = doc.pages().len() as u32;
     let range: Vec<u32> = match page_index {
         Some(p) if p < total => vec![p],
-        Some(_) => return Err(AppError::Internal("页码越界".into())),
+        Some(_) => return Err(AppError::PageOutOfRange),
         None => (0..total).collect(),
     };
     let mut out = Vec::new();
@@ -180,7 +180,7 @@ pub async fn add_annotation(
         let mut doc = load_doc(pdfium, &entry.bytes)?;
         let total = doc.pages().len() as u32;
         if page_index >= total {
-            return Err(AppError::Internal("页码越界".into()));
+            return Err(AppError::PageOutOfRange);
         }
         let color = parse_color_hex(&opts.color);
         {
@@ -253,14 +253,14 @@ pub async fn delete_annotation(
         let mut doc = load_doc(pdfium, &entry.bytes)?;
         let total = doc.pages().len() as u32;
         if page_index >= total {
-            return Err(AppError::Internal("页码越界".into()));
+            return Err(AppError::PageOutOfRange);
         }
         {
             let mut pages = doc.pages_mut();
             let mut page = pages.get(page_index as u16)?;
             let mut annots = page.annotations_mut();
             if annotation_index >= annots.len() as u32 {
-                return Err(AppError::Internal("注释索引越界".into()));
+                return Err(AppError::AnnotationOutOfRange);
             }
             let annot = annots.get(annotation_index as usize)?;
             annots.delete_annotation(annot)?;

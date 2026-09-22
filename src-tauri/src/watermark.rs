@@ -113,9 +113,7 @@ fn load_font_for_text(doc: &mut PdfDocument, text: &str) -> AppResult<PdfFontTok
             return Ok(token);
         }
     }
-    Err(AppError::Internal(
-        "未找到可用的系统中文字体（需要 msyh / simhei / simsun）".into(),
-    ))
+    Err(AppError::NoChineseFont)
 }
 
 /// 平铺网格生成器：交错排列覆盖整页
@@ -169,7 +167,7 @@ pub async fn add_text_watermark(
     opts: TextWatermarkOpts,
 ) -> AppResult<DocumentInfo> {
     if opts.text.trim().is_empty() {
-        return Err(AppError::Internal("水印文字不能为空".into()));
+        return Err(AppError::WatermarkTextEmpty);
     }
     push_snapshot(&state, doc_id);
     let pdfium = get_pdfium();
@@ -228,11 +226,11 @@ pub async fn add_image_watermark(
 ) -> AppResult<DocumentInfo> {
     push_snapshot(&state, doc_id);
     let img = image::open(&opts.image_path)
-        .map_err(|e| AppError::Internal(format!("读取图片失败：{e}")))?;
+        .map_err(|_| AppError::ImageReadFailed { path: opts.image_path.clone() })?;
     let img = apply_image_opacity(img, opts.style.opacity);
     let (iw, ih) = (img.width() as f32, img.height() as f32);
     if iw < 1.0 || ih < 1.0 {
-        return Err(AppError::Internal("图片尺寸无效".into()));
+        return Err(AppError::InvalidImageSize);
     }
     let pdfium = get_pdfium();
     let new_bytes = {

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { DocumentInfo, PageInfo, BookmarkNode } from "../lib/ipc";
 import { isApiError } from "../lib/ipc";
 import { pageCache, thumbCache } from "../lib/bitmapCache";
+import { translateError } from "../i18n";
 
 export type ViewMode = "continuous" | "single" | "dual";
 export type FitMode = "none" | "width" | "page";
@@ -280,7 +281,13 @@ export const useApp = create<AppState>((set, get) => ({
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   errorToast: (e) => {
-    const msg = isApiError(e) ? e.message : e instanceof Error ? e.message : String(e);
+    const locale = get().locale;
+    let msg: string;
+    if (isApiError(e)) {
+      msg = translateError(locale, e.code, e.args, e.message);
+    } else {
+      msg = e instanceof Error ? e.message : String(e);
+    }
     get().pushToast("error", msg);
   },
 }));

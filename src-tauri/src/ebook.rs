@@ -114,13 +114,10 @@ pub async fn convert_ebook_to_pdf(
     opts: ConvertEbookOpts,
 ) -> AppResult<String> {
     if !Path::new(&tool_path).is_file() {
-        return Err(AppError::Internal(format!(
-            "Calibre ebook-convert 不存在：{}",
-            tool_path
-        )));
+        return Err(AppError::ToolNotFound { tool: "Calibre".into() });
     }
     if !Path::new(&opts.source).is_file() {
-        return Err(AppError::Internal(format!("源文件不存在：{}", opts.source)));
+        return Err(AppError::SourceNotFound { path: opts.source.clone() });
     }
     let out_path = Path::new(&opts.output);
     if let Some(parent) = out_path.parent() {
@@ -144,15 +141,12 @@ pub async fn convert_ebook_to_pdf(
     cmd.env("CALIBRE_USE_SYSTEM_THUMBNAILERS", "1");
     let status = cmd
         .status()
-        .map_err(|e| AppError::Internal(format!("启动 ebook-convert 失败：{e}")))?;
+        .map_err(|e| AppError::ToolStartFailed { tool: "ebook-convert".into(), detail: e.to_string() })?;
     if !status.success() {
-        return Err(AppError::Internal(format!(
-            "ebook-convert 退出码 {}",
-            status.code().unwrap_or(-1)
-        )));
+        return Err(AppError::ToolFailed { tool: "ebook-convert".into(), code: status.code().unwrap_or(-1) });
     }
     if !out_path.is_file() {
-        return Err(AppError::Internal("未生成 PDF，请检查源文件格式".into()));
+        return Err(AppError::NoPdfGenerated);
     }
     Ok(out_path.to_string_lossy().into_owned())
 }

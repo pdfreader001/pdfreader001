@@ -173,9 +173,7 @@ pub async fn save_document(
 
     let target = match path {
         Some(p) => std::path::PathBuf::from(p),
-        None => entry.path.clone().ok_or_else(|| {
-            AppError::Internal("文档没有原始路径，请指定保存位置".into())
-        })?,
+        None => entry.path.clone().ok_or(AppError::NoSavePath)?,
     };
 
     // 先在锁内生成新字节，再写盘
@@ -250,7 +248,7 @@ pub async fn undo_document(state: State<'_, AppState>, doc_id: u64) -> AppResult
             return Err(AppError::NotFound);
         };
         let Some(snap) = stack.pop() else {
-            return Err(AppError::Internal("没有可撤销的操作".into()));
+            return Err(AppError::NothingToUndo);
         };
         snap
     };
@@ -269,10 +267,10 @@ pub async fn redo_document(state: State<'_, AppState>, doc_id: u64) -> AppResult
     let snapshot = {
         let mut redo = state.redo.lock().unwrap();
         let Some(stack) = redo.get_mut(&doc_id) else {
-            return Err(AppError::Internal("没有可重做的操作".into()));
+            return Err(AppError::NothingToRedo);
         };
         let Some(snap) = stack.pop() else {
-            return Err(AppError::Internal("没有可重做的操作".into()));
+            return Err(AppError::NothingToRedo);
         };
         snap
     };

@@ -43,7 +43,7 @@ pub async fn export_pages_to_images(
     output_dir: String,
 ) -> AppResult<Vec<String>> {
     if spec.pages.is_empty() {
-        return Err(AppError::Internal("未选择任何页面".into()));
+        return Err(AppError::NoPagesToExport);
     }
     let dir = Path::new(&output_dir);
     if !dir.is_dir() {
@@ -77,7 +77,7 @@ pub async fn export_pages_to_images(
         let h = bitmap.height() as u32;
         // 构造 image::RgbaImage
         let img = image::RgbaImage::from_raw(w, h, rgba.to_vec())
-            .ok_or_else(|| AppError::Internal("构造图片失败".into()))?;
+            .ok_or_else(|| AppError::ImageConstructFailed)?;
         let dyn_img = image::DynamicImage::ImageRgba8(img);
 
         let stem = format!("page_{:04}", page_index + 1);
@@ -114,13 +114,13 @@ pub async fn images_to_pdf(
     output_path: String,
 ) -> AppResult<String> {
     if opts.image_paths.is_empty() {
-        return Err(AppError::Internal("未提供任何图片".into()));
+        return Err(AppError::NoImagesProvided);
     }
     // 加载所有图片，记录原始尺寸
     let mut imgs: Vec<image::DynamicImage> = Vec::new();
     let mut sizes: Vec<(u32, u32)> = Vec::new();
     for p in &opts.image_paths {
-        let im = image::open(p).map_err(|e| AppError::Internal(format!("读取图片失败：{e}")))?;
+        let im = image::open(p).map_err(|_| AppError::ImageReadFailed { path: p.clone() })?;
         sizes.push((im.width(), im.height()));
         imgs.push(im);
     }
@@ -176,6 +176,6 @@ pub async fn images_to_pdf(
     }
     let bytes = doc.save_to_bytes()?;
     std::fs::write(&output_path, &bytes)
-        .map_err(|e| AppError::Internal(format!("写入 PDF 失败：{e}")))?;
+        .map_err(|_| AppError::PdfWriteFailed)?;
     Ok(output_path)
 }

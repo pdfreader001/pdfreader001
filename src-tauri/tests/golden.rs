@@ -439,3 +439,129 @@ fn security_plain_copy_roundtrip() {
     let doc3 = pdfium.load_pdf_from_byte_slice(&plain, None).unwrap();
     assert_eq!(doc3.pages().len(), 2);
 }
+
+// ==================== 性能基准测试（500 页大文档） ====================
+
+/// 生成 N 页空白 A4 PDF，返回字节。
+fn gen_large_pdf(pages: u32) -> Vec<u8> {
+    use pdfium_render::prelude::PdfPagePaperSize;
+    let pdfium = pdfe_lib::pdfium();
+    let mut doc = pdfium.create_new_pdf().unwrap();
+    for i in 0..pages {
+        doc.pages_mut()
+            .create_page_at_index(PdfPagePaperSize::a4(), i as u16)
+            .unwrap();
+    }
+    doc.save_to_bytes().unwrap()
+}
+
+/// 500 页文档：打开耗时应 < 2s。
+#[test]
+fn perf_open_500_pages() {
+    let bytes = gen_large_pdf(500);
+    let pdfium = pdfe_lib::pdfium();
+    let start = std::time::Instant::now();
+    let doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
+    let elapsed = start.elapsed();
+    assert_eq!(doc.pages().len(), 500);
+    eprintln!("[perf] open 500 pages: {:?}", elapsed);
+    assert!(
+        elapsed.as_secs_f64() < 2.0,
+        "打开 500 页耗时过长: {:?}",
+        elapsed
+    );
+}
+
+/// 500 页文档：渲染中间一页（第 250 页）耗时应 < 200ms。
+#[test]
+fn perf_render_mid_page_500() {
+    let bytes = gen_large_pdf(500);
+    let pdfium = pdfe_lib::pdfium();
+    let doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
+    assert_eq!(doc.pages().len(), 500);
+    // 渲染第 250 页（A4 @ 100 DPI ≈ 827x1169）
+    let start = std::time::Instant::now();
+    let page = doc.pages().get(250u16).unwrap();
+    let bitmap = page.render(827, 1169, None).unwrap();
+    let elapsed = start.elapsed();
+    assert_eq!(bitmap.width(), 827);
+    assert_eq!(bitmap.height(), 1169);
+    eprintln!("[perf] render page 250 of 500: {:?}", elapsed);
+    assert!(
+        elapsed.as_secs_f64() < 0.2,
+        "渲染中间页耗时过长: {:?}",
+        elapsed
+    );
+}
+
+/// 500 页文档：生成全部缩略图（100px 宽）总耗时应 < 5s。
+#[test]
+fn perf_thumbnails_500_pages() {
+    let bytes = gen_large_pdf(500);
+    let pdfium = pdfe_lib::pdfium();
+    let doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
+    let start = std::time::Instant::now();
+    let mut total_bytes = 0usize;
+    for i in 0..500u16 {
+        let page = doc.pages().get(i).unwrap();
+        let h = (100.0 * page.height().value / page.width().value) as i32;
+        let bitmap = page.render(100, h.max(1), None).unwrap();
+        total_bytes += bitmap.as_rgba_bytes().len();
+    }
+    let elapsed = start.elapsed();
+    eprintln!(
+        "[perf] 500 thumbnails: {:?} (total {}KB)",
+        elapsed,
+        total_bytes / 1024
+    );
+    assert!(
+        elapsed.as_secs_f64() < 5.0,
+        "生成 500 个缩略图耗时过长: {:?}",
+        elapsed
+    );
+}
+
+/// 500 页文档：全文搜索（找一个不存在的词）应 < 3s（需遍历所有页文本）。
+#[test]
+fn perf_fulltext_search_500_pages() {
+    let bytes = gen_large_pdf(500);
+    let pdfium = pdfe_lib::pdfium();
+    let doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
+    let start = std::time::Instant::now();
+    let mut hits = 0;
+    for i in 0..500u16 {
+        if let Ok(page) = doc.pages().get(i) {
+            if let Ok(text) = page.text() {
+                if text.all().contains("nonexistent_word_xyz") {
+                    hits += 1;
+                }
+            }
+        }
+    }
+    let elapsed = start.elapsed();
+    assert_eq!(hits, 0);
+    eprintln!("[perf] fulltext search 500 pages: {:?}", elapsed);
+    assert!(
+        elapsed.as_secs_f64() < 3.0,
+        "全文搜索 500 页耗时过长: {:?}",
+        elapsed
+    );
+}
+
+/// 500 页文档：保存（重新序列化）耗时应 < 2s。
+#[test]
+fn perf_save_500_pages() {
+    let bytes = gen_large_pdf(500);
+    let pdfium = pdfe_lib::pdfium();
+    let doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
+    let start = std::time::Instant::now();
+    let saved = doc.save_to_bytes().unwrap();
+    let elapsed = start.elapsed();
+    assert!(!saved.is_empty());
+    eprintln!("[perf] save 500 pages: {:?} ({}KB)", elapsed, saved.len() / 1024);
+    assert!(
+        elapsed.as_secs_f64() < 2.0,
+        "保存 500 页耗时过长: {:?}",
+        elapsed
+    );
+}

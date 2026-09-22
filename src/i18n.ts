@@ -311,6 +311,53 @@ const en: Record<string, string> = {
   "PDF → Office / 电子书不在范围": "PDF → Office / ebook is out of scope",
   "💡 提示：按 F1 或 ? 随时打开此面板；按 Esc 关闭。":
     "💡 Tip: Press F1 or ? to open this panel anytime; press Esc to close.",
+  // ---------- 错误消息 ----------
+  "文档需要密码，请输入正确的打开密码":
+    "Password required. Please enter the correct password to open this document.",
+  "文档已损坏，PDF 格式无法解析":
+    "Document is damaged and cannot be parsed as PDF.",
+  "文档不存在或已被关闭":
+    "Document not found or already closed.",
+  "页码超出范围": "Page index out of range.",
+  "安全限制：文档权限设置禁止此操作":
+    "Security restriction: operation denied by document permissions.",
+  "文件读写失败：{detail}": "File I/O error: {detail}",
+  "内部错误：{detail}": "Internal error: {detail}",
+  "没有可撤销的操作": "No operation to undo.",
+  "没有可重做的操作": "No operation to redo.",
+  "文档没有原始路径，请指定保存位置":
+    "Document has no original path; please specify a save location.",
+  "没有要删除的页面": "No pages selected for deletion.",
+  "不能删除全部页面": "Cannot delete all pages.",
+  "没有要复制的页面": "No pages selected for duplication.",
+  "没有要移动的页面": "No pages selected to move.",
+  "没有要提取的页面": "No pages selected for extraction.",
+  "无效页码范围：{range}": "Invalid page range: {range}",
+  "至少需要一个源文件": "At least one source file is required.",
+  "合并结果为空文档": "Merge result is an empty document.",
+  "每页数量不能为 0": "Pages per file cannot be zero.",
+  "没有可拆分的内容": "Nothing to split.",
+  "水印文字不能为空": "Watermark text cannot be empty.",
+  "图片尺寸无效": "Invalid image dimensions.",
+  "没有可应用水印的页面": "No pages to apply watermark to.",
+  "未找到可用的系统中文字体（需要 msyh / simhei / simsun）":
+    "No suitable Chinese font found in system (needs msyh/simhei/simsun).",
+  "注释索引越界": "Annotation index out of range.",
+  "未选择任何页面": "No pages selected.",
+  "DPI 超出范围（{min}–{max}）：{dpi}":
+    "DPI out of range ({min}–{max}): {dpi}",
+  "构造图片失败": "Failed to construct image.",
+  "未提供任何图片": "No images provided.",
+  "读取图片失败：{path}": "Failed to read image: {path}",
+  "写入 PDF 失败": "Failed to write PDF.",
+  "未找到 {tool}，请先安装": "{tool} not found. Please install it first.",
+  "不支持的文件格式：{format}": "Unsupported file format: {format}",
+  "源文件不存在：{path}": "Source file not found: {path}",
+  "启动 {tool} 失败：{detail}": "Failed to start {tool}: {detail}",
+  "{tool} 退出码 {code}": "{tool} exited with code {code}",
+  "无法获取源文件名": "Unable to determine source file name.",
+  "未生成 PDF，请检查源文件格式":
+    "No PDF was generated; please check the source file format.",
 };
 
 export type Locale = "zh" | "en";
@@ -321,10 +368,66 @@ export function translate(locale: Locale, zh: string): string {
   return en[zh] ?? zh;
 }
 
-/** 带模板占位符 {n} 的翻译。 */
+/** 带模板占位符 {name} 的翻译。 */
 export function translateFmt(locale: Locale, zh: string, vars: Record<string, string | number>): string {
   const base = translate(locale, zh);
   return base.replace(/\{(\w+)\}/g, (_, k) => (vars[k] !== undefined ? String(vars[k]) : `{${k}}`));
+}
+
+// ---------- 错误消息翻译：code → 中文 key（与 en 字典配合） ----------
+const errZh: Record<string, string> = {
+  password: "文档需要密码，请输入正确的打开密码",
+  damaged: "文档已损坏，PDF 格式无法解析",
+  not_found: "文档不存在或已被关闭",
+  page_out_of_range: "页码超出范围",
+  security: "安全限制：文档权限设置禁止此操作",
+  io: "文件读写失败：{detail}",
+  internal: "内部错误：{detail}",
+  nothing_to_undo: "没有可撤销的操作",
+  nothing_to_redo: "没有可重做的操作",
+  no_save_path: "文档没有原始路径，请指定保存位置",
+  no_pages_to_delete: "没有要删除的页面",
+  cannot_delete_all_pages: "不能删除全部页面",
+  no_pages_to_duplicate: "没有要复制的页面",
+  no_pages_to_move: "没有要移动的页面",
+  no_pages_to_extract: "没有要提取的页面",
+  invalid_page_range: "无效页码范围：{range}",
+  need_at_least_one_file: "至少需要一个源文件",
+  merge_result_empty: "合并结果为空文档",
+  pages_per_file_zero: "每页数量不能为 0",
+  nothing_to_split: "没有可拆分的内容",
+  watermark_text_empty: "水印文字不能为空",
+  invalid_image_size: "图片尺寸无效",
+  no_pages_for_watermark: "没有可应用水印的页面",
+  no_chinese_font: "未找到可用的系统中文字体（需要 msyh / simhei / simsun）",
+  annotation_out_of_range: "注释索引越界",
+  no_pages_to_export: "未选择任何页面",
+  dpi_out_of_range: "DPI 超出范围（{min}–{max}）：{dpi}",
+  image_construct_failed: "构造图片失败",
+  no_images_provided: "未提供任何图片",
+  image_read_failed: "读取图片失败：{path}",
+  pdf_write_failed: "写入 PDF 失败",
+  tool_not_found: "未找到 {tool}，请先安装",
+  unsupported_format: "不支持的文件格式：{format}",
+  source_not_found: "源文件不存在：{path}",
+  tool_start_failed: "启动 {tool} 失败：{detail}",
+  tool_failed: "{tool} 退出码 {code}",
+  cannot_determine_source_name: "无法获取源文件名",
+  no_pdf_generated: "未生成 PDF，请检查源文件格式",
+};
+
+/** 翻译错误消息：根据错误 code 返回用户可读的本地化消息，查不到时 fallback 到 fallbackMsg。 */
+export function translateError(
+  locale: Locale,
+  code: string,
+  args: Record<string, string> | undefined,
+  fallbackMsg: string,
+): string {
+  const zh = errZh[code];
+  if (!zh) return fallbackMsg;
+  const base = translate(locale, zh);
+  if (!args) return base;
+  return base.replace(/\{(\w+)\}/g, (_, k) => (args[k] !== undefined ? args[k] : `{${k}}`));
 }
 
 /** 返回当前 locale 对应的翻译函数：组件内 `const t = useT(); t("打开")`。 */
