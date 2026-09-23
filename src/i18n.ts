@@ -186,6 +186,7 @@ const en: Record<string, string> = {
   "清空页面文字": "Clear Page Text",
   "扫描版提示": "This page appears to be a scanned document (no text layer). Deep editing is disabled. OCR is planned for v2.",
   "新文本内容": "New text content",
+  "原文": "Original text",
   "字号（pt）": "Font size (pt)",
   "X 坐标（pt）": "X (pt)",
   "Y 坐标（pt）": "Y (pt)",
@@ -417,6 +418,7 @@ const en: Record<string, string> = {
   "矩形框无效（宽度或高度为 0）": "Invalid rectangle (zero width or height).",
   "未检测到水印候选":
     "No watermark candidates detected. Try lowering the threshold or check the document.",
+  "搜索失败": "Search failed.",
   "未找到 {tool}，请先安装": "{tool} not found. Please install it first.",
   "不支持的文件格式：{format}": "Unsupported file format: {format}",
   "源文件不存在：{path}": "Source file not found: {path}",
@@ -477,6 +479,7 @@ const errZh: Record<string, string> = {
   pdf_write_failed: "写入 PDF 失败",
   invalid_rect: "矩形框无效（宽度或高度为 0）",
   no_candidates: "未检测到水印候选",
+  search_failed: "搜索失败",
   tool_not_found: "未找到 {tool}，请先安装",
   unsupported_format: "不支持的文件格式：{format}",
   source_not_found: "源文件不存在：{path}",
@@ -485,6 +488,41 @@ const errZh: Record<string, string> = {
   cannot_determine_source_name: "无法获取源文件名",
   no_pdf_generated: "未生成 PDF，请检查源文件格式",
 };
+
+/** 开发期断言：errZh 字典必须与后端 AppError code 一一对应。
+ * 此处手动维护同步白名单，新增长期稳定后应同步加入。
+ * 在生产打包时不影响体积（Vite 会按需摇树）。 */
+const KNOWN_ERROR_CODES = new Set([
+  "password", "damaged", "not_found", "page_out_of_range", "security",
+  "io", "internal",
+  "nothing_to_undo", "nothing_to_redo", "no_save_path",
+  "no_pages_to_delete", "cannot_delete_all_pages",
+  "no_pages_to_duplicate", "no_pages_to_move", "no_pages_to_extract",
+  "invalid_page_range", "need_at_least_one_file", "merge_result_empty",
+  "pages_per_file_zero", "nothing_to_split",
+  "watermark_text_empty", "invalid_image_size", "no_pages_for_watermark",
+  "no_chinese_font", "annotation_out_of_range", "text_empty",
+  "no_pages_to_export", "dpi_out_of_range", "image_construct_failed",
+  "no_images_provided", "image_read_failed", "pdf_write_failed",
+  "invalid_rect", "no_candidates", "search_failed",
+  "tool_not_found", "unsupported_format", "source_not_found",
+  "tool_start_failed", "tool_failed", "cannot_determine_source_name",
+  "no_pdf_generated",
+]);
+
+if (import.meta.env?.DEV) {
+  const missing: string[] = [];
+  for (const code of KNOWN_ERROR_CODES) {
+    if (!errZh[code]) missing.push(code);
+  }
+  if (missing.length > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[i18n] errZh 缺少以下错误码中文文案，请同步：",
+      missing.join(", "),
+    );
+  }
+}
 
 /** 翻译错误消息：根据错误 code 返回用户可读的本地化消息，查不到时 fallback 到 fallbackMsg。 */
 export function translateError(
