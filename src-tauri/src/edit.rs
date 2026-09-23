@@ -119,18 +119,13 @@ fn map_kind(kind: PdfPageAnnotationType) -> Option<AnnotationKind> {
     }
 }
 
-// ---------- 命令 ----------
+// ---------- 纯函数（可测） ----------
 
-#[tauri::command]
-pub async fn list_annotations(
-    state: State<'_, AppState>,
-    doc_id: u64,
-    page_index: Option<u32>,
-) -> AppResult<Vec<AnnotationInfo>> {
+/// 列出页面注释（纯函数版本）。
+/// page_index = None 表示所有页。
+pub fn list_annotations_logic(bytes: &[u8], page_index: Option<u32>) -> AppResult<Vec<AnnotationInfo>> {
     let pdfium = get_pdfium();
-    let docs = state.docs.lock().unwrap();
-    let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
-    let doc = load_doc(pdfium, &entry.bytes)?;
+    let doc = load_doc(pdfium, bytes)?;
     let total = doc.pages().len() as u32;
     let range: Vec<u32> = match page_index {
         Some(p) if p < total => vec![p],
@@ -144,11 +139,17 @@ pub async fn list_annotations(
         let annots = page.annotations();
         let count = annots.len() as u32;
         for i in 0..count {
-            let annot = annots.get(i as usize)?;
+            let annot = match annots.get(i as usize) {
+                Ok(a) => a,
+                Err(_) => continue,
+            };
             let Some(kind) = map_kind(annot.annotation_type()) else {
                 continue;
             };
-            let bounds = annot.bounds()?;
+            let bounds = match annot.bounds() {
+                Ok(b) => b,
+                Err(_) => continue,
+            };
             out.push(AnnotationInfo {
                 index: i,
                 page_index: p_idx,
@@ -165,6 +166,110 @@ pub async fn list_annotations(
     Ok(out)
 }
 
+/// 添加注释（纯函数版本）：返回新 bytes。
+pub fn add_annotation_logic(
+    bytes: &[u8],
+    page_index: u32,
+    opts: &AddAnnotationOpts,
+) -> AppResult<Vec<u8>> {
+    let pdfium = get_pdfium();
+    let mut doc = load_doc(pdfium, bytes)?;
+    let total = doc.pages().len() as u32;
+    if page_index >= total {
+        return Err(AppError::PageOutOfRange);
+    }
+    let color = parse_color_hex(&opts.color);
+    {
+        let mut pages = doc.pages_mut();
+        let mut page = pages.get(page_index as u16)?;
+        let pw = page.width().value as f32;
+        let ph = page.height().value as f32;
+        let rect = make_rect(pw, ph, &opts.region);
+        let mut annots = page.annotations_mut();
+        match opts.kind {
+            AnnotationKind::Highlight => {
+                let mut annot = annots.create_highlight_annotation()?;
+                let q = make_quad(pw, ph, &opts.region);
+                annot.attachment_points_mut().create_attachment_point_at_end(q)?;
+                annot.set_contents(&opts.contents)?;
+                let _ = annot.set_fill_color(color);
+                let _ = annot.set_bounds(rect);
+            }
+            AnnotationKind::Underline => {
+                let mut annot = annots.create_underline_annotation()?;
+                let q = make_quad(pw, ph, &opts.region);
+                annot.attachment_points_mut().create_attachment_point_at_end(q)?;
+                annot.set_contents(&opts.contents)?;
+                let _ = annot.set_stroke_color(color);
+            }
+            AnnotationKind::Strikeout => {
+                let mut annot = annots.create_strikeout_annotation()?;
+                let q = make_quad(pw, ph, &opts.region);
+                annot.attachment_points_mut().create_attachment_point_at_end(q)?;
+                annot.set_contents(&opts.contents)?;
+                let _ = annot.set_stroke_color(color);
+            }
+            AnnotationKind::StickyNote => {
+                let mut annot = annots.create_text_annotation(&opts.contents)?;
+                let _ = annot.set_bounds(rect);
+                let _ = annot.set_fill_color(color);
+            }
+            AnnotationKind::FreeText => {
+                let mut annot = annots.create_free_text_annotation(&opts.contents)?;
+                let _ = annot.set_bounds(rect);
+                let _ = annot.set_stroke_color(color);
+                let _ = annot.set_fill_color(PdfColor::new(0, 0, 0, 0));
+            }
+            AnnotationKind::Square => {
+                let mut annot = annots.create_square_annotation()?;
+                let _ = annot.set_bounds(rect);
+                let _ = annot.set_stroke_color(color);
+                annot.set_contents(&opts.contents)?;
+            }
+        }
+    }
+    Ok(doc.save_to_bytes()?)
+}
+
+/// 删除注释（纯函数版本）：返回新 bytes。
+pub fn delete_annotation_logic(
+    bytes: &[u8],
+    page_index: u32,
+    annotation_index: u32,
+) -> AppResult<Vec<u8>> {
+    let pdfium = get_pdfium();
+    let mut doc = load_doc(pdfium, bytes)?;
+    let total = doc.pages().len() as u32;
+    if page_index >= total {
+        return Err(AppError::PageOutOfRange);
+    }
+    {
+        let mut pages = doc.pages_mut();
+        let mut page = pages.get(page_index as u16)?;
+        let mut annots = page.annotations_mut();
+        if annotation_index >= annots.len() as u32 {
+            return Err(AppError::AnnotationOutOfRange);
+        }
+        let annot = annots.get(annotation_index as usize)?;
+        annots.delete_annotation(annot)?;
+    }
+    Ok(doc.save_to_bytes()?)
+}
+
+// ---------- 命令 ----------
+
+#[tauri::command]
+pub async fn list_annotations(
+    state: State<'_, AppState>,
+    doc_id: u64,
+    page_index: Option<u32>,
+) -> AppResult<Vec<AnnotationInfo>> {
+    let pdfium = get_pdfium();
+    let docs = state.docs.lock().unwrap();
+    let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
+    list_annotations_logic(&entry.bytes, page_index)
+}
+
 #[tauri::command]
 pub async fn add_annotation(
     state: State<'_, AppState>,
@@ -177,63 +282,7 @@ pub async fn add_annotation(
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
         let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
-        let mut doc = load_doc(pdfium, &entry.bytes)?;
-        let total = doc.pages().len() as u32;
-        if page_index >= total {
-            return Err(AppError::PageOutOfRange);
-        }
-        let color = parse_color_hex(&opts.color);
-        {
-            let mut pages = doc.pages_mut();
-            let mut page = pages.get(page_index as u16)?;
-            let pw = page.width().value as f32;
-            let ph = page.height().value as f32;
-            let rect = make_rect(pw, ph, &opts.region);
-            let mut annots = page.annotations_mut();
-            match opts.kind {
-                AnnotationKind::Highlight => {
-                    let mut annot = annots.create_highlight_annotation()?;
-                    let q = make_quad(pw, ph, &opts.region);
-                    annot.attachment_points_mut().create_attachment_point_at_end(q)?;
-                    annot.set_contents(&opts.contents)?;
-                    let _ = annot.set_fill_color(color);
-                    let _ = annot.set_bounds(rect);
-                }
-                AnnotationKind::Underline => {
-                    let mut annot = annots.create_underline_annotation()?;
-                    let q = make_quad(pw, ph, &opts.region);
-                    annot.attachment_points_mut().create_attachment_point_at_end(q)?;
-                    annot.set_contents(&opts.contents)?;
-                    let _ = annot.set_stroke_color(color);
-                }
-                AnnotationKind::Strikeout => {
-                    let mut annot = annots.create_strikeout_annotation()?;
-                    let q = make_quad(pw, ph, &opts.region);
-                    annot.attachment_points_mut().create_attachment_point_at_end(q)?;
-                    annot.set_contents(&opts.contents)?;
-                    let _ = annot.set_stroke_color(color);
-                }
-                AnnotationKind::StickyNote => {
-                    let mut annot = annots.create_text_annotation(&opts.contents)?;
-                    let _ = annot.set_bounds(rect);
-                    let _ = annot.set_fill_color(color);
-                }
-                AnnotationKind::FreeText => {
-                    let mut annot = annots.create_free_text_annotation(&opts.contents)?;
-                    let _ = annot.set_bounds(rect);
-                    let _ = annot.set_stroke_color(color);
-                    // 默认透明背景
-                    let _ = annot.set_fill_color(PdfColor::new(0, 0, 0, 0));
-                }
-                AnnotationKind::Square => {
-                    let mut annot = annots.create_square_annotation()?;
-                    let _ = annot.set_bounds(rect);
-                    let _ = annot.set_stroke_color(color);
-                    annot.set_contents(&opts.contents)?;
-                }
-            }
-        }
-        doc.save_to_bytes()?
+        add_annotation_logic(&entry.bytes, page_index, &opts)?
     };
     commit_and_return(&state, doc_id, new_bytes)
 }
@@ -250,22 +299,7 @@ pub async fn delete_annotation(
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
         let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
-        let mut doc = load_doc(pdfium, &entry.bytes)?;
-        let total = doc.pages().len() as u32;
-        if page_index >= total {
-            return Err(AppError::PageOutOfRange);
-        }
-        {
-            let mut pages = doc.pages_mut();
-            let mut page = pages.get(page_index as u16)?;
-            let mut annots = page.annotations_mut();
-            if annotation_index >= annots.len() as u32 {
-                return Err(AppError::AnnotationOutOfRange);
-            }
-            let annot = annots.get(annotation_index as usize)?;
-            annots.delete_annotation(annot)?;
-        }
-        doc.save_to_bytes()?
+        delete_annotation_logic(&entry.bytes, page_index, annotation_index)?
     };
     commit_and_return(&state, doc_id, new_bytes)
 }
