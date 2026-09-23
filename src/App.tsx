@@ -10,7 +10,9 @@ import {
   redoDocument,
   getBookmarks,
   refreshUndoRedo,
+  listAnnotations,
 } from "./lib/ipc";
+import type { AnnotationInfo } from "./lib/ipc";
 import type { BookmarkNode } from "./lib/ipc";
 import Toolbar from "./components/Toolbar";
 import Rail from "./components/Rail";
@@ -236,6 +238,19 @@ export default function App() {
         if (pos) st.jumpToPage(pos.page);
         st.pushToast("info", t("已打开 {name}（{n} 页）", { name: info.fileName, n: info.pageCount }));
         refreshUndoRedo(info.docId).then(st.setUndoRedo).catch(() => {});
+        // 异步加载全文档注释（不阻塞打开）
+        listAnnotations(info.docId, null)
+          .then((all) => {
+            const map: Record<number, AnnotationInfo[]> = {};
+            for (const a of all) {
+              if (!map[a.pageIndex]) map[a.pageIndex] = [];
+              map[a.pageIndex].push(a);
+            }
+            useApp.getState().setAllAnnotations(map);
+          })
+          .catch(() => {
+            /* 注释加载失败静默忽略 */
+          });
       } catch (e) {
         if (isApiError(e) && e.code === "password") {
           setPwdPath(path);

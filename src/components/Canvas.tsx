@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../state/store";
 import { requestPage, usePageCanvas } from "../hooks/useRenderer";
-import type { PageInfo } from "../lib/ipc";
-import { searchPageText, pickTextAtPoint } from "../lib/ipc";
+import type { PageInfo, AnnotationInfo } from "../lib/ipc";
+import { searchPageText, pickTextAtPoint, deleteAnnotation, listAnnotations, refreshUndoRedo } from "../lib/ipc";
 import type { SearchHitRect } from "../lib/ipc";
+import { useT } from "../i18n";
 
 const GAP = 16;
 
@@ -52,6 +53,67 @@ const PageView = React.memo(function PageView({
   const removeLoadingHighlight = useApp((s) => s.removeLoadingHighlight);
   const searchActive = useApp((s) => s.searchActive);
   const searchHits = useApp((s) => s.searchHits);
+
+  // 注释：精细订阅当前页的注释列表
+  const pageAnnotations: AnnotationInfo[] = useApp((s) => s.annotations[pageIndex] ?? []);
+  const setPageAnnotations = useApp((s) => s.setPageAnnotations);
+  const updatePages = useApp((s) => s.updatePages);
+  const markDirty = useApp((s) => s.markDirty);
+  const setUndoRedo = useApp((s) => s.setUndoRedo);
+  const refreshAnnotations = useCallback(async () => {
+    if (docId === null) return;
+    try {
+      const list = await listAnnotations(docId, pageIndex);
+      setPageAnnotations(pageIndex, list);
+    } catch {
+      /* 刷新失败静默 */
+    }
+  }, [docId, pageIndex, setPageAnnotations]);
+
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    annotation: AnnotationInfo;
+  } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const t = useT();
+
+  const onAnnotationContextMenu = useCallback(
+    (e: React.MouseEvent, ann: AnnotationInfo) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setContextMenu({ x: e.clientX, y: e.clientY, annotation: ann });
+    },
+    [],
+  );
+
+  const handleDeleteAnnotation = useCallback(async () => {
+    if (!contextMenu || docId === null) return;
+    const ann = contextMenu.annotation;
+    setDeleting(true);
+    try {
+      const info = await deleteAnnotation(docId, ann.pageIndex, ann.index);
+      updatePages(info);
+      markDirty(true);
+      setUndoRedo(await refreshUndoRedo(docId));
+      // 局部刷新当前页注释
+      await refreshAnnotations();
+      setContextMenu(null);
+    } catch (e) {
+      useApp.getState().errorToast(e);
+    } finally {
+      setDeleting(false);
+    }
+  }, [contextMenu, docId, updatePages, markDirty, setUndoRedo, refreshAnnotations]);
+
+  // 点击空白处关闭右键菜单
+  useEffect(() => {
+    if (!contextMenu) return;
+    const onDown = () => setContextMenu(null);
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [contextMenu]);
 
   // 当前页命中高亮矩形（PDF 点），由精细订阅直接得到（可能为 undefined）
   const pageHitRects: SearchHitRect[] = pageHits ?? [];
@@ -209,7 +271,7 @@ const PageView = React.memo(function PageView({
           const isActive = i === activeIndexOnPage;
           return (
             <div
-              key={i}
+              key={`sh-${i}`}
               className={`search-highlight${isActive ? " active" : ""}`}
               style={{
                 left,
@@ -220,6 +282,74 @@ const PageView = React.memo(function PageView({
             />
           );
         })}
+      {/* 注释 overlay */}
+      {pageAnnotations.length > 0 &&
+        pageAnnotations.map((ann) => {
+          const left = ann.left * scale;
+          const top = (page.height - ann.top) * scale;
+          const width = (ann.right - ann.left) * scale;
+          const height = (ann.top - ann.bottom) * scale;
+          if (width <= 0 || height <= 0) return null;
+          const kind = ann.kind;
+          const color = ann.color || "#ffeb3b";
+
+          let className = "annot-overlay";
+          let style: React.CSSProperties = {
+            left,
+            top,
+            width,
+            height,
+            borderColor: color,
+            background: "transparent",
+          };
+
+          if (kind === "highlight") {
+            className += " annot-highlight";
+            style.background = color;
+            style.opacity = 0.35;
+          } else if (kind === "underline") {
+            className += " annot-underline";
+            style.borderBottom = `2px solid ${color}`;
+          } else if (kind === "strikeout") {
+            className += " annot-strikeout";
+            style.background = `linear-gradient(transparent ${height / 2 - 1}px, ${color} ${height / 2 - 1}px, ${color} ${height / 2 + 1}px, transparent ${height / 2 + 1}px)`;
+          } else if (kind === "square") {
+            className += " annot-square";
+            style.border = `2px solid ${color}`;
+          } else if (kind === "freeText") {
+            className += " annot-freetext";
+            style.border = `1px dashed ${color}`;
+            style.background = `${color}10`;
+          } else if (kind === "stickyNote") {
+            className += " annot-stickynote";
+            style.border = `1px solid ${color}`;
+            style.background = `${color}30`;
+            style.width = Math.max(20, width);
+            style.height = Math.max(20, height);
+          }
+
+          return (
+            <div
+              key={`ann-${ann.index}`}
+              className={className}
+              style={style}
+              onContextMenu={(e) => onAnnotationContextMenu(e, ann)}
+              title={ann.contents || kind}
+            />
+          );
+        })}
+      {/* 注释右键菜单 */}
+      {contextMenu && (
+        <div
+          className="annot-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button onClick={handleDeleteAnnotation} disabled={deleting}>
+            {deleting ? t("删除中…") : t("删除注释")}
+          </button>
+        </div>
+      )}
       {selectingFor &&
         liveSelection &&
         liveSelection.right - liveSelection.left > 1 &&

@@ -1,12 +1,11 @@
-﻿import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../state/store";
 import type { TaskId } from "../state/store";
 import {
   mergeDocuments,
   splitDocument,
-  canUndo,
-  canRedo,
+  refreshUndoRedo,
   addTextWatermark,
   addImageWatermark,
   removeObjectsInRect,
@@ -252,7 +251,6 @@ function SplitPanel() {
     try {
       const outputs = await splitDocument(docId, modePayload, outDir);
       pushToast("info", t("拆分完成，共生成 {n} 个文件", { n: outputs.length }));
-      canUndo(docId).then(() => {}).catch(() => {});
     } catch (e) {
       errorToast(e);
     } finally {
@@ -401,8 +399,7 @@ function WatermarkAddPanel() {
   const selectedPages = useApp((s) => s.selectedPages);
   const updatePages = useApp((s) => s.updatePages);
   const markDirty = useApp((s) => s.markDirty);
-  const setCanUndo = useApp((s) => s.setCanUndo);
-  const setCanRedo = useApp((s) => s.setCanRedo);
+  const setUndoRedo = useApp((s) => s.setUndoRedo);
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
   const closeTask = useApp((s) => s.closeTask);
@@ -459,7 +456,7 @@ function WatermarkAddPanel() {
             });
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
+      setUndoRedo(await refreshUndoRedo(docId));
       pushToast("info", t("已为 {n} 页添加水印", { n: pages.length }));
       closeTask();
     } catch (e) {
@@ -648,13 +645,17 @@ function WatermarkRemovePanel() {
   const docId = useApp((s) => s.docId);
   const pageCount = useApp((s) => s.pageCount);
   const currentPage = useApp((s) => s.currentPage);
+  const pages = useApp((s) => s.pages);
   const updatePages = useApp((s) => s.updatePages);
   const markDirty = useApp((s) => s.markDirty);
-  const setCanUndo = useApp((s) => s.setCanUndo);
-  const setCanRedo = useApp((s) => s.setCanRedo);
+  const setUndoRedo = useApp((s) => s.setUndoRedo);
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
   const closeTask = useApp((s) => s.closeTask);
+  const selectingFor = useApp((s) => s.selectingFor);
+  const setSelectingFor = useApp((s) => s.setSelectingFor);
+  const completedSelection = useApp((s) => s.completedSelection);
+  const setCompletedSelection = useApp((s) => s.setCompletedSelection);
   const t = useT();
 
   type SubMode = "manual" | "auto";
@@ -683,6 +684,31 @@ function WatermarkRemovePanel() {
     return docId;
   };
 
+  // 监听画布选区：如果是水印框选模式，自动填入坐标
+  useEffect(() => {
+    if (!completedSelection || completedSelection.mode !== "watermarkRemove" || !pages.length) return;
+    const sel = completedSelection;
+    const pageInfo = pages[sel.pageIndex];
+    if (!pageInfo) return;
+    const s = sel.scale;
+    if (s <= 0) return;
+    const { rect: r } = sel;
+    const pageH_pt = pageInfo.height;
+    const leftPdf = r.left / s;
+    const rightPdf = r.right / s;
+    const topPdf = pageH_pt - r.top / s;
+    const bottomPdf = pageH_pt - r.bottom / s;
+    setRect({
+      left: Math.round(leftPdf * 10) / 10,
+      right: Math.round(rightPdf * 10) / 10,
+      top: Math.round(topPdf * 10) / 10,
+      bottom: Math.round(bottomPdf * 10) / 10,
+    });
+    setOnlyCurrent(true);
+    setCompletedSelection(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [completedSelection]);
+
   const validRect =
     rect.right > rect.left && rect.top > rect.bottom;
 
@@ -698,8 +724,7 @@ function WatermarkRemovePanel() {
       const res = await removeObjectsInRect(id, pages, rect);
       updatePages(res.info);
       markDirty(true);
-      setCanUndo(await canUndo(id));
-      setCanRedo(await canRedo(id));
+      setUndoRedo(await refreshUndoRedo(id));
       pushToast("info", t("已删除 {n} 个对象", { n: res.removedCount }));
       closeTask();
     } catch (e) {
@@ -736,8 +761,7 @@ function WatermarkRemovePanel() {
       const res = await applyWatermarkRemoval(id, indices);
       updatePages(res.info);
       markDirty(true);
-      setCanUndo(await canUndo(id));
-      setCanRedo(await canRedo(id));
+      setUndoRedo(await refreshUndoRedo(id));
       pushToast("info", t("已删除 {n} 个对象", { n: res.removedCount }));
       closeTask();
     } catch (e) {
@@ -784,6 +808,24 @@ function WatermarkRemovePanel() {
 
       {subMode === "manual" ? (
         <>
+          <div className="field" style={{ marginBottom: 8 }}>
+            <button
+              className="btn-ghost"
+              onClick={() => {
+                if (selectingFor === "watermarkRemove") {
+                  setSelectingFor(null);
+                } else {
+                  setSelectingFor("watermarkRemove");
+                }
+              }}
+              disabled={docId === null}
+              style={{ width: "100%" }}
+            >
+              {selectingFor === "watermarkRemove"
+                ? t("取消框选")
+                : t("🎯 在画布上框选水印区域")}
+            </button>
+          </div>
           <div className="field">
             <label>{t("矩形坐标（PDF 点，左下原点）")}</label>
           </div>
@@ -947,12 +989,12 @@ function WatermarkCandidateRow({
 }
 
 const ANNOT_KINDS: { k: AnnotationKind; labelKey: string; icon: string }[] = [
-  { k: "Highlight", labelKey: "高亮", icon: "🖍" },
-  { k: "Underline", labelKey: "下划线", icon: "U̲" },
-  { k: "Strikeout", labelKey: "删除线", icon: "S̶" },
-  { k: "StickyNote", labelKey: "便签", icon: "📝" },
-  { k: "FreeText", labelKey: "文字框", icon: "T" },
-  { k: "Square", labelKey: "矩形", icon: "▭" },
+  { k: "highlight", labelKey: "高亮", icon: "🖍" },
+  { k: "underline", labelKey: "下划线", icon: "U̲" },
+  { k: "strikeout", labelKey: "删除线", icon: "S̶" },
+  { k: "stickyNote", labelKey: "便签", icon: "📝" },
+  { k: "freeText", labelKey: "文字框", icon: "T" },
+  { k: "square", labelKey: "矩形", icon: "▭" },
 ];
 
 function EditPanel() {
@@ -1000,38 +1042,30 @@ function AnnotationEditor() {
   const pageCount = useApp((s) => s.pageCount);
   const updatePages = useApp((s) => s.updatePages);
   const markDirty = useApp((s) => s.markDirty);
-  const setCanUndo = useApp((s) => s.setCanUndo);
-  const setCanRedo = useApp((s) => s.setCanRedo);
+  const setUndoRedo = useApp((s) => s.setUndoRedo);
+  const setPageAnnotations = useApp((s) => s.setPageAnnotations);
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
   const t = useT();
 
-  const [kind, setKind] = useState<AnnotationKind>("Highlight");
+  // 从 store 读取当前页注释（精细订阅）
+  const list: AnnotationInfo[] = useApp((s) => s.annotations[currentPage] ?? []);
+
+  const [kind, setKind] = useState<AnnotationKind>("highlight");
   const [color, setColor] = useState("#ffeb3b");
   const [contents, setContents] = useState("");
-  const [list, setList] = useState<AnnotationInfo[]>([]);
-  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const reloadRef = useRef(0);
 
-  const reload = async () => {
+  // 刷新当前页注释到 store
+  const reloadPageAnnotations = async () => {
     if (docId === null) return;
-    setLoading(true);
-    const seq = ++reloadRef.current;
     try {
       const data = await listAnnotations(docId, currentPage);
-      if (seq === reloadRef.current) setList(data);
+      setPageAnnotations(currentPage, data);
     } catch (e) {
-      if (seq === reloadRef.current) errorToast(e);
-    } finally {
-      if (seq === reloadRef.current) setLoading(false);
+      errorToast(e);
     }
   };
-
-  useEffect(() => {
-    reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [docId, currentPage]);
 
   const add = async () => {
     if (docId === null) return;
@@ -1053,11 +1087,11 @@ function AnnotationEditor() {
       });
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
+      setUndoRedo(await refreshUndoRedo(docId));
       const kindLabel = ANNOT_KINDS.find((x) => x.k === kind)?.labelKey ?? "";
       pushToast("info", t("已添加 {kind}", { kind: t(kindLabel) }));
       setContents("");
-      await reload();
+      await reloadPageAnnotations();
     } catch (e) {
       errorToast(e);
     } finally {
@@ -1072,8 +1106,8 @@ function AnnotationEditor() {
       const info = await deleteAnnotation(docId, currentPage, idx);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
-      await reload();
+      setUndoRedo(await refreshUndoRedo(docId));
+      await reloadPageAnnotations();
     } catch (e) {
       errorToast(e);
     } finally {
@@ -1089,9 +1123,9 @@ function AnnotationEditor() {
       const info = await clearAnnotations(docId, [currentPage]);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
+      setUndoRedo(await refreshUndoRedo(docId));
       pushToast("info", t("已清空当前页注释"));
-      await reload();
+      await reloadPageAnnotations();
     } catch (e) {
       errorToast(e);
     } finally {
@@ -1121,11 +1155,11 @@ function AnnotationEditor() {
           </button>
         ))}
       </div>
-      {(kind === "Highlight" ||
-        kind === "Underline" ||
-        kind === "Strikeout" ||
-        kind === "FreeText" ||
-        kind === "Square") && (
+      {(kind === "highlight" ||
+        kind === "underline" ||
+        kind === "strikeout" ||
+        kind === "freeText" ||
+        kind === "square") && (
         <div className="form-row">
           <label>{t("颜色")}</label>
           <input
@@ -1156,7 +1190,7 @@ function AnnotationEditor() {
       </div>
 
       <div className="annot-list-head">
-        <span>{t("本页注释（{n}）", { n: loading ? "…" : list.length })}</span>
+        <span>{t("本页注释（{n}）", { n: list.length })}</span>
         {list.length > 0 && (
           <button onClick={clearAll} disabled={busy} style={{ color: "var(--danger)" }}>
             {t("清空本页")}
@@ -1164,11 +1198,11 @@ function AnnotationEditor() {
         )}
       </div>
       <div className="annot-list">
-        {list.length === 0 && !loading && (
+        {list.length === 0 && (
           <p className="placeholder">{t("本页还没有注释")}</p>
         )}
-        {list.map((a, i) => (
-          <div key={i} className="annot-item">
+        {list.map((a) => (
+          <div key={a.index} className="annot-item">
             <span
               className="annot-swatch"
               style={{ background: a.color }}
@@ -1199,14 +1233,16 @@ function DeepEditor() {
   const pages = useApp((s) => s.pages);
   const updatePages = useApp((s) => s.updatePages);
   const markDirty = useApp((s) => s.markDirty);
-  const setCanUndo = useApp((s) => s.setCanUndo);
-  const setCanRedo = useApp((s) => s.setCanRedo);
+  const setUndoRedo = useApp((s) => s.setUndoRedo);
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
   const closeTask = useApp((s) => s.closeTask);
   const setSelectingFor = useApp((s) => s.setSelectingFor);
   const completedSelection = useApp((s) => s.completedSelection);
   const setCompletedSelection = useApp((s) => s.setCompletedSelection);
+  const dblClickText = useApp((s) => s.dblClickText);
+  const setDblClickText = useApp((s) => s.setDblClickText);
+  const jumpToPage = useApp((s) => s.jumpToPage);
   const t = useT();
 
   type Mode = "rewrite" | "addtext" | "image" | "scandetect";
@@ -1242,10 +1278,12 @@ function DeepEditor() {
   );
   const [detecting, setDetecting] = useState(false);
 
-  // 选区模式：仅"文字重写"允许使用画布选区
+  // 选区模式：rewrite（拖拽矩形）和 addText（单击点）使用画布选区
   useEffect(() => {
     if (mode === "rewrite") {
       setSelectingFor("rewrite");
+    } else if (mode === "addtext") {
+      setSelectingFor("addText");
     } else {
       setSelectingFor(null);
     }
@@ -1256,16 +1294,35 @@ function DeepEditor() {
   const [rwModal, setRwModal] = useState<{
     region: { left: number; bottom: number; right: number; top: number };
     pageIndex: number;
+    originalText?: string;
   } | null>(null);
+
+  // 双击文字触发：从 store 读到 dblClickText → 打开重写 modal
+  useEffect(() => {
+    if (!dblClickText) return;
+    if (docId === null) {
+      setDblClickText(null);
+      return;
+    }
+    setRwModal({
+      region: dblClickText.region,
+      pageIndex: dblClickText.pageIndex,
+      originalText: dblClickText.originalText,
+    });
+    // 切到 rewrite 模式 + 跳转到对应页
+    setMode("rewrite");
+    if (dblClickText.pageIndex !== currentPage) {
+      jumpToPage(dblClickText.pageIndex);
+    }
+    setDblClickText(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dblClickText]);
 
   // 选区到 PDF 点的坐标转换：CSS 像素 / scale = PDF 点
   // Y 轴翻转：CSS 顶 → PDF 底（pdf_top = pageH_pdf - (css_top / scale)）
   useEffect(() => {
     if (!completedSelection || docId === null) return;
-    if (completedSelection.pageIndex !== currentPage && pages.length > 0) {
-      // 选中发生在别的页，自动切换
-      // 这里交给调用方处理；不强制切页，避免意外滚动
-    }
+    if (!["rewrite", "addText"].includes(completedSelection.mode)) return;
     const sel = completedSelection;
     const pageInfo = pages[sel.pageIndex];
     if (!pageInfo) return;
@@ -1281,10 +1338,21 @@ function DeepEditor() {
     const rightPdf = right_pt;
     const topPdf = pageH_pt - top_css / s;
     const bottomPdf = pageH_pt - bottom_css / s;
-    setRwModal({
-      region: { left: leftPdf, bottom: bottomPdf, right: rightPdf, top: topPdf },
-      pageIndex: sel.pageIndex,
-    });
+
+    if (sel.mode === "rewrite") {
+      setRwModal({
+        region: { left: leftPdf, bottom: bottomPdf, right: rightPdf, top: topPdf },
+        pageIndex: sel.pageIndex,
+      });
+    } else if (sel.mode === "addText") {
+      // 点击模式：取点击点作为插入位置（PDF 点）
+      setTbX(Math.round(leftPdf * 10) / 10);
+      setTbY(Math.round(bottomPdf * 10) / 10);
+      // 如果点击发生在其他页，跳转过去
+      if (sel.pageIndex !== currentPage) {
+        jumpToPage(sel.pageIndex);
+      }
+    }
     setCompletedSelection(null); // 用完清空
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [completedSelection]);
@@ -1319,8 +1387,7 @@ function DeepEditor() {
       });
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(id));
-      setCanRedo(await canRedo(id));
+      setUndoRedo(await refreshUndoRedo(id));
       pushToast(
         "info",
         t("已重写第 {n} 页文字", { n: opts.pageIndex + 1 }),
@@ -1352,8 +1419,7 @@ function DeepEditor() {
       });
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(id));
-      setCanRedo(await canRedo(id));
+      setUndoRedo(await refreshUndoRedo(id));
       pushToast("info", t("已添加文本"));
       closeTask();
     } catch (e) {
@@ -1391,8 +1457,7 @@ function DeepEditor() {
       const info = await replaceImage(id, currentPage, objIndex, imgPath);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(id));
-      setCanRedo(await canRedo(id));
+      setUndoRedo(await refreshUndoRedo(id));
       pushToast("info", t("已替换图片"));
       closeTask();
     } catch (e) {
@@ -1413,8 +1478,7 @@ function DeepEditor() {
       const info = await deleteImageObject(id, currentPage, objIndex);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(id));
-      setCanRedo(await canRedo(id));
+      setUndoRedo(await refreshUndoRedo(id));
       pushToast("info", t("已删除图片"));
       closeTask();
     } catch (e) {
@@ -1435,8 +1499,7 @@ function DeepEditor() {
       const info = await clearPageText(id, [currentPage]);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(id));
-      setCanRedo(await canRedo(id));
+      setUndoRedo(await refreshUndoRedo(id));
       pushToast("info", t("已清空页面文字"));
       closeTask();
     } catch (e) {
@@ -1594,7 +1657,7 @@ function DeepEditor() {
       {mode === "addtext" && (
         <>
           <p className="placeholder" style={{ fontSize: 11 }}>
-            {t("新增文本框：在指定坐标插入一段新文本，不影响其他对象。")}
+            {t("🎯 点击画布任意位置即可设置文本插入点，也可手动输入坐标。")}
           </p>
           <div className="form-row">
             <label>{t("新文本内容")}</label>
@@ -1749,6 +1812,7 @@ function DeepEditor() {
         <RewriteModal
           region={modal.region}
           pageIndex={modal.pageIndex}
+          originalText={modal.originalText}
           onCancel={() => setRwModal(null)}
           onSubmit={(opts) => {
             onRewrite({
@@ -1768,18 +1832,20 @@ function DeepEditor() {
 function RewriteModal({
   region,
   pageIndex,
+  originalText,
   onCancel,
   onSubmit,
   busy,
 }: {
   region: { left: number; bottom: number; right: number; top: number };
   pageIndex: number;
+  originalText?: string;
   onCancel: () => void;
   onSubmit: (opts: { newText: string; fontSize: number; color: string }) => void;
   busy: boolean;
 }) {
   const t = useT();
-  const [text, setText] = useState("");
+  const [text, setText] = useState(originalText ?? "");
   const [fontSize, setFontSize] = useState(24);
   const [color, setColor] = useState("#000000");
   const width = region.right - region.left;
@@ -1794,6 +1860,22 @@ function RewriteModal({
         {" · "}
         {width.toFixed(1)}×{height.toFixed(1)} pt
       </p>
+      {originalText && (
+        <p
+          style={{
+            fontSize: 12,
+            background: "var(--accent-bg, rgba(0,103,192,0.08))",
+            border: "1px solid var(--accent)",
+            borderRadius: 4,
+            padding: "6px 8px",
+            margin: "0 0 8px 0",
+            wordBreak: "break-all",
+          }}
+        >
+          <strong>{t("原文")}：</strong>
+          <span>{originalText}</span>
+        </p>
+      )}
       <div className="form-row">
         <label>{t("新文本内容")}</label>
         <input
@@ -1860,8 +1942,7 @@ function SecurityPanel() {
   const docId = useApp((s) => s.docId);
   const updatePages = useApp((s) => s.updatePages);
   const markDirty = useApp((s) => s.markDirty);
-  const setCanUndo = useApp((s) => s.setCanUndo);
-  const setCanRedo = useApp((s) => s.setCanRedo);
+  const setUndoRedo = useApp((s) => s.setUndoRedo);
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
   const t = useT();
@@ -1906,7 +1987,7 @@ function SecurityPanel() {
       const info = await reloadPlain(docId);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
+      setUndoRedo(await refreshUndoRedo(docId));
       pushToast("info", t("已导出明文副本：{path}", { path: p }));
       await reload();
     } catch (e) {
@@ -1924,7 +2005,7 @@ function SecurityPanel() {
       const info = await reloadPlain(docId);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
+      setUndoRedo(await refreshUndoRedo(docId));
       pushToast("info", t("已去除内存中的加密，请立即 Ctrl+S 另存"));
       await reload();
     } catch (e) {

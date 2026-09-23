@@ -224,12 +224,97 @@ input:focus {
 .page-holder.selecting {
   cursor: crosshair;
 }
+.page-holder.selecting-point {
+  cursor: text;
+}
 .selection-rect {
   position: absolute;
   border: 1px dashed var(--accent);
   background: rgba(0, 103, 192, 0.15);
   pointer-events: none;
 }
+.search-highlight {
+  position: absolute;
+  background: rgba(255, 215, 0, 0.4);
+  border: 1px solid rgba(255, 180, 0, 0.6);
+  border-radius: 2px;
+  pointer-events: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.search-highlight.active {
+  background: rgba(255, 140, 0, 0.55);
+  border-color: rgba(255, 100, 0, 0.9);
+  box-shadow: 0 0 0 2px rgba(255, 140, 0, 0.3);
+  z-index: 2;
+}
+
+/* 注释 overlay */
+.annot-overlay {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  box-sizing: border-box;
+  z-index: 1;
+}
+.annot-overlay:hover {
+  outline: 1px solid rgba(0, 120, 215, 0.5);
+  outline-offset: -1px;
+}
+.annot-highlight {
+  border-radius: 2px;
+  mix-blend-mode: multiply;
+}
+.annot-underline {
+  background: transparent !important;
+  border-radius: 0;
+}
+.annot-strikeout {
+  background-size: 100% 100% !important;
+}
+.annot-square {
+  background: transparent !important;
+  border-radius: 2px;
+}
+.annot-freetext {
+  border-radius: 2px;
+}
+.annot-stickynote {
+  border-radius: 3px;
+  font-size: 10px;
+  overflow: hidden;
+}
+
+/* 注释右键菜单 */
+.annot-context-menu {
+  position: fixed;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  z-index: 1000;
+  min-width: 100px;
+}
+.annot-context-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.annot-context-menu button:hover:not(:disabled) {
+  background: var(--accent-bg, rgba(0, 103, 192, 0.1));
+}
+.annot-context-menu button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 @keyframes flashfade {
   from {
     opacity: 1;
