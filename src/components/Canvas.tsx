@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../state/store";
 import { requestPage, usePageCanvas } from "../hooks/useRenderer";
 import type { PageInfo } from "../lib/ipc";
+import { searchPageText, pickTextAtPoint } from "../lib/ipc";
+import type { SearchHitRect } from "../lib/ipc";
 
 const GAP = 16;
 
 /** 单页视图组件：canvas + 页码标签 */
-function PageView({
+const PageView = React.memo(function PageView({
   page,
   pageIndex,
   scale,
@@ -31,12 +33,67 @@ function PageView({
 
   // 选区交互：仅当 selectingFor 非空时启用
   const selectingFor = useApp((s) => s.selectingFor);
-  const liveSelection = useApp((s) => s.liveSelection);
+  // 精细订阅：只有本 PageView 的 liveSelection 才订阅，避免拖拽时所有 PageView 重渲
+  const liveSelection = useApp((s) =>
+    s.liveSelection && s.liveSelection.pageIndex === pageIndex ? s.liveSelection : null,
+  );
   const setLiveSelection = useApp((s) => s.setLiveSelection);
   const setCompletedSelection = useApp((s) => s.setCompletedSelection);
   const setCurrentPage = useApp((s) => s.setCurrentPage);
   const holderRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
+
+  // 搜索高亮：读取当前页的 hits
+  const searchQuery = useApp((s) => s.searchQuery);
+  // 精细订阅：只订阅当前页的 hits，避免其它页变化时本 PageView 重渲
+  const pageHits = useApp((s) => s.searchHighlights[pageIndex]);
+  const setPageHighlights = useApp((s) => s.setPageHighlights);
+  const addLoadingHighlight = useApp((s) => s.addLoadingHighlight);
+  const removeLoadingHighlight = useApp((s) => s.removeLoadingHighlight);
+  const searchActive = useApp((s) => s.searchActive);
+  const searchHits = useApp((s) => s.searchHits);
+
+  // 当前页命中高亮矩形（PDF 点），由精细订阅直接得到（可能为 undefined）
+  const pageHitRects: SearchHitRect[] = pageHits ?? [];
+
+  // 当前命中是全局第几个 → 当前页内第几个
+  const activeIndexOnPage = useMemo(() => {
+    if (searchActive < 0 || !searchHits.length) return -1;
+    const activeHit = searchHits[searchActive];
+    if (!activeHit || activeHit.pageIndex !== pageIndex) return -1;
+    // 统计当前页中，offset 小于等于 activeHit.offset 的命中数量 - 1
+    // （按顺序数到当前命中是第几个）
+    let idx = 0;
+    for (const h of searchHits) {
+      if (h.pageIndex !== pageIndex) continue;
+      if (h.offset === activeHit.offset) return idx;
+      idx++;
+    }
+    return -1;
+  }, [searchActive, searchHits, pageIndex]);
+
+  // 有搜索词且当前页无高亮 → 拉取
+  // 注意：searchHighlights / loadingHighlights 都通过 useApp.getState() 读取，
+  // 避免它们加入依赖触发所有 PageView 的 useEffect 重跑（500 页文档时巨大开销）。
+  useEffect(() => {
+    if (!searchQuery || docId === null) return;
+    const state = useApp.getState();
+    if (state.searchHighlights[pageIndex]) return;
+    if (state.loadingHighlights.has(pageIndex)) return;
+    addLoadingHighlight(pageIndex);
+    searchPageText(docId, pageIndex, searchQuery, 100)
+      .then((res) => {
+        setPageHighlights(pageIndex, res.hits);
+      })
+      .catch(() => {
+        // 失败也标记为空，避免重复请求
+        setPageHighlights(pageIndex, []);
+      })
+      .finally(() => {
+        removeLoadingHighlight(pageIndex);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, docId, pageIndex]);
 
   const onMouseDown = (e: React.MouseEvent) => {
     if (!selectingFor) return;
@@ -47,9 +104,19 @@ function PageView({
     if (!rect) return;
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    dragRef.current = { x, y };
-    setLiveSelection({ left: x, top: y, right: x, bottom: y });
     setCurrentPage(pageIndex);
+    // 点击模式（addText）：mousedown 即完成选区
+    if (selectingFor === "addText") {
+      setCompletedSelection({
+        pageIndex,
+        rect: { left: x, top: y, right: x, bottom: y },
+        scale,
+      });
+      return;
+    }
+    // 拖拽模式（rewrite / watermarkRemove）：记录起点，等 mouseup 完成
+    dragRef.current = { x, y };
+    setLiveSelection({ left: x, top: y, right: x, bottom: y, pageIndex });
   };
   const onMouseMove = (e: React.MouseEvent) => {
     if (!dragRef.current || !holderRef.current) return;
@@ -62,6 +129,7 @@ function PageView({
       top: Math.min(start.y, y),
       right: Math.max(start.x, x),
       bottom: Math.max(start.y, y),
+      pageIndex,
     });
   };
   const onMouseUp = () => {
@@ -72,27 +140,86 @@ function PageView({
       setLiveSelection(null);
       return;
     }
+    // 复制去掉 pageIndex 字段后传给 setCompletedSelection
+    const { pageIndex: _ignore, ...rect } = live;
     setCompletedSelection({
       pageIndex,
-      rect: live,
+      rect,
       scale,
     });
   };
+
+  // 双击文字：调用后端定位到词/词组 → 打开重写 modal
+  const onDoubleClick = useCallback(
+    async (e: React.MouseEvent) => {
+      if (selectingFor) return; // 选区模式下不触发
+      if (docId === null) return;
+      const rect = holderRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const cssX = e.clientX - rect.left;
+      const cssY = e.clientY - rect.top;
+      if (scale <= 0) return;
+      // 转 PDF 点（左下原点）
+      const x = cssX / scale;
+      const y = (cssH - cssY) / scale;
+      try {
+        const result = await pickTextAtPoint(docId, pageIndex, x, y);
+        if (!result) return;
+        useApp.getState().setDblClickText({
+          region: {
+            left: result.left,
+            bottom: result.bottom,
+            right: result.right,
+            top: result.top,
+          },
+          pageIndex,
+          originalText: result.text,
+        });
+      } catch {
+        // 双击命中失败静默忽略
+      }
+    },
+    [docId, pageIndex, scale, selectingFor, cssH],
+  );
 
   return (
     <div
       ref={holderRef}
       className={`page-holder${flash ? " flash" : ""}${
         selectingFor ? " selecting" : ""
-      }`}
+      }${selectingFor === "addText" ? " selecting-point" : ""}`}
       style={{ width: cssW, height: cssH }}
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
+      onDoubleClick={onDoubleClick}
     >
       <canvas ref={ref} style={{ width: cssW, height: cssH }} />
       <span className="page-number-tag">{pageIndex + 1}</span>
+      {/* 搜索高亮 overlay */}
+      {pageHitRects.length > 0 &&
+        pageHitRects.map((r, i) => {
+          // PDF 点（左下） → CSS 像素（左上）
+          const left = r.left * scale;
+          const top = (page.height - r.top) * scale;
+          const width = (r.right - r.left) * scale;
+          const height = (r.top - r.bottom) * scale;
+          if (width <= 0 || height <= 0) return null;
+          const isActive = i === activeIndexOnPage;
+          return (
+            <div
+              key={i}
+              className={`search-highlight${isActive ? " active" : ""}`}
+              style={{
+                left,
+                top,
+                width,
+                height,
+              }}
+            />
+          );
+        })}
       {selectingFor &&
         liveSelection &&
         liveSelection.right - liveSelection.left > 1 &&
@@ -109,7 +236,7 @@ function PageView({
         )}
     </div>
   );
-}
+});
 
 interface Row {
   /** 行内页索引（连续/单页 1 个，双页 2 个） */
@@ -135,6 +262,9 @@ export default function Canvas() {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const [scrollTop, setLocalScroll] = useState(0);
+  // rAF throttle：滚动事件用 ref 合并，避免每帧都触发 React 重渲
+  const scrollRafRef = useRef<number | null>(null);
+  const pendingScrollTop = useRef<number>(0);
 
   // 容器尺寸监听
   useEffect(() => {
@@ -209,23 +339,38 @@ export default function Canvas() {
     return { start: Math.max(0, first - 1), end: Math.min(rows.length, end + 1) };
   }, [rows, scrollTop, viewport.h]);
 
-  // 滚动 → 当前页 + 位置记忆
+  // 滚动 → 当前页 + 位置记忆（rAF 节流，避免高频重渲）
   const onScroll = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;
     const t = el.scrollTop;
-    setLocalScroll(t);
-    setScrollTop(t);
-    const mid = t + el.clientHeight / 2;
-    const idx = rows.findIndex((r) => r.top <= mid && r.top + r.height > mid);
-    if (idx >= 0) setCurrentPage(rows[idx].pages[0]);
-    // 预渲染相邻行
-    if (docId !== null) {
-      for (let i = Math.max(0, idx - 2); i <= Math.min(rows.length - 1, idx + 2); i++) {
-        for (const p of rows[i].pages) requestPage(docId, p, scale).catch(() => {});
+    pendingScrollTop.current = t;
+    setScrollTop(t); // store 更新保持原样（轻量）
+    if (scrollRafRef.current !== null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      setLocalScroll(pendingScrollTop.current);
+      const st = pendingScrollTop.current;
+      const mid = st + el.clientHeight / 2;
+      const idx = rows.findIndex((r) => r.top <= mid && r.top + r.height > mid);
+      if (idx >= 0) setCurrentPage(rows[idx].pages[0]);
+      // 预渲染相邻行
+      if (docId !== null) {
+        for (let i = Math.max(0, idx - 2); i <= Math.min(rows.length - 1, idx + 2); i++) {
+          for (const p of rows[i].pages) requestPage(docId, p, scale).catch(() => {});
+        }
       }
-    }
+    });
   }, [rows, docId, scale, setCurrentPage, setScrollTop]);
+
+  // 卸载时取消未完成的 rAF
+  useEffect(() => {
+    return () => {
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+      }
+    };
+  }, []);
 
   // 跳转（搜索 F3 / 页码输入 / 书签）
   useEffect(() => {

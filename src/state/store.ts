@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { DocumentInfo, PageInfo, BookmarkNode } from "../lib/ipc";
+import type { DocumentInfo, PageInfo, BookmarkNode, SearchHitRect } from "../lib/ipc";
 import { isApiError } from "../lib/ipc";
 import { pageCache, thumbCache } from "../lib/bitmapCache";
 import { translateError } from "../i18n";
@@ -30,6 +30,8 @@ export interface CompletedSelection {
   rect: CssRect;
   /** Canvas 渲染时使用的缩放因子（page.width * scale = cssW） */
   scale: number;
+  /** 选区来源模式：rewrite / watermarkRemove / addText */
+  mode: string;
 }
 
 export interface Toast {
@@ -48,6 +50,8 @@ interface AppState {
   dirty: boolean;
   canUndo: boolean;
   canRedo: boolean;
+  undoDepth: number;
+  redoDepth: number;
   loading: boolean;
   /** 页面内容版本号（水印/旋转等修改后自增，触发画布重渲） */
   renderRevision: number;
@@ -71,6 +75,10 @@ interface AppState {
   searchHits: SearchHit[];
   searchActive: number; // 当前 F3 定位的命中索引，-1 表示无
   searching: boolean;
+  /** 每页的搜索高亮矩形（PDF 点坐标，从后端拉取）；key 为 pageIndex */
+  searchHighlights: Record<number, SearchHitRect[]>;
+  /** 当前正在加载高亮的页码集合，避免重复请求 */
+  loadingHighlights: Set<number>;
 
   // 主题
   theme: "light" | "dark";
@@ -89,10 +97,13 @@ interface AppState {
   // 画布选区（CSS 像素坐标，存储的是 page-holder 内的相对坐标）
   /** 哪个面板请求选区（'rewrite' 等）；null 表示无选区模式 */
   selectingFor: string | null;
-  /** 当前正在拖拽的选区（实时）；松开鼠标后清空 */
-  liveSelection: CssRect | null;
+  /** 当前正在拖拽的选区（实时）；松开鼠标后清空。同时记录所属 pageIndex，
+   * 以便每个 PageView 精细订阅「是否为我」，避免拖拽时全部 PageView 重渲。 */
+  liveSelection: (CssRect & { pageIndex: number }) | null;
   /** 已完成的选区（CSS 像素坐标 + 当前页索引 + 缩放比例） */
   completedSelection: CompletedSelection | null;
+  /** 双击文字命中：由 Canvas 写入，TaskPanel 监听后打开重写 modal */
+  dblClickText: { region: { left: number; bottom: number; right: number; top: number }; pageIndex: number; originalText: string } | null;
 
   toasts: Toast[];
   jumpTarget: { page: number; nonce: number };
@@ -116,11 +127,16 @@ interface AppState {
   setSearchOpen: (b: boolean) => void;
   setHelpOpen: (b: boolean) => void;
   setSelectingFor: (mode: string | null) => void;
-  setLiveSelection: (rect: CssRect | null) => void;
-  setCompletedSelection: (s: CompletedSelection | null) => void;
+  setLiveSelection: (rect: (CssRect & { pageIndex: number }) | null) => void;
+  setCompletedSelection: (s: Omit<CompletedSelection, "mode"> & { mode?: string } | null) => void;
+  setDblClickText: (s: { region: { left: number; bottom: number; right: number; top: number }; pageIndex: number; originalText: string } | null) => void;
   setSearch: (query: string, hits: SearchHit[]) => void;
   setSearchActive: (i: number) => void;
   setSearching: (b: boolean) => void;
+  setPageHighlights: (pageIndex: number, rects: SearchHitRect[]) => void;
+  addLoadingHighlight: (pageIndex: number) => void;
+  removeLoadingHighlight: (pageIndex: number) => void;
+  clearSearchHighlights: () => void;
   setTheme: (t: "light" | "dark") => void;
   setLocale: (l: "zh" | "en") => void;
   toggleSelect: (page: number, ctrl: boolean, shift: boolean) => void;
@@ -128,6 +144,9 @@ interface AppState {
   markDirty: (b: boolean) => void;
   setCanUndo: (b: boolean) => void;
   setCanRedo: (b: boolean) => void;
+  setUndoDepth: (n: number) => void;
+  setRedoDepth: (n: number) => void;
+  setUndoRedo: (ur: { canUndo: boolean; canRedo: boolean; undoDepth: number; redoDepth: number }) => void;
   setLoading: (b: boolean) => void;
   setBookmarks: (b: BookmarkNode[]) => void;
   setBookmarksLoading: (b: boolean) => void;
@@ -171,6 +190,8 @@ export const useApp = create<AppState>((set, get) => ({
   dirty: false,
   canUndo: false,
   canRedo: false,
+  undoDepth: 0,
+  redoDepth: 0,
   loading: false,
   renderRevision: 0,
 
@@ -186,6 +207,7 @@ export const useApp = create<AppState>((set, get) => ({
   selectingFor: null,
   liveSelection: null,
   completedSelection: null,
+  dblClickText: null,
   searchOpen: false,
   helpOpen: false,
 
@@ -193,6 +215,8 @@ export const useApp = create<AppState>((set, get) => ({
   searchHits: [],
   searchActive: -1,
   searching: false,
+  searchHighlights: {},
+  loadingHighlights: new Set(),
 
   theme: window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light",
 
@@ -240,13 +264,17 @@ export const useApp = create<AppState>((set, get) => ({
       dirty: false,
       canUndo: false,
       canRedo: false,
+      undoDepth: 0,
+      redoDepth: 0,
       currentPage: 0,
       scrollTop: 0,
       selectedPages: new Set(),
       thumbFocus: -1,
       searchHits: [],
-      searchActive: -1,
-      searchQuery: "",
+    searchActive: -1,
+    searchQuery: "",
+    searchHighlights: {},
+    loadingHighlights: new Set(),
     });
   },
   clearDoc: () =>
@@ -259,6 +287,7 @@ export const useApp = create<AppState>((set, get) => ({
       dirty: false,
       canUndo: false,
       selectedPages: new Set(),
+      dblClickText: null,
     }),
   setViewMode: (m) => set({ viewMode: m, fitMode: m === "single" ? "page" : "width" }),
   setScale: (s) => set({ scale: Math.min(8, Math.max(0.1, s)), fitMode: "none" }),
@@ -280,14 +309,42 @@ export const useApp = create<AppState>((set, get) => ({
     }),
   setLiveSelection: (rect) => set({ liveSelection: rect }),
   setCompletedSelection: (s) =>
-    set({
-      completedSelection: s,
-      liveSelection: null,
-      selectingFor: null,
+    set((st) => {
+      if (s === null) {
+        return { completedSelection: null, liveSelection: null, selectingFor: null };
+      }
+      return {
+        completedSelection: {
+          pageIndex: s.pageIndex,
+          rect: s.rect,
+          scale: s.scale,
+          mode: s.mode ?? st.selectingFor ?? "",
+        },
+        liveSelection: null,
+        selectingFor: null,
+      };
     }),
-  setSearch: (query, hits) => set({ searchQuery: query, searchHits: hits, searchActive: hits.length ? 0 : -1 }),
+  setDblClickText: (s) => set({ dblClickText: s }),
+  setSearch: (query, hits) => set({ searchQuery: query, searchHits: hits, searchActive: hits.length ? 0 : -1, searchHighlights: {}, loadingHighlights: new Set() }),
   setSearchActive: (i) => set({ searchActive: i }),
   setSearching: (b) => set({ searching: b }),
+  setPageHighlights: (pageIndex, rects) =>
+    set((s) => ({
+      searchHighlights: { ...s.searchHighlights, [pageIndex]: rects },
+    })),
+  addLoadingHighlight: (pageIndex) =>
+    set((s) => {
+      const next = new Set(s.loadingHighlights);
+      next.add(pageIndex);
+      return { loadingHighlights: next };
+    }),
+  removeLoadingHighlight: (pageIndex) =>
+    set((s) => {
+      const next = new Set(s.loadingHighlights);
+      next.delete(pageIndex);
+      return { loadingHighlights: next };
+    }),
+  clearSearchHighlights: () => set({ searchHighlights: {}, loadingHighlights: new Set() }),
   setTheme: (t) => set({ theme: t }),
   setLocale: (l) => {
     localStorage.setItem("pdfe:locale", l);
@@ -312,6 +369,9 @@ export const useApp = create<AppState>((set, get) => ({
   markDirty: (b) => set({ dirty: b }),
   setCanUndo: (b) => set({ canUndo: b }),
   setCanRedo: (b) => set({ canRedo: b }),
+  setUndoDepth: (n) => set({ undoDepth: n }),
+  setRedoDepth: (n) => set({ redoDepth: n }),
+  setUndoRedo: (ur) => set(ur),
   setLoading: (b) => set({ loading: b }),
   setBookmarks: (b) => set({ bookmarks: b }),
   setBookmarksLoading: (b) => set({ bookmarksLoading: b }),

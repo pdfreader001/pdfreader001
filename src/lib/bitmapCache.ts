@@ -1,7 +1,17 @@
 /**
  * 位图 LRU 缓存：防止大文档内存膨胀。
- * 按字节预算淘汰最久未使用的条目。
+ * 按字节预算淘汰最久未使用的条目；淘汰时尝试调用 ImageBitmap.close()
+ * 释放 GPU 显存，避免频繁切换缩放比时显存累积。
  */
+
+/** 尝试释放可关闭对象的资源（ImageBitmap 等）。失败时静默忽略。 */
+function tryClose(v: unknown): void {
+  const c = (v as unknown as { close?: () => void }).close;
+  if (typeof c === "function") {
+    try { c.call(v); } catch { /* ignore */ }
+  }
+}
+
 export class LruCache<K, V> {
   private map = new Map<K, V>();
   private bytes: number;
@@ -28,6 +38,7 @@ export class LruCache<K, V> {
     if (old !== undefined) {
       this.current -= this.sizeOf(key, old);
       this.map.delete(key);
+      tryClose(old);
     }
     this.map.set(key, value);
     this.current += this.sizeOf(key, value);
@@ -39,10 +50,14 @@ export class LruCache<K, V> {
     if (old !== undefined) {
       this.current -= this.sizeOf(key, old);
       this.map.delete(key);
+      tryClose(old);
     }
   }
 
   clear(): void {
+    for (const [, v] of this.map) {
+      tryClose(v);
+    }
     this.map.clear();
     this.current = 0;
   }

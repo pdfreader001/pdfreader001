@@ -1,10 +1,9 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../state/store";
 import { thumbCache, thumbKey } from "../lib/bitmapCache";
 import {
   renderThumbnail,
-  canUndo,
-  canRedo,
+  refreshUndoRedo,
   rotatePages,
   deletePages,
   duplicatePages,
@@ -22,9 +21,12 @@ interface ContextMenuState {
   pageIndex: number;
 }
 
-function ThumbItem({
+// 缩略图 in-flight 去重：同一 key 同时只发一次请求
+const thumbInflight = new Map<string, Promise<ImageBitmap>>();
+
+const ThumbItem = React.memo(function ThumbItem({
   docId,
-  pageIndex,
+  item,
   cssH,
   selected,
   current,
@@ -38,21 +40,22 @@ function ThumbItem({
   onDragEnd,
 }: {
   docId: number;
-  pageIndex: number;
+  item: { index: number };
   cssH: number;
   selected: boolean;
   current: boolean;
   isDropTarget: boolean;
   dropPosition: "before" | "after" | null;
-  onClick: (e: React.MouseEvent) => void;
-  onContextMenu: (e: React.MouseEvent) => void;
-  onDragStart: (e: React.DragEvent) => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDrop: (e: React.DragEvent) => void;
+  onClick: (it: { index: number }, e: React.MouseEvent) => void;
+  onContextMenu: (it: { index: number }, e: React.MouseEvent) => void;
+  onDragStart: (it: { index: number }, e: React.DragEvent) => void;
+  onDragOver: (it: { index: number }, e: React.DragEvent) => void;
+  onDrop: (it: { index: number }, e: React.DragEvent) => void;
   onDragEnd: () => void;
 }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
   const renderRevision = useApp((s) => s.renderRevision);
+  const pageIndex = item.index;
 
   useEffect(() => {
     let cancelled = false;
@@ -69,13 +72,21 @@ function ThumbItem({
       paint(cached);
       return;
     }
-    renderThumbnail(docId, pageIndex)
-      .then((bmp) => {
-        if (cancelled) return;
-        thumbCache.set(key, bmp);
-        paint(bmp);
-      })
-      .catch(() => {});
+    // in-flight 去重
+    let p = thumbInflight.get(key);
+    if (!p) {
+      p = renderThumbnail(docId, pageIndex)
+        .then((bmp) => {
+          thumbCache.set(key, bmp);
+          return bmp;
+        })
+        .finally(() => thumbInflight.delete(key));
+      thumbInflight.set(key, p);
+    }
+    p.then((bmp) => {
+      if (cancelled) return;
+      paint(bmp);
+    }).catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -87,19 +98,19 @@ function ThumbItem({
         isDropTarget && dropPosition === "before" ? " drop-before" : ""
       }${isDropTarget && dropPosition === "after" ? " drop-after" : ""}`}
       style={{ width: THUMB_W + 20, height: cssH + ITEM_PAD + 22 }}
-      onClick={onClick}
-      onContextMenu={onContextMenu}
+      onClick={(e) => onClick(item, e)}
+      onContextMenu={(e) => onContextMenu(item, e)}
       draggable
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
+      onDragStart={(e) => onDragStart(item, e)}
+      onDragOver={(e) => onDragOver(item, e)}
+      onDrop={(e) => onDrop(item, e)}
       onDragEnd={onDragEnd}
     >
       <canvas ref={ref} style={{ width: THUMB_W, height: cssH }} />
       <span className="cap">{pageIndex + 1}</span>
     </div>
   );
-}
+});
 
 export default function ThumbnailPanel() {
   const docId = useApp((s) => s.docId);
@@ -109,8 +120,7 @@ export default function ThumbnailPanel() {
   const toggleSelect = useApp((s) => s.toggleSelect);
   const jumpToPage = useApp((s) => s.jumpToPage);
   const updatePages = useApp((s) => s.updatePages);
-  const setCanUndo = useApp((s) => s.setCanUndo);
-  const setCanRedo = useApp((s) => s.setCanRedo);
+  const setUndoRedo = useApp((s) => s.setUndoRedo);
   const markDirty = useApp((s) => s.markDirty);
   const errorToast = useApp((s) => s.errorToast);
   const pushToast = useApp((s) => s.pushToast);
@@ -124,6 +134,9 @@ export default function ThumbnailPanel() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dropPosition, setDropPosition] = useState<"before" | "after" | null>(null);
   const [dragging, setDragging] = useState(false);
+  // rAF 节流滚动
+  const thumbScrollRaf = useRef<number | null>(null);
+  const pendingThumbScroll = useRef<number>(0);
 
   const items = useMemo(() => {
     let top = 0;
@@ -170,7 +183,7 @@ export default function ThumbnailPanel() {
       const info = await rotatePages(docId, pages, delta);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
+      setUndoRedo(await refreshUndoRedo(docId));
       pushToast("info", t("已旋转 {n} 页", { n: pages.length }));
     } catch (e) {
       errorToast(e);
@@ -187,7 +200,7 @@ export default function ThumbnailPanel() {
       updatePages(info);
       markDirty(true);
       clearSelection();
-      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
+      setUndoRedo(await refreshUndoRedo(docId));
       pushToast("info", t("已删除 {n} 页", { n: pages.length }));
     } catch (e) {
       errorToast(e);
@@ -203,7 +216,7 @@ export default function ThumbnailPanel() {
       const info = await duplicatePages(docId, pages, dest);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
+      setUndoRedo(await refreshUndoRedo(docId));
       pushToast("info", t("已复制 {n} 页", { n: pages.length }));
     } catch (e) {
       errorToast(e);
@@ -221,7 +234,7 @@ export default function ThumbnailPanel() {
       const info = await insertBlankPage(docId, atIndex, width, height);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
+      setUndoRedo(await refreshUndoRedo(docId));
       pushToast("info", t("已插入空白页"));
     } catch (e) {
       errorToast(e);
@@ -275,7 +288,7 @@ export default function ThumbnailPanel() {
       const info = await reorderPages(docId, indices, toIndex);
       updatePages(info);
       markDirty(true);
-      setCanUndo(await canUndo(docId)); setCanRedo(await canRedo(docId));
+      setUndoRedo(await refreshUndoRedo(docId));
       pushToast("info", t("已移动 {n} 页", { n: indices.length }));
     } catch (err) {
       errorToast(err);
@@ -288,6 +301,36 @@ export default function ThumbnailPanel() {
     setDropPosition(null);
   };
 
+  // 用 useCallback 稳定化回调引用，让 React.memo(ThumbItem) 能正确跳过未变化的 item。
+  // 注意：selectedPages / currentPage / dragOverIndex 等是 props 维度必需的依赖。
+  const handleItemClick = useCallback(
+    (it: { index: number }, e: React.MouseEvent) => {
+      toggleSelect(it.index, e.ctrlKey || e.metaKey, e.shiftKey);
+      if (!e.ctrlKey && !e.metaKey && !e.shiftKey) jumpToPage(it.index);
+    },
+    [toggleSelect, jumpToPage],
+  );
+  const handleItemContextMenu = useCallback((it: { index: number }, e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, pageIndex: it.index });
+  }, []);
+  const handleItemDragStart = useCallback(
+    (it: { index: number }, e: React.DragEvent) => handleDragStart(e, it.index),
+    // handleDragStart 依赖 docId / dragging / selectedPages 已用 ref/params 处理
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [docId, selectedPages],
+  );
+  const handleItemDragOver = useCallback(
+    (it: { index: number }, e: React.DragEvent) => handleDragOver(e, it.index),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dragging],
+  );
+  const handleItemDrop = useCallback(
+    (it: { index: number }, e: React.DragEvent) => handleDrop(e, it.index),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dragging, dropPosition, pages.length],
+  );
+
   if (docId === null) return null;
 
   const overscan = 400;
@@ -299,7 +342,15 @@ export default function ThumbnailPanel() {
     <div
       className="thumb-list"
       ref={scrollRef}
-      onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
+      onScroll={(e) => {
+        const t = (e.target as HTMLDivElement).scrollTop;
+        pendingThumbScroll.current = t;
+        if (thumbScrollRaf.current !== null) return;
+        thumbScrollRaf.current = requestAnimationFrame(() => {
+          thumbScrollRaf.current = null;
+          setScrollTop(pendingThumbScroll.current);
+        });
+      }}
     >
       <div style={{ height: totalH, position: "relative" }}>
         {items.slice(first, last + 1).map((it) => (
@@ -316,23 +367,17 @@ export default function ThumbnailPanel() {
           >
             <ThumbItem
               docId={docId}
-              pageIndex={it.index}
+              item={it}
               cssH={it.cssH}
               selected={selectedPages.has(it.index)}
               current={it.index === currentPage}
               isDropTarget={dragOverIndex === it.index}
               dropPosition={dragOverIndex === it.index ? dropPosition : null}
-              onClick={(e) => {
-                toggleSelect(it.index, e.ctrlKey || e.metaKey, e.shiftKey);
-                if (!e.ctrlKey && !e.metaKey && !e.shiftKey) jumpToPage(it.index);
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setContextMenu({ x: e.clientX, y: e.clientY, pageIndex: it.index });
-              }}
-              onDragStart={(e) => handleDragStart(e, it.index)}
-              onDragOver={(e) => handleDragOver(e, it.index)}
-              onDrop={(e) => handleDrop(e, it.index)}
+              onClick={handleItemClick}
+              onContextMenu={handleItemContextMenu}
+              onDragStart={handleItemDragStart}
+              onDragOver={handleItemDragOver}
+              onDrop={handleItemDrop}
               onDragEnd={handleDragEnd}
             />
           </div>
