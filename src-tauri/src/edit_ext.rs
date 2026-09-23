@@ -50,8 +50,7 @@ fn parse_hex_color(hex: &str) -> PdfColor {
     PdfColor::new(r, g, b, 255)
 }
 
-/// 文字重写：在指定页面对 region 内的所有文字对象做"白色覆盖 + 删除 + 插入新文字"。
-/// 自动用系统中文字体兜底。
+/// 文字重写选项。
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RewriteTextOpts {
@@ -63,7 +62,153 @@ pub struct RewriteTextOpts {
     pub color: String,
 }
 
-/// 文字重写核心逻辑。
+/// 新增文本框选项。
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddTextBoxOpts {
+    pub text: String,
+    /// 字号（pt）。
+    pub font_size: f32,
+    /// 颜色（"#RRGGBB"）。
+    pub color: String,
+    /// 左下角 x 坐标（pt）。
+    pub x: f32,
+    /// 左下角 y 坐标（pt）。
+    pub y: f32,
+}
+
+/// 文字重写核心逻辑（纯函数版本）：输入 bytes，返回新 bytes。
+pub fn rewrite_text_logic(
+    pdfium: &Pdfium,
+    bytes: &[u8],
+    page_index: u32,
+    region: PtRect,
+    opts: &RewriteTextOpts,
+) -> AppResult<Vec<u8>> {
+    if !region.valid() {
+        return Err(AppError::InvalidRect);
+    }
+    if opts.new_text.is_empty() {
+        return Err(AppError::TextEmpty);
+    }
+    let mut doc = pdfium.load_pdf_from_byte_slice(bytes, None)?;
+    let page_count = doc.pages().len() as u32;
+    if page_index >= page_count {
+        return Err(AppError::PageOutOfRange);
+    }
+    let font_token = load_font_for_text(&mut doc, &opts.new_text)?;
+    let color = parse_hex_color(&opts.color);
+    let font_size = opts.font_size.max(4.0);
+
+    {
+        let pages_col = doc.pages_mut();
+        let mut page = pages_col.get(page_index as u16)?;
+
+        // 1. 收集 region 内的所有文本对象索引（从后往前删）
+        let mut to_remove: Vec<u32> = Vec::new();
+        {
+            let objs = page.objects();
+            for (i, obj) in objs.iter().enumerate() {
+                if !matches!(obj.object_type(), PdfPageObjectType::Text) {
+                    continue;
+                }
+                let Ok(bounds) = obj.bounds() else { continue };
+                let (l, b, r, t) = (
+                    bounds.left().value as f32,
+                    bounds.bottom().value as f32,
+                    bounds.right().value as f32,
+                    bounds.top().value as f32,
+                );
+                let obj_left = l.min(r);
+                let obj_right = l.max(r);
+                let obj_bottom = b.min(t);
+                let obj_top = b.max(t);
+                // AABB 相交检测
+                if obj_left < region.right
+                    && obj_right > region.left
+                    && obj_bottom < region.top
+                    && obj_top > region.bottom
+                {
+                    to_remove.push(i as u32);
+                }
+            }
+        }
+        for &i in to_remove.iter().rev() {
+            let _ = page.objects_mut().remove_object_at_index(i as usize);
+        }
+
+        // 2. 在 region 上叠加白色矩形（视觉遮盖）
+        let white = PdfColor::new(255, 255, 255, 255);
+        let pdf_rect = PdfRect::new(
+            PdfPoints::new(region.bottom),
+            PdfPoints::new(region.left),
+            PdfPoints::new(region.top),
+            PdfPoints::new(region.right),
+        );
+        {
+            let mut objects = page.objects_mut();
+            let _rect = objects.create_path_object_rect(
+                pdf_rect,
+                None, // 无描边
+                None, // 无描边宽度
+                Some(white),
+            )?;
+        }
+
+        // 3. 在 region 底部插入新文字
+        let pad_x = region.width() * 0.05;
+        let text_x = region.left + pad_x;
+        let text_y = region.bottom + region.height() * 0.15;
+        {
+            let mut objects = page.objects_mut();
+            let mut obj = objects.create_text_object(
+                PdfPoints::new(text_x),
+                PdfPoints::new(text_y),
+                &opts.new_text,
+                font_token,
+                PdfPoints::new(font_size),
+            )?;
+            obj.set_fill_color(color)?;
+        }
+    }
+    Ok(doc.save_to_bytes()?)
+}
+
+/// 新增文本框纯函数版本。
+pub fn add_text_box_logic(
+    pdfium: &Pdfium,
+    bytes: &[u8],
+    page_index: u32,
+    opts: &AddTextBoxOpts,
+) -> AppResult<Vec<u8>> {
+    if opts.text.is_empty() {
+        return Err(AppError::TextEmpty);
+    }
+    let mut doc = pdfium.load_pdf_from_byte_slice(bytes, None)?;
+    let page_count = doc.pages().len() as u32;
+    if page_index >= page_count {
+        return Err(AppError::PageOutOfRange);
+    }
+    let font_token = load_font_for_text(&mut doc, &opts.text)?;
+    let color = parse_hex_color(&opts.color);
+    let font_size = opts.font_size.max(4.0);
+    {
+        let pages_col = doc.pages_mut();
+        let mut page = pages_col.get(page_index as u16)?;
+        let mut objects = page.objects_mut();
+        let mut obj = objects.create_text_object(
+            PdfPoints::new(opts.x),
+            PdfPoints::new(opts.y),
+            &opts.text,
+            font_token,
+            PdfPoints::new(font_size),
+        )?;
+        obj.set_fill_color(color)?;
+    }
+    Ok(doc.save_to_bytes()?)
+}
+
+/// 文字重写 Tauri command。
 #[tauri::command]
 pub async fn rewrite_text(
     state: State<'_, AppState>,
@@ -83,102 +228,9 @@ pub async fn rewrite_text(
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
         let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
-        let mut doc = load_doc(pdfium, &entry.bytes)?;
-        let font_token = load_font_for_text(&mut doc, &opts.new_text)?;
-        let color = parse_hex_color(&opts.color);
-        let font_size = opts.font_size.max(4.0);
-
-        {
-            let pages_col = doc.pages_mut();
-            let mut page = pages_col.get(page_index as u16)?;
-
-            // 1. 收集 region 内的所有文本对象索引（从后往前删）
-            let mut to_remove: Vec<u32> = Vec::new();
-            {
-                let objs = page.objects();
-                for (i, obj) in objs.iter().enumerate() {
-                    if !matches!(obj.object_type(), PdfPageObjectType::Text) {
-                        continue;
-                    }
-                    let Ok(bounds) = obj.bounds() else { continue };
-                    let (l, b, r, t) = (
-                        bounds.left().value as f32,
-                        bounds.bottom().value as f32,
-                        bounds.right().value as f32,
-                        bounds.top().value as f32,
-                    );
-                    let obj_left = l.min(r);
-                    let obj_right = l.max(r);
-                    let obj_bottom = b.min(t);
-                    let obj_top = b.max(t);
-                    // AABB 相交检测
-                    if obj_left < region.right
-                        && obj_right > region.left
-                        && obj_bottom < region.top
-                        && obj_top > region.bottom
-                    {
-                        to_remove.push(i as u32);
-                    }
-                }
-            }
-            for &i in to_remove.iter().rev() {
-                let _ = page.objects_mut().remove_object_at_index(i as usize);
-            }
-
-            // 2. 在 region 上叠加白色矩形（视觉遮盖）
-            let white = PdfColor::new(255, 255, 255, 255);
-            let pdf_rect = PdfRect::new(
-                PdfPoints::new(region.bottom),
-                PdfPoints::new(region.left),
-                PdfPoints::new(region.top),
-                PdfPoints::new(region.right),
-            );
-            {
-                let mut objects = page.objects_mut();
-                let _rect = objects.create_path_object_rect(
-                    pdf_rect,
-                    None, // 无描边
-                    None, // 无描边宽度
-                    Some(white),
-                )?;
-            }
-
-            // 3. 在 region 底部插入新文字（基线略高于 region.bottom）
-            // 用区域宽度的 10% 作为水平 padding
-            let pad_x = region.width() * 0.05;
-            let text_x = region.left + pad_x;
-            // 视觉上把文字放在白色矩形内，偏上一些
-            let text_y = region.bottom + region.height() * 0.15;
-            {
-                let mut objects = page.objects_mut();
-                let mut obj = objects.create_text_object(
-                    PdfPoints::new(text_x),
-                    PdfPoints::new(text_y),
-                    &opts.new_text,
-                    font_token,
-                    PdfPoints::new(font_size),
-                )?;
-                obj.set_fill_color(color)?;
-            }
-        }
-        doc.save_to_bytes()?
+        rewrite_text_logic(pdfium, &entry.bytes, page_index, region, &opts)?
     };
     commit_and_return(&state, doc_id, new_bytes)
-}
-
-/// 新增文本框：在指定页面的指定坐标插入文本对象（不影响现有对象）。
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AddTextBoxOpts {
-    pub text: String,
-    /// 字号（pt）。
-    pub font_size: f32,
-    /// 颜色（"#RRGGBB"）。
-    pub color: String,
-    /// 左下角 x 坐标（pt）。
-    pub x: f32,
-    /// 左下角 y 坐标（pt）。
-    pub y: f32,
 }
 
 #[tauri::command]
@@ -196,24 +248,7 @@ pub async fn add_text_box(
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
         let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
-        let mut doc = load_doc(pdfium, &entry.bytes)?;
-        let font_token = load_font_for_text(&mut doc, &opts.text)?;
-        let color = parse_hex_color(&opts.color);
-        let font_size = opts.font_size.max(4.0);
-        {
-            let pages_col = doc.pages_mut();
-            let mut page = pages_col.get(page_index as u16)?;
-            let mut objects = page.objects_mut();
-            let mut obj = objects.create_text_object(
-                PdfPoints::new(opts.x),
-                PdfPoints::new(opts.y),
-                &opts.text,
-                font_token,
-                PdfPoints::new(font_size),
-            )?;
-            obj.set_fill_color(color)?;
-        }
-        doc.save_to_bytes()?
+        add_text_box_logic(pdfium, &entry.bytes, page_index, &opts)?
     };
     commit_and_return(&state, doc_id, new_bytes)
 }

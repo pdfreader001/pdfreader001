@@ -39,15 +39,8 @@ fn map_revision(rev: &PdfSecurityHandlerRevision) -> &'static str {
     }
 }
 
-#[tauri::command]
-pub async fn get_security_status(
-    state: State<'_, AppState>,
-    doc_id: u64,
-) -> AppResult<SecurityStatus> {
-    let pdfium = get_pdfium();
-    let docs = state.docs.lock().unwrap();
-    let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
-    let doc = pdfium.load_pdf_from_byte_slice(&entry.bytes, None)?;
+/// 纯函数版本：从已加载的 PdfDocument 提取安全状态。
+pub fn get_security_status_logic(doc: &PdfDocument) -> SecurityStatus {
     let perms = doc.permissions();
     let rev = perms
         .security_handler_revision()
@@ -58,7 +51,7 @@ pub async fn get_security_status(
     // 高质量打印 / 低质量打印：perms 同时只可能有一个为 true
     let hi = perms.can_print_high_quality().unwrap_or(true);
     let lo = perms.can_print_only_low_quality().unwrap_or(false);
-    Ok(SecurityStatus {
+    SecurityStatus {
         handler_revision: rev.to_string(),
         can_print_high_quality: hi,
         can_print_low_quality: lo,
@@ -72,7 +65,19 @@ pub async fn get_security_status(
         can_create_new_form_fields: perms
             .can_create_new_interactive_form_fields()
             .unwrap_or(true),
-    })
+    }
+}
+
+#[tauri::command]
+pub async fn get_security_status(
+    state: State<'_, AppState>,
+    doc_id: u64,
+) -> AppResult<SecurityStatus> {
+    let pdfium = get_pdfium();
+    let docs = state.docs.lock().unwrap();
+    let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
+    let doc = pdfium.load_pdf_from_byte_slice(&entry.bytes, None)?;
+    Ok(get_security_status_logic(&doc))
 }
 
 /// 将当前文档以"明文副本"形式保存到新路径。

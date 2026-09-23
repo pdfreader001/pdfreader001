@@ -7,6 +7,7 @@
 
 use std::path::Path;
 
+use image::DynamicImage;
 use pdfium_render::prelude::*;
 use serde::Deserialize;
 use tauri::State;
@@ -31,6 +32,109 @@ pub struct ImageToPdfOpts {
     pub page_size: String,
     /// "fill"（铺满）+ "fit"（保持比例居中）
     pub layout: String,
+}
+
+/// 纯函数：把一页渲染为指定 DPI 和格式的图片字节。
+/// format: "png" / "jpeg" / "jpg"（大小写不敏感），未知格式回退到 PNG。
+pub fn export_page_to_image_bytes(
+    page: &PdfPage<'_>,
+    dpi: f64,
+    format: &str,
+) -> AppResult<Vec<u8>> {
+    let dpi = dpi.clamp(36.0, 600.0);
+    let scale = dpi as f32 / 72.0;
+    let width = ((page.width().value * scale).round() as i32).max(1);
+    let height = ((page.height().value * scale).round() as i32).max(1);
+    let bitmap = page.render(width, height, None)?;
+    let rgba = bitmap.as_rgba_bytes();
+    let w = bitmap.width() as u32;
+    let h = bitmap.height() as u32;
+    let img = image::RgbaImage::from_raw(w, h, rgba.to_vec())
+        .ok_or_else(|| AppError::ImageConstructFailed)?;
+    let dyn_img = image::DynamicImage::ImageRgba8(img);
+
+    let mut out: Vec<u8> = Vec::new();
+    match format.to_lowercase().as_str() {
+        "jpeg" | "jpg" => {
+            dyn_img
+                .to_rgb8()
+                .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Jpeg)
+                .map_err(|e| AppError::Internal(format!("JPEG 编码失败：{e}")))?;
+        }
+        _ => {
+            dyn_img
+                .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png)
+                .map_err(|e| AppError::Internal(format!("PNG 编码失败：{e}")))?;
+        }
+    }
+    Ok(out)
+}
+
+/// 图片 → PDF 的纯函数选项（与 ImageToPdfOpts 字段相同）。
+#[derive(Debug, Clone)]
+pub struct ImageToPdfOptions {
+    pub page_size: String,
+    pub layout: String,
+}
+
+/// 纯函数：把一组 DynamicImage 生成 PDF bytes。
+pub fn images_to_pdf_from_images(
+    images: &[DynamicImage],
+    opts: &ImageToPdfOptions,
+) -> AppResult<Vec<u8>> {
+    if images.is_empty() {
+        return Err(AppError::NoImagesProvided);
+    }
+    let sizes: Vec<(u32, u32)> = images.iter().map(|im| (im.width(), im.height())).collect();
+
+    // 决定每页尺寸（PDF 点）
+    let page_size_pts: Vec<(f32, f32)> = match opts.page_size.to_lowercase().as_str() {
+        "a4" => vec![(595.0, 842.0); images.len()],
+        "letter" => vec![(612.0, 792.0); images.len()],
+        "auto" => {
+            let mw = sizes.iter().map(|(w, _)| *w).max().unwrap_or(595) as f32;
+            let mh = sizes.iter().map(|(_, h)| *h).max().unwrap_or(842) as f32;
+            vec![(mw, mh); images.len()]
+        }
+        _ => sizes
+            .iter()
+            .map(|(w, h)| (*w as f32, *h as f32))
+            .collect(), // fit
+    };
+
+    let pdfium = get_pdfium();
+    let mut doc = pdfium.create_new_pdf()?;
+    {
+        let mut pages = doc.pages_mut();
+        for (idx, img) in images.iter().enumerate() {
+            let (pw, ph) = page_size_pts[idx];
+            let mut page = pages.create_page_at_index(
+                PdfPagePaperSize::Custom(PdfPoints::new(pw), PdfPoints::new(ph)),
+                idx as u16,
+            )?;
+            let obj_w = img.width() as f32;
+            let obj_h = img.height() as f32;
+            let (img_w, img_h) = if opts.layout == "fill" {
+                (pw, ph)
+            } else {
+                let sx = pw / obj_w;
+                let sy = ph / obj_h;
+                let s = sx.min(sy);
+                (obj_w * s, obj_h * s)
+            };
+            let x = (pw - img_w) / 2.0;
+            let y = (ph - img_h) / 2.0;
+            page.objects_mut().create_image_object(
+                PdfPoints::new(x),
+                PdfPoints::new(y),
+                img,
+                Some(PdfPoints::new(img_w.max(1.0))),
+                Some(PdfPoints::new(img_h.max(1.0))),
+            )?;
+        }
+    }
+    let bytes = doc.save_to_bytes()?;
+    Ok(bytes)
 }
 
 /// PDF → PNG/JPEG：逐页渲染为指定 DPI 的位图，写到 output_dir。
