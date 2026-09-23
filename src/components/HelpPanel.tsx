@@ -43,7 +43,7 @@ const SHORTCUT_KEYS = [
   {
     groupKey: "界面",
     items: [
-      { keys: "Ctrl + Shift + L", descKey: "切换中英文界面" },
+      { keys: "Ctrl + Shift + L", descKey: "切换界面语言" },
     ],
   },
 ];

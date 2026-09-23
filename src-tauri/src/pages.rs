@@ -31,6 +31,7 @@ pub(crate) fn load_doc<'a>(pdfium: &'a Pdfium, bytes: &'a [u8]) -> AppResult<Pdf
 fn build_info_from_doc(
     doc_id: u64,
     doc: &PdfDocument,
+    bytes: &[u8],
     path: Option<PathBuf>,
 ) -> AppResult<DocumentInfo> {
     let pages = doc.pages();
@@ -53,6 +54,7 @@ fn build_info_from_doc(
     Ok(DocumentInfo {
         doc_id,
         file_name,
+        file_size_bytes: bytes.len() as u64,
         page_count: count,
         pages: infos,
     })
@@ -68,7 +70,7 @@ pub(crate) fn commit_and_return(
     entry.bytes = new_bytes;
     let pdfium = get_pdfium();
     let doc = load_doc(pdfium, &entry.bytes)?;
-    build_info_from_doc(doc_id, &doc, entry.path.clone())
+    build_info_from_doc(doc_id, &doc, &entry.bytes, entry.path.clone())
 }
 
 fn to_u16(i: u32) -> AppResult<u16> {
@@ -322,7 +324,7 @@ pub async fn extract_pages(
     let info = {
         let pdfium = get_pdfium();
         let doc = load_doc(pdfium, &entry.bytes)?;
-        build_info_from_doc(new_doc_id, &doc, entry.path.clone())?
+        build_info_from_doc(new_doc_id, &doc, &entry.bytes, entry.path.clone())?
     };
     state.docs.lock().unwrap().insert(new_doc_id, entry);
     Ok(info)
@@ -376,7 +378,7 @@ pub async fn merge_documents(
     let info = {
         let pdfium = get_pdfium();
         let doc = load_doc(pdfium, &entry.bytes)?;
-        build_info_from_doc(new_doc_id, &doc, entry.path.clone())?
+        build_info_from_doc(new_doc_id, &doc, &entry.bytes, entry.path.clone())?
     };
     state.docs.lock().unwrap().insert(new_doc_id, entry);
     Ok(info)

@@ -11,6 +11,7 @@ export interface PageInfo {
 export interface DocumentInfo {
   docId: number;
   fileName: string;
+  fileSizeBytes: number;
   pageCount: number;
   pages: PageInfo[];
 }
@@ -54,6 +55,10 @@ export function canUndo(docId: number): Promise<boolean> {
   return invoke<boolean>("can_undo", { docId });
 }
 
+export function undoDepth(docId: number): Promise<number> {
+  return invoke<number>("undo_depth", { docId });
+}
+
 export function redoDocument(docId: number): Promise<DocumentInfo> {
   return invoke<DocumentInfo>("redo_document", { docId });
 }
@@ -62,8 +67,77 @@ export function canRedo(docId: number): Promise<boolean> {
   return invoke<boolean>("can_redo", { docId });
 }
 
+export function redoDepth(docId: number): Promise<number> {
+  return invoke<number>("redo_depth", { docId });
+}
+
+/** 一次性刷新撤销/重做的所有状态（可用性 + 深度），返回四个值的元组 */
+export async function refreshUndoRedo(
+  docId: number,
+): Promise<{ canUndo: boolean; canRedo: boolean; undoDepth: number; redoDepth: number }> {
+  const [cu, cr, ud, rd] = await Promise.all([
+    canUndo(docId),
+    canRedo(docId),
+    undoDepth(docId),
+    redoDepth(docId),
+  ]);
+  return { canUndo: cu, canRedo: cr, undoDepth: ud, redoDepth: rd };
+}
+
 export function getPageText(docId: number, pageIndex: number): Promise<string> {
   return invoke<string>("get_page_text", { docId, pageIndex });
+}
+
+/** 单页搜索命中矩形（PDF 点，左下原点） */
+export interface SearchHitRect {
+  left: number;
+  bottom: number;
+  right: number;
+  top: number;
+}
+
+export interface PageSearchResult {
+  pageIndex: number;
+  hits: SearchHitRect[];
+}
+
+/** 在指定页面内搜索关键词，返回所有命中的矩形坐标（用于画布高亮） */
+export function searchPageText(
+  docId: number,
+  pageIndex: number,
+  query: string,
+  maxHits?: number,
+): Promise<PageSearchResult> {
+  return invoke<PageSearchResult>("search_page_text", {
+    docId,
+    pageIndex,
+    query,
+    maxHits: maxHits ?? null,
+  });
+}
+
+/** 双击命中的文字片段：外包围盒（PDF 点，左下原点）+ 原文 */
+export interface TextPickResult {
+  left: number;
+  bottom: number;
+  right: number;
+  top: number;
+  text: string;
+}
+
+/** 给定 PDF 点 (x, y)，返回该位置的词/词组 bounds + 原文 */
+export function pickTextAtPoint(
+  docId: number,
+  pageIndex: number,
+  x: number,
+  y: number,
+): Promise<TextPickResult | null> {
+  return invoke<TextPickResult | null>("pick_text_at_point", {
+    docId,
+    pageIndex,
+    x,
+    y,
+  });
 }
 
 export interface BookmarkNode {
@@ -357,12 +431,12 @@ export function applyWatermarkRemoval(
 // ---------- 注释（M5） ----------
 
 export type AnnotationKind =
-  | "Highlight"
-  | "Underline"
-  | "Strikeout"
-  | "StickyNote"
-  | "FreeText"
-  | "Square";
+  | "highlight"
+  | "underline"
+  | "strikeout"
+  | "stickyNote"
+  | "freeText"
+  | "square";
 
 export interface AnnotationInfo {
   index: number;

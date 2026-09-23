@@ -9,6 +9,7 @@ const TOOLS: { id: Exclude<TaskId, null>; label: string; icon: string }[] = [
   { id: "edit", label: "编辑", icon: "✏" },
   { id: "security", label: "密码", icon: "🔒" },
   { id: "export", label: "导出", icon: "🖼" },
+  { id: "diagnose", label: "诊断", icon: "🩺" },
 ];
 
 export default function Toolbar({
@@ -26,6 +27,8 @@ export default function Toolbar({
   const hasDoc = useApp((s) => s.docId !== null);
   const canUndo = useApp((s) => s.canUndo);
   const canRedo = useApp((s) => s.canRedo);
+  const undoDepth = useApp((s) => s.undoDepth);
+  const redoDepth = useApp((s) => s.redoDepth);
   const viewMode = useApp((s) => s.viewMode);
   const setViewMode = useApp((s) => s.setViewMode);
   const setSearchOpen = useApp((s) => s.setSearchOpen);
@@ -44,17 +47,17 @@ export default function Toolbar({
         className="tbtn"
         disabled={!hasDoc || !canUndo}
         onClick={onUndo}
-        title={t("撤销（Ctrl+Z）")}
+        title={t("撤销（Ctrl+Z）", { count: undoDepth }) + (undoDepth > 0 ? ` · ${undoDepth}` : "")}
       >
-        ↶
+        ↶ {t("撤销")}
       </button>
       <button
         className="tbtn"
         disabled={!hasDoc || !canRedo}
         onClick={onRedo}
-        title={t("重做（Ctrl+Y）")}
+        title={t("重做（Ctrl+Y）", { count: redoDepth }) + (redoDepth > 0 ? ` · ${redoDepth}` : "")}
       >
-        ↷
+        ↷ {t("重做")}
       </button>
       <span className="sep" />
       {TOOLS.map((item) => (

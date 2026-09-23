@@ -86,6 +86,8 @@ pub struct PageInfo {
 pub struct DocumentInfo {
     pub doc_id: u64,
     pub file_name: String,
+    /// 磁盘文件字节数（bytes.len() 来自打开时的读入；明文副本导出后保持原大小）。
+    pub file_size_bytes: u64,
     pub page_count: u32,
     pub pages: Vec<PageInfo>,
 }
@@ -119,6 +121,7 @@ fn build_info(doc_id: u64, entry: &DocEntry, count: u32, pages: Vec<PageInfo>) -
     DocumentInfo {
         doc_id,
         file_name,
+        file_size_bytes: entry.bytes.len() as u64,
         page_count: count,
         pages,
     }
@@ -295,4 +298,18 @@ pub async fn can_undo(state: State<'_, AppState>, doc_id: u64) -> AppResult<bool
 pub async fn can_redo(state: State<'_, AppState>, doc_id: u64) -> AppResult<bool> {
     let redo = state.redo.lock().unwrap();
     Ok(redo.get(&doc_id).map(|s| !s.is_empty()).unwrap_or(false))
+}
+
+/// 撤销栈深度（可撤销的步数）。
+#[tauri::command]
+pub async fn undo_depth(state: State<'_, AppState>, doc_id: u64) -> AppResult<u32> {
+    let undo = state.undo.lock().unwrap();
+    Ok(undo.get(&doc_id).map(|s| s.len() as u32).unwrap_or(0))
+}
+
+/// 重做栈深度（可重做的步数）。
+#[tauri::command]
+pub async fn redo_depth(state: State<'_, AppState>, doc_id: u64) -> AppResult<u32> {
+    let redo = state.redo.lock().unwrap();
+    Ok(redo.get(&doc_id).map(|s| s.len() as u32).unwrap_or(0))
 }

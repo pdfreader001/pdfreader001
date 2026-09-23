@@ -86,6 +86,10 @@ pub enum AppError {
     #[error("Failed to write PDF")]
     PdfWriteFailed,
 
+    // ------ 搜索 ------
+    #[error("Search failed")]
+    SearchFailed,
+
     // ------ 水印去除 ------
     #[error("Invalid rectangle: zero or negative size")]
     InvalidRect,
@@ -172,6 +176,7 @@ impl AppError {
             AppError::PdfWriteFailed => "pdf_write_failed",
             AppError::InvalidRect => "invalid_rect",
             AppError::NoCandidates => "no_candidates",
+            AppError::SearchFailed => "search_failed",
             AppError::ToolNotFound { .. } => "tool_not_found",
             AppError::UnsupportedFormat { .. } => "unsupported_format",
             AppError::SourceNotFound { .. } => "source_not_found",
@@ -260,6 +265,7 @@ impl Serialize for AppError {
                 | AppError::PdfWriteFailed
                 | AppError::InvalidRect
                 | AppError::NoCandidates
+                | AppError::SearchFailed
                 | AppError::CannotDetermineSourceName
                 | AppError::NoPdfGenerated
         );

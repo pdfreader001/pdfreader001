@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { DocumentInfo, PageInfo, BookmarkNode, SearchHitRect } from "../lib/ipc";
+import type { AnnotationInfo, DocumentInfo, PageInfo, BookmarkNode, SearchHitRect } from "../lib/ipc";
 import { isApiError } from "../lib/ipc";
 import { pageCache, thumbCache } from "../lib/bitmapCache";
 import { translateError } from "../i18n";
@@ -7,7 +7,7 @@ import { translateError } from "../i18n";
 export type ViewMode = "continuous" | "single" | "dual";
 export type FitMode = "none" | "width" | "page";
 export type LeftTab = "thumbnails" | "bookmarks";
-export type TaskId = "merge" | "split" | "watermark" | "edit" | "security" | "export" | null;
+export type TaskId = "merge" | "split" | "watermark" | "edit" | "security" | "export" | "diagnose" | null;
 
 export interface SearchHit {
   pageIndex: number;
@@ -45,6 +45,8 @@ interface AppState {
   docId: number | null;
   fileName: string;
   filePath: string | null;
+  /** 磁盘文件字节数；来自后端 DocumentInfo.fileSizeBytes。 */
+  fileSizeBytes: number;
   pageCount: number;
   pages: PageInfo[];
   dirty: boolean;
@@ -80,11 +82,14 @@ interface AppState {
   /** 当前正在加载高亮的页码集合，避免重复请求 */
   loadingHighlights: Set<number>;
 
+  /** 每页的注释列表（key 为 pageIndex）。打开文档时全量拉取，后续编辑后局部刷新 */
+  annotations: Record<number, AnnotationInfo[]>;
+
   // 主题
   theme: "light" | "dark";
 
   // 语言
-  locale: "zh" | "en";
+  locale: "zh" | "en" | "ja";
 
   // 缩略图选择
   selectedPages: Set<number>;
@@ -137,8 +142,14 @@ interface AppState {
   addLoadingHighlight: (pageIndex: number) => void;
   removeLoadingHighlight: (pageIndex: number) => void;
   clearSearchHighlights: () => void;
+  /** 全量设置某页的注释列表（打开文档 / 删除后刷新时调用） */
+  setPageAnnotations: (pageIndex: number, list: AnnotationInfo[]) => void;
+  /** 全量替换所有注释（拉取全文档注释时） */
+  setAllAnnotations: (map: Record<number, AnnotationInfo[]>) => void;
+  /** 清空所有注释（关闭文档时） */
+  clearAnnotations: () => void;
   setTheme: (t: "light" | "dark") => void;
-  setLocale: (l: "zh" | "en") => void;
+  setLocale: (l: "zh" | "en" | "ja") => void;
   toggleSelect: (page: number, ctrl: boolean, shift: boolean) => void;
   clearSelection: () => void;
   markDirty: (b: boolean) => void;
@@ -185,6 +196,7 @@ export const useApp = create<AppState>((set, get) => ({
   docId: null,
   fileName: "",
   filePath: null,
+  fileSizeBytes: 0,
   pageCount: 0,
   pages: [],
   dirty: false,
@@ -217,10 +229,11 @@ export const useApp = create<AppState>((set, get) => ({
   searching: false,
   searchHighlights: {},
   loadingHighlights: new Set(),
+  annotations: {},
 
   theme: window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light",
 
-  locale: (localStorage.getItem("pdfe:locale") as "zh" | "en") || "zh",
+  locale: (localStorage.getItem("pdfe:locale") as "zh" | "en" | "ja") || "zh",
 
   selectedPages: new Set(),
   thumbFocus: -1,
@@ -259,6 +272,7 @@ export const useApp = create<AppState>((set, get) => ({
       docId: info.docId,
       fileName: info.fileName,
       filePath: path,
+      fileSizeBytes: info.fileSizeBytes,
       pageCount: info.pageCount,
       pages: info.pages,
       dirty: false,
@@ -282,12 +296,14 @@ export const useApp = create<AppState>((set, get) => ({
       docId: null,
       fileName: "",
       filePath: null,
+      fileSizeBytes: 0,
       pageCount: 0,
       pages: [],
       dirty: false,
       canUndo: false,
       selectedPages: new Set(),
       dblClickText: null,
+      annotations: {},
     }),
   setViewMode: (m) => set({ viewMode: m, fitMode: m === "single" ? "page" : "width" }),
   setScale: (s) => set({ scale: Math.min(8, Math.max(0.1, s)), fitMode: "none" }),
@@ -332,6 +348,10 @@ export const useApp = create<AppState>((set, get) => ({
     set((s) => ({
       searchHighlights: { ...s.searchHighlights, [pageIndex]: rects },
     })),
+  setPageAnnotations: (pageIndex, list) =>
+    set((s) => ({ annotations: { ...s.annotations, [pageIndex]: list } })),
+  setAllAnnotations: (map) => set({ annotations: map }),
+  clearAnnotations: () => set({ annotations: {} }),
   addLoadingHighlight: (pageIndex) =>
     set((s) => {
       const next = new Set(s.loadingHighlights);

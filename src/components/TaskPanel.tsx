@@ -1277,6 +1277,13 @@ function DeepEditor() {
     "unknown",
   );
   const [detecting, setDetecting] = useState(false);
+  // 全文档抽样扫描检测结果：{ sampled, scannedCount, ratio }
+  const [docScanResult, setDocScanResult] = useState<{
+    sampled: number;
+    scannedCount: number;
+    ratio: number;
+  } | null>(null);
+  const [docScanning, setDocScanning] = useState(false);
 
   // 选区模式：rewrite（拖拽矩形）和 addText（单击点）使用画布选区
   useEffect(() => {
@@ -1520,6 +1527,35 @@ function DeepEditor() {
       errorToast(e);
     } finally {
       setDetecting(false);
+    }
+  };
+
+  const onDetectDocument = async () => {
+    const id = requireDoc();
+    if (!id) return;
+    setDocScanning(true);
+    try {
+      // 抽样策略：最多抽 10 页，等距抽样；页数不足 10 则全部
+      const total = pageCount;
+      const sampleSize = Math.min(10, total);
+      const step = total <= sampleSize ? 1 : Math.floor(total / sampleSize);
+      const indices: number[] = [];
+      for (let i = 0; i < sampleSize; i++) {
+        indices.push(Math.min(i * step, total - 1));
+      }
+      let scannedCount = 0;
+      for (const idx of indices) {
+        if (await isScannedPage(id, idx)) scannedCount++;
+      }
+      setDocScanResult({
+        sampled: indices.length,
+        scannedCount,
+        ratio: indices.length > 0 ? scannedCount / indices.length : 0,
+      });
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setDocScanning(false);
     }
   };
 
@@ -1777,13 +1813,19 @@ function DeepEditor() {
           <p className="placeholder" style={{ fontSize: 11 }}>
             {t("扫描版检测：判断页面是否几乎没有可识别文本（无文本层）。")}
           </p>
-          <div className="task-footer">
+          <div className="task-footer" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
               className="btn-primary"
               onClick={onDetect}
               disabled={detecting || docId === null}
             >
               {detecting ? t("正在检测…") : t("已扫描检测")}
+            </button>
+            <button
+              onClick={onDetectDocument}
+              disabled={docScanning || docId === null}
+            >
+              {docScanning ? t("正在检测…") : t("全文档抽样检测")}
             </button>
           </div>
           {scanState !== "unknown" && (
@@ -1798,6 +1840,37 @@ function DeepEditor() {
               >
                 {scanState === "scanned" ? t("是") : t("否")}
               </span>
+            </div>
+          )}
+          {docScanResult && (
+            <div
+              style={{
+                marginTop: 12,
+                fontSize: 13,
+                padding: 8,
+                background: "var(--bg-soft)",
+                border: "1px solid var(--border)",
+                borderRadius: 4,
+              }}
+            >
+              <div>
+                {t("抽样 {n} 页，扫描版 {m} 页（{pct}%）", {
+                  n: docScanResult.sampled,
+                  m: docScanResult.scannedCount,
+                  pct: Math.round(docScanResult.ratio * 100),
+                })}
+              </div>
+              {docScanResult.ratio >= 0.5 && (
+                <div
+                  style={{
+                    marginTop: 6,
+                    color: "var(--danger)",
+                    fontSize: 12,
+                  }}
+                >
+                  {t("扫描版提示")}
+                </div>
+              )}
             </div>
           )}
         </>
@@ -1937,6 +2010,180 @@ const PERM_ROWS: PermRow[] = [
   { key: "canAssembleDocument", labelKey: "组装文档（插页/旋转/删页等）" },
   { key: "canCreateNewFormFields", labelKey: "创建新表单字段" },
 ];
+
+function DiagnosePanel() {
+  const docId = useApp((s) => s.docId);
+  const fileName = useApp((s) => s.fileName);
+  const fileSizeBytes = useApp((s) => s.fileSizeBytes);
+  const pageCount = useApp((s) => s.pageCount);
+  const annotations = useApp((s) => s.annotations);
+  const errorToast = useApp((s) => s.errorToast);
+  const t = useT();
+
+  const [security, setSecurity] = useState<SecurityStatus | null>(null);
+  const [scan, setScan] = useState<
+    | { sampled: number; scannedCount: number; ratio: number; running: boolean }
+    | null
+  >(null);
+
+  const annotationTotal = Object.values(annotations).reduce(
+    (s, arr) => s + arr.length,
+    0,
+  );
+
+  const reloadSecurity = async () => {
+    if (docId === null) return;
+    try {
+      const s = await getSecurityStatus(docId);
+      setSecurity(s);
+    } catch (e) {
+      errorToast(e);
+    }
+  };
+
+  const runScanSample = async () => {
+    if (docId === null) return;
+    setScan({ sampled: 0, scannedCount: 0, ratio: 0, running: true });
+    try {
+      const total = pageCount;
+      const sampleSize = Math.min(10, total);
+      const step = total <= sampleSize ? 1 : Math.floor(total / sampleSize);
+      const indices: number[] = [];
+      for (let i = 0; i < sampleSize; i++) {
+        indices.push(Math.min(i * step, total - 1));
+      }
+      let scannedCount = 0;
+      for (const idx of indices) {
+        if (await isScannedPage(docId, idx)) scannedCount++;
+      }
+      setScan({
+        sampled: indices.length,
+        scannedCount,
+        ratio: indices.length > 0 ? scannedCount / indices.length : 0,
+        running: false,
+      });
+    } catch (e) {
+      errorToast(e);
+      setScan(null);
+    }
+  };
+
+  useEffect(() => {
+    setSecurity(null);
+    setScan(null);
+    reloadSecurity();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docId]);
+
+  const fmtSize = (n: number): string => {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / 1024 / 1024).toFixed(2)} MB`;
+  };
+
+  const isProtected =
+    security?.handlerRevision !== undefined &&
+    security.handlerRevision !== "Unprotected" &&
+    security.handlerRevision !== "Unknown";
+
+  return (
+    <div className="task-body">
+      <p className="placeholder">{t("查看文档关键统计：页数、文件大小、加密状态、注释总数、扫描版抽样。")}</p>
+
+      <table
+        style={{
+          width: "100%",
+          borderCollapse: "collapse",
+          fontSize: 13,
+          marginBottom: 12,
+        }}
+      >
+        <tbody>
+          <tr>
+            <td style={cellStyle}>{t("文件名")}</td>
+            <td style={valStyle}>{fileName || "—"}</td>
+          </tr>
+          <tr>
+            <td style={cellStyle}>{t("页数")}</td>
+            <td style={valStyle}>{pageCount}</td>
+          </tr>
+          <tr>
+            <td style={cellStyle}>{t("文件大小")}</td>
+            <td style={valStyle}>{fmtSize(fileSizeBytes)}</td>
+          </tr>
+          <tr>
+            <td style={cellStyle}>{t("加密状态")}</td>
+            <td style={valStyle}>
+              {security === null
+                ? t("加载中…")
+                : isProtected
+                ? t("已加密（{handler}）", { handler: security!.handlerRevision })
+                : t("未加密")}
+            </td>
+          </tr>
+          <tr>
+            <td style={cellStyle}>{t("注释总数")}</td>
+            <td style={valStyle}>{annotationTotal}</td>
+          </tr>
+          <tr>
+            <td style={cellStyle}>{t("扫描检测")}</td>
+            <td style={valStyle}>
+              {scan === null
+                ? t("未运行")
+                : scan.running
+                ? t("检测中…")
+                : t("抽样 {n} 页，扫描版 {m} 页", {
+                    n: scan.sampled,
+                    m: scan.scannedCount,
+                  })}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div className="task-footer" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button onClick={reloadSecurity} disabled={docId === null}>
+          {t("刷新加密状态")}
+        </button>
+        <button
+          className="btn-primary"
+          onClick={runScanSample}
+          disabled={docId === null || (scan?.running ?? false)}
+        >
+          {scan?.running ? t("检测中…") : t("运行扫描抽样")}
+        </button>
+      </div>
+
+      {scan && !scan.running && scan.ratio >= 0.5 && (
+        <div
+          style={{
+            marginTop: 12,
+            fontSize: 12,
+            color: "var(--danger)",
+            padding: 8,
+            background: "var(--danger-bg, rgba(255,80,80,0.15))",
+            border: "1px solid var(--danger)",
+            borderRadius: 4,
+          }}
+        >
+          {t("扫描版提示")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const cellStyle: React.CSSProperties = {
+  padding: "6px 8px",
+  borderBottom: "1px solid var(--border)",
+  color: "var(--text-dim)",
+  width: "33%",
+};
+const valStyle: React.CSSProperties = {
+  padding: "6px 8px",
+  borderBottom: "1px solid var(--border)",
+  fontWeight: 500,
+};
 
 function SecurityPanel() {
   const docId = useApp((s) => s.docId);
@@ -2620,6 +2867,7 @@ export default function TaskPanel() {
     edit: t("内容编辑"),
     security: t("文档安全"),
     export: t("导出图片"),
+    diagnose: t("文档诊断"),
   };
 
   const DESC: Record<Exclude<TaskId, null>, string> = {
@@ -2629,6 +2877,7 @@ export default function TaskPanel() {
     edit: t("为当前页添加 PDF 注释：高亮、下划线、删除线、便签、自由文本框、矩形标注。"),
     security: t("查看文档加密状态与权限矩阵；导出明文副本或在内存中去除加密后另存。"),
     export: t("PDF 与图片互转：PDF → PNG/JPEG（按页可调 DPI）；PNG/JPG/JPEG/BMP/WebP → PDF（多图合并）。"),
+    diagnose: t("查看文档关键统计：页数、文件大小、加密状态、注释总数、扫描版抽样。"),
   };
 
   if (task === null) return null;
@@ -2648,7 +2897,8 @@ export default function TaskPanel() {
         {task === "edit" && <EditPanel />}
         {task === "security" && <SecurityPanel />}
         {task === "export" && <ConvertPanel />}
-        {task !== "merge" && task !== "split" && task !== "watermark" && task !== "edit" && task !== "security" && task !== "export" && (
+        {task === "diagnose" && <DiagnosePanel />}
+        {task !== "merge" && task !== "split" && task !== "watermark" && task !== "edit" && task !== "security" && task !== "export" && task !== "diagnose" && (
           <>
             <p className="placeholder">{DESC[task]}</p>
             <p className="placeholder" style={{ marginTop: 12 }}>

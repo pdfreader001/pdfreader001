@@ -25,7 +25,7 @@ export interface ShortcutHandlers {
  * - Ctrl+-          缩小
  * - Ctrl+1/2/3      视图：连续 / 单页 / 双页
  * - Ctrl+G          切换左面板
- * - Ctrl+Shift+L    切换中英文
+ * - Ctrl+Shift+L    切换语言（中/英/日）
  * - Ctrl+Shift+T    切换主题（深/浅）
  * - F1 / ?          帮助
  * - Escape          关闭面板
@@ -119,7 +119,10 @@ export function useShortcuts(h: ShortcutHandlers): void {
         }
         if (key === "l") {
           e.preventDefault();
-          st.setLocale(st.locale === "zh" ? "en" : "zh");
+          const cur = st.locale;
+          const next: "zh" | "en" | "ja" =
+            cur === "zh" ? "en" : cur === "en" ? "ja" : "zh";
+          st.setLocale(next);
           return;
         }
       }
