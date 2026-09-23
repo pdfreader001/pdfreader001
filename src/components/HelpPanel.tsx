@@ -13,10 +13,10 @@ const SHORTCUT_KEYS = [
   {
     groupKey: "导航",
     items: [
-      { keys: "PageDown / PageUp", descKey: "下一页 / 上一页" },
+      { keys: "PageDown / PageUp / Space", descKey: "下一页 / 上一页" },
       { keys: "Home / End", descKey: "跳到首页 / 末页" },
       { keys: "Ctrl + G", descKey: "切换左侧面板可见性" },
-      { keys: "F3", descKey: "打开搜索" },
+      { keys: "F3 / Ctrl + F", descKey: "打开搜索" },
       { keys: "Esc", descKey: "关闭搜索/任务面板/帮助" },
     ],
   },
@@ -27,6 +27,9 @@ const SHORTCUT_KEYS = [
       { keys: "Ctrl + -", descKey: "缩小" },
       { keys: "Ctrl + 滚轮", descKey: "以光标为中心缩放" },
       { keys: "Ctrl + 0", descKey: "重置为适应宽度" },
+      { keys: "Ctrl + 1", descKey: "连续滚动视图" },
+      { keys: "Ctrl + 2", descKey: "单页视图" },
+      { keys: "Ctrl + 3", descKey: "双页对开视图" },
     ],
   },
   {
@@ -35,7 +38,12 @@ const SHORTCUT_KEYS = [
       { keys: "Ctrl + Z", descKey: "撤销" },
       { keys: "Ctrl + Y", descKey: "重做" },
       { keys: "Ctrl + Shift + Z", descKey: "重做（备用）" },
-      { keys: "Ctrl + F", descKey: "打开全文搜索" },
+    ],
+  },
+  {
+    groupKey: "界面",
+    items: [
+      { keys: "Ctrl + Shift + L", descKey: "切换中英文界面" },
     ],
   },
 ];

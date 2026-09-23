@@ -7,10 +7,9 @@ import {
   openDocument,
   saveDocument,
   undoDocument,
-  canUndo,
   redoDocument,
-  canRedo,
   getBookmarks,
+  refreshUndoRedo,
 } from "./lib/ipc";
 import type { BookmarkNode } from "./lib/ipc";
 import Toolbar from "./components/Toolbar";
@@ -22,6 +21,7 @@ import TaskPanel from "./components/TaskPanel";
 import StatusBar from "./components/StatusBar";
 import HelpPanel from "./components/HelpPanel";
 import { useT } from "./i18n";
+import { useShortcuts } from "./hooks/useShortcuts";
 import "./index.css";
 
 function BookmarkTree({
@@ -235,8 +235,7 @@ export default function App() {
         const pos = loadReadingPos(info.fileName, info.pageCount);
         if (pos) st.jumpToPage(pos.page);
         st.pushToast("info", t("已打开 {name}（{n} 页）", { name: info.fileName, n: info.pageCount }));
-        canUndo(info.docId).then(st.setCanUndo).catch(() => {});
-        canRedo(info.docId).then(st.setCanRedo).catch(() => {});
+        refreshUndoRedo(info.docId).then(st.setUndoRedo).catch(() => {});
       } catch (e) {
         if (isApiError(e) && e.code === "password") {
           setPwdPath(path);
@@ -276,8 +275,8 @@ export default function App() {
     try {
       const info = await undoDocument(st.docId);
       st.updatePages(info);
-      st.setCanUndo(await canUndo(st.docId));
-      st.setCanRedo(await canRedo(st.docId));
+      st.setUndoRedo(await refreshUndoRedo(st.docId));
+      st.clearSearchHighlights();
       st.pushToast("info", t("已撤销"));
     } catch (e) {
       st.errorToast(e);
@@ -290,8 +289,8 @@ export default function App() {
     try {
       const info = await redoDocument(st.docId);
       st.updatePages(info);
-      st.setCanUndo(await canUndo(st.docId));
-      st.setCanRedo(await canRedo(st.docId));
+      st.setUndoRedo(await refreshUndoRedo(st.docId));
+      st.clearSearchHighlights();
       st.pushToast("info", t("已重做"));
     } catch (e) {
       st.errorToast(e);
@@ -307,70 +306,15 @@ export default function App() {
     useApp.getState().setFitMode("width");
   }, []);
 
-  // 快捷键
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      const mod = e.ctrlKey || e.metaKey;
-      const st = useApp.getState();
-      if (mod && e.key.toLowerCase() === "o") {
-        e.preventDefault();
-        onOpenFile();
-      } else if (mod && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        onSave();
-      } else if (mod && e.key.toLowerCase() === "f") {
-        e.preventDefault();
-        st.setSearchOpen(true);
-      } else if (mod && e.key.toLowerCase() === "z") {
-        e.preventDefault();
-        onUndo();
-      } else if (mod && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) {
-        // Ctrl+Y 或 Ctrl+Shift+Z 都触发重做
-        e.preventDefault();
-        onRedo();
-      } else if (mod && e.key === "0") {
-        e.preventDefault();
-        resetZoom();
-      } else if (mod && (e.key === "=" || e.key === "+")) {
-        e.preventDefault();
-        zoomBy(1.2);
-      } else if (mod && e.key === "-") {
-        e.preventDefault();
-        zoomBy(1 / 1.2);
-      } else if (e.key === "PageDown") {
-        e.preventDefault();
-        st.jumpToPage(st.currentPage + 1);
-      } else if (e.key === "PageUp") {
-        e.preventDefault();
-        st.jumpToPage(st.currentPage - 1);
-      } else if (e.key === "Home") {
-        e.preventDefault();
-        st.jumpToPage(0);
-      } else if (e.key === "End") {
-        e.preventDefault();
-        st.jumpToPage(Math.max(0, st.pageCount - 1));
-      } else if (e.key === "Escape") {
-        // 关闭搜索/任务/帮助面板
-        st.setSearchOpen(false);
-        st.setHelpOpen(false);
-        st.closeTask();
-      } else if (e.key === "F3") {
-        e.preventDefault();
-        st.setSearchOpen(true);
-      } else if (e.key === "F1" || e.key === "?") {
-        e.preventDefault();
-        st.setHelpOpen(true);
-      } else if (mod && e.key === "g") {
-        // 切换左面板可见性
-        e.preventDefault();
-        st.toggleLeft();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onOpenFile, onSave, onUndo, onRedo, zoomBy, resetZoom]);
+  // 全局快捷键：见 hooks/useShortcuts.ts
+  useShortcuts({
+    onOpenFile,
+    onSave,
+    onUndo,
+    onRedo,
+    zoomBy,
+    resetZoom,
+  });
 
   // 阅读位置记忆（节流保存）
   useEffect(() => {
