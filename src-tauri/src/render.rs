@@ -36,6 +36,63 @@ pub struct PageSearchHit {
     pub top: f32,
 }
 
+/// Pure function: compute the outer bounding box that contains all given rects.
+///
+/// Each rect is (left, bottom, right, top). Returns `None` if the input is empty.
+pub fn bounding_box_from_rects(
+    rects: &[(f32, f32, f32, f32)],
+) -> Option<(f32, f32, f32, f32)> {
+    if rects.is_empty() {
+        return None;
+    }
+    let mut min_left = f32::MAX;
+    let mut min_bottom = f32::MAX;
+    let mut max_right = f32::MIN;
+    let mut max_top = f32::MIN;
+    for &(l, b, r, t) in rects {
+        min_left = min_left.min(l);
+        min_bottom = min_bottom.min(b);
+        max_right = max_right.max(r);
+        max_top = max_top.max(t);
+    }
+    Some((min_left, min_bottom, max_right, max_top))
+}
+
+/// Pure function: check if a character is a "word character" for boundary expansion.
+///
+/// Word chars are non-whitespace and non-null. Whitespace (spaces, newlines, tabs, etc.)
+/// and the null character act as word boundaries.
+pub fn is_word_char(ch: char) -> bool {
+    !ch.is_whitespace() && ch != '\u{0}'
+}
+
+/// Pure function: expand a hit index to word boundaries within a char slice.
+///
+/// Starting at `hit_idx`, expands left and right as long as adjacent characters
+/// satisfy `is_word_char`. Returns inclusive `(start, end)` indices.
+///
+/// Returns `None` if `hit_idx` is out of bounds or the hit char itself is not a word char.
+pub fn expand_word_boundary(chars: &[char], hit_idx: usize) -> Option<(usize, usize)> {
+    if hit_idx >= chars.len() {
+        return None;
+    }
+    if !is_word_char(chars[hit_idx]) {
+        return None;
+    }
+
+    let mut start = hit_idx;
+    while start > 0 && is_word_char(chars[start - 1]) {
+        start -= 1;
+    }
+
+    let mut end = hit_idx;
+    while end + 1 < chars.len() && is_word_char(chars[end + 1]) {
+        end += 1;
+    }
+
+    Some((start, end))
+}
+
 /// 渲染页面为 RGBA 位图（纯函数版本）：输入 bytes，返回 [w:u32][h:u32][RGBA...]。
 /// 返回 tauri::ipc::Response 方便直接作为 command 输出。
 pub fn render_page_logic(
@@ -196,36 +253,20 @@ pub fn search_page_text_logic(
         if hits.len() >= max_hits {
             break;
         }
-        // 合并所有命中段的 bounds（跨多行/多文本段时为外包围盒）
-        let mut min_left = f32::MAX;
-        let mut min_bottom = f32::MAX;
-        let mut max_right = f32::MIN;
-        let mut max_top = f32::MIN;
-        let mut has_bounds = false;
-
+        // Collect segment bounds then compute outer bounding box
+        let mut rects: Vec<(f32, f32, f32, f32)> = Vec::new();
         for segment in segments.iter() {
             let b = segment.bounds();
-            has_bounds = true;
-            let l = b.left().value;
-            let r = b.right().value;
-            let bt = b.bottom().value;
-            let t = b.top().value;
-            min_left = min_left.min(l);
-            min_bottom = min_bottom.min(bt);
-            max_right = max_right.max(r);
-            max_top = max_top.max(t);
+            rects.push((b.left().value, b.bottom().value, b.right().value, b.top().value));
         }
-
-        if !has_bounds {
-            continue;
+        if let Some((l, b, r, t)) = bounding_box_from_rects(&rects) {
+            hits.push(PageSearchHit {
+                left: l,
+                bottom: b,
+                right: r,
+                top: t,
+            });
         }
-
-        hits.push(PageSearchHit {
-            left: min_left,
-            bottom: min_bottom,
-            right: max_right,
-            top: max_top,
-        });
     }
 
     Ok(PageSearchResult { page_index, hits })
@@ -297,7 +338,6 @@ pub fn pick_text_at_point_logic(
     };
 
     // "词字符" = 非空白、非控制字符；空白处只返回单字符
-    let is_word_char = |ch: char| !ch.is_whitespace() && ch != '\u{0}';
 
     if !is_word_char(hit_ch) {
         return Ok(Some(TextPickResult {
@@ -309,7 +349,7 @@ pub fn pick_text_at_point_logic(
         }));
     }
 
-    // 向左扩展到词起点（遇到空白就停）
+    // 向左扩展到词起点（遇到空白或不可读字符就停）
     let mut l_end = hit;
     while l_end > 0 {
         let prev = page_chars.get(l_end - 1)?;
@@ -335,22 +375,17 @@ pub fn pick_text_at_point_logic(
     }
 
     // 计算外包围盒 + 拼接原文
-    let mut mn_l = f32::MAX;
-    let mut mx_r = f32::MIN;
-    let mut mn_b = f32::MAX;
-    let mut mx_t = f32::MIN;
+    let mut rects: Vec<(f32, f32, f32, f32)> = Vec::new();
     let mut word = String::with_capacity(r_end - l_end + 1);
     for i in l_end..=r_end {
         let c = page_chars.get(i).unwrap();
         let Some((cl, cb, cr, ct, ch)) = read_char(&c) else {
             continue;
         };
-        mn_l = mn_l.min(cl);
-        mx_r = mx_r.max(cr);
-        mn_b = mn_b.min(cb);
-        mx_t = mx_t.max(ct);
+        rects.push((cl, cb, cr, ct));
         word.push(ch);
     }
+    let (mn_l, mn_b, mx_r, mx_t) = bounding_box_from_rects(&rects).unwrap_or((l, b, r, t));
 
     Ok(Some(TextPickResult {
         left: mn_l,
@@ -359,4 +394,210 @@ pub fn pick_text_at_point_logic(
         top: mx_t,
         text: word,
     }))
+}
+
+// ============================================================================
+// Unit tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn approx(a: f32, b: f32) -> bool {
+        (a - b).abs() < 1e-6
+    }
+
+    // ------------------------------------------------------------------
+    // bounding_box_from_rects
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_bounding_box_empty() {
+        assert!(bounding_box_from_rects(&[]).is_none());
+    }
+
+    #[test]
+    fn test_bounding_box_single() {
+        let rects = [(10.0, 20.0, 30.0, 40.0)];
+        let (l, b, r, t) = bounding_box_from_rects(&rects).unwrap();
+        assert!(approx(l, 10.0));
+        assert!(approx(b, 20.0));
+        assert!(approx(r, 30.0));
+        assert!(approx(t, 40.0));
+    }
+
+    #[test]
+    fn test_bounding_box_two_overlapping() {
+        let rects = [
+            (0.0, 0.0, 10.0, 10.0),
+            (5.0, 5.0, 15.0, 15.0),
+        ];
+        let (l, b, r, t) = bounding_box_from_rects(&rects).unwrap();
+        assert!(approx(l, 0.0));
+        assert!(approx(b, 0.0));
+        assert!(approx(r, 15.0));
+        assert!(approx(t, 15.0));
+    }
+
+    #[test]
+    fn test_bounding_box_separate() {
+        let rects = [
+            (0.0, 0.0, 5.0, 5.0),
+            (20.0, 30.0, 25.0, 35.0),
+        ];
+        let (l, b, r, t) = bounding_box_from_rects(&rects).unwrap();
+        assert!(approx(l, 0.0));
+        assert!(approx(b, 0.0));
+        assert!(approx(r, 25.0));
+        assert!(approx(t, 35.0));
+    }
+
+    #[test]
+    fn test_bounding_box_nested() {
+        let rects = [
+            (0.0, 0.0, 100.0, 100.0),
+            (20.0, 20.0, 80.0, 80.0),
+            (40.0, 40.0, 60.0, 60.0),
+        ];
+        let (l, b, r, t) = bounding_box_from_rects(&rects).unwrap();
+        assert!(approx(l, 0.0));
+        assert!(approx(b, 0.0));
+        assert!(approx(r, 100.0));
+        assert!(approx(t, 100.0));
+    }
+
+    #[test]
+    fn test_bounding_box_negative_coords() {
+        let rects = [
+            (-10.0, -5.0, 5.0, 10.0),
+            (-3.0, -20.0, 15.0, -8.0),
+        ];
+        let (l, b, r, t) = bounding_box_from_rects(&rects).unwrap();
+        assert!(approx(l, -10.0));
+        assert!(approx(b, -20.0));
+        assert!(approx(r, 15.0));
+        assert!(approx(t, 10.0));
+    }
+
+    // ------------------------------------------------------------------
+    // is_word_char
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_is_word_char_letters() {
+        assert!(is_word_char('a'));
+        assert!(is_word_char('Z'));
+        assert!(is_word_char('é'));
+        assert!(is_word_char('中'));
+    }
+
+    #[test]
+    fn test_is_word_char_digits() {
+        assert!(is_word_char('0'));
+        assert!(is_word_char('9'));
+    }
+
+    #[test]
+    fn test_is_word_char_punctuation() {
+        // Punctuation is also non-whitespace, so counted as word char
+        assert!(is_word_char('.'));
+        assert!(is_word_char('-'));
+        assert!(is_word_char('_'));
+        assert!(is_word_char(','));
+    }
+
+    #[test]
+    fn test_is_word_char_whitespace() {
+        assert!(!is_word_char(' '));
+        assert!(!is_word_char('\t'));
+        assert!(!is_word_char('\n'));
+        assert!(!is_word_char('\r'));
+    }
+
+    #[test]
+    fn test_is_word_char_null() {
+        assert!(!is_word_char('\u{0}'));
+    }
+
+    // ------------------------------------------------------------------
+    // expand_word_boundary
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_expand_word_empty_chars() {
+        assert!(expand_word_boundary(&[], 0).is_none());
+    }
+
+    #[test]
+    fn test_expand_word_out_of_bounds() {
+        let chars: Vec<char> = vec!['a', 'b', 'c'];
+        assert!(expand_word_boundary(&chars, 5).is_none());
+    }
+
+    #[test]
+    fn test_expand_word_hit_whitespace() {
+        let chars: Vec<char> = "hello world".chars().collect();
+        // hit space at index 5
+        assert!(expand_word_boundary(&chars, 5).is_none());
+    }
+
+    #[test]
+    fn test_expand_word_middle_of_word() {
+        let chars: Vec<char> = "hello".chars().collect();
+        let (start, end) = expand_word_boundary(&chars, 2).unwrap();
+        assert_eq!(start, 0);
+        assert_eq!(end, 4);
+    }
+
+    #[test]
+    fn test_expand_word_start_of_word() {
+        let chars: Vec<char> = "hello world".chars().collect();
+        let (start, end) = expand_word_boundary(&chars, 0).unwrap();
+        assert_eq!(start, 0);
+        assert_eq!(end, 4); // "hello" ends at index 4
+    }
+
+    #[test]
+    fn test_expand_word_end_of_word() {
+        let chars: Vec<char> = "hello world".chars().collect();
+        let (start, end) = expand_word_boundary(&chars, 4).unwrap();
+        assert_eq!(start, 0);
+        assert_eq!(end, 4);
+    }
+
+    #[test]
+    fn test_expand_word_second_word() {
+        let chars: Vec<char> = "hello world".chars().collect();
+        // 'w' at index 6
+        let (start, end) = expand_word_boundary(&chars, 6).unwrap();
+        assert_eq!(start, 6);
+        assert_eq!(end, 10); // "world"
+    }
+
+    #[test]
+    fn test_expand_word_single_char() {
+        let chars: Vec<char> = "a b c".chars().collect();
+        let (start, end) = expand_word_boundary(&chars, 2).unwrap();
+        assert_eq!(start, 2);
+        assert_eq!(end, 2);
+    }
+
+    #[test]
+    fn test_expand_word_cjk() {
+        // CJK characters are non-whitespace, so they form one continuous "word"
+        let chars: Vec<char> = "你好世界".chars().collect();
+        let (start, end) = expand_word_boundary(&chars, 1).unwrap();
+        assert_eq!(start, 0);
+        assert_eq!(end, 3);
+    }
+
+    #[test]
+    fn test_expand_word_with_punctuation() {
+        // Punctuation is a word char, so it's included in expansion
+        let chars: Vec<char> = "hello-world".chars().collect();
+        let (start, end) = expand_word_boundary(&chars, 5).unwrap(); // '-'
+        assert_eq!(start, 0);
+        assert_eq!(end, 10);
+    }
 }
