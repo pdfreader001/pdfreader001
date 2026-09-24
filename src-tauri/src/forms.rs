@@ -144,8 +144,8 @@ pub fn set_form_field_value_logic(
     let pdfium_inst = get_pdfium();
     let mut doc = load_doc(pdfium_inst, bytes)?;
 
-    // 第一步：扫描所有 Widget annotation，定位目标字段的 (页索引, annotation 索引)
-    let mut target: Option<(u16, u32, String)> = None;
+    // 第一步：扫描所有 Widget annotation，定位目标字段的 (页索引, annotation 索引, 类型)
+    let mut target: Option<(u16, u32, FormFieldKind)> = None;
     let total = doc.pages().len();
     for p_idx in 0..total {
         let page = doc.pages().get(p_idx)?;
@@ -158,12 +158,20 @@ pub fn set_form_field_value_logic(
                 None => continue,
             };
             // 取出字段名（如果可读）
-            let name_opt = widget
-                .form_field()
-                .and_then(|f| PdfFormFieldCommon::name(f));
-            if let Some(name) = name_opt {
+            let resolved = match widget.form_field() {
+                Some(f) => {
+                    let name = PdfFormFieldCommon::name(f);
+                    let kind = FormFieldKind::from_pdfium(f.field_type());
+                    match name {
+                        Some(n) => Some((n, kind)),
+                        None => None,
+                    }
+                }
+                None => None,
+            };
+            if let Some((name, kind)) = resolved {
                 if name == opts.name {
-                    target = Some((p_idx, i as u32, name));
+                    target = Some((p_idx, i as u32, kind));
                     break;
                 }
             }
@@ -174,7 +182,7 @@ pub fn set_form_field_value_logic(
         }
     }
 
-    let (page_idx, annot_idx, _) = target.ok_or(AppError::NotFound)?;
+    let (page_idx, annot_idx, kind) = target.ok_or(AppError::NotFound)?;
 
     // 第二步：mutable 路径 — 拿到 form_field_mut 后按字段类型分支
     {
@@ -199,7 +207,11 @@ pub fn set_form_field_value_logic(
             );
             checkbox.set_checked(truthy)?;
         } else {
-            return Err(AppError::NotFound);
+            // ComboBox / ListBox / RadioButton / Signature / PushButton 在 pdfium-render 0.8.37
+            // 没有公开的 set_value API。
+            return Err(AppError::FormFieldWriteUnsupported {
+                kind: format!("{:?}", kind),
+            });
         }
     }
 

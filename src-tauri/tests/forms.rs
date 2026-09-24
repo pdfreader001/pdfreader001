@@ -260,3 +260,64 @@ fn set_form_field_value_no_form() {
     );
     assert!(r.is_err(), "no-form pdf should error");
 }
+
+/// 手写一个 ComboBox fixture，验证写入返回 FormFieldWriteUnsupported 错误
+fn build_combo_pdf_bytes() -> Vec<u8> {
+    let mut out: Vec<u8> = Vec::new();
+    let mut xref_line = String::new();
+    macro_rules! obj {
+        ($n:expr, $body:expr) => {{
+            xref_line.push_str(&format!("{:010} 00000 n \n", out.len()));
+            out.extend_from_slice(format!("{} 0 obj\n{}\nendobj\n", $n, $body).as_bytes());
+        }};
+    }
+    out.extend_from_slice(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+    obj!(1, "<< /Type /Pages /Kids [2 0 R] /Count 1 >>");
+    obj!(2, "<< /Type /Page /Parent 1 0 R /MediaBox [0 0 792 612] /Annots [5 0 R] >>");
+    obj!(3, "<< /Fields [5 0 R] >>");
+    obj!(4, "<< /Type /Catalog /Pages 1 0 R /AcroForm 3 0 R >>");
+    obj!(5, "<< /Type /Annot /Subtype /Widget /Rect [100 500 300 530] /P 2 0 R /FT /Ch /T (Country) /V (USA) /Opt [(USA) (UK) (JP)] >>");
+    let xref_offset = out.len();
+    let obj_count = 5usize;
+    out.extend_from_slice(b"xref\n");
+    out.extend_from_slice(format!("0 {}\n", obj_count + 1).as_bytes());
+    out.extend_from_slice(b"0000000000 65535 f \n");
+    out.extend_from_slice(xref_line.as_bytes());
+    out.extend_from_slice(b"trailer\n");
+    out.extend_from_slice(
+        format!(
+            "<< /Size {} /Root 4 0 R >>\nstartxref\n{}\n%%EOF\n",
+            obj_count + 1,
+            xref_offset
+        )
+        .as_bytes(),
+    );
+    out
+}
+
+fn ensure_combo_pdf() -> PathBuf {
+    let path = fixtures_dir().join("form_combo.pdf");
+    if path.exists() {
+        return path;
+    }
+    fs::write(&path, build_combo_pdf_bytes()).expect("write combo fixture");
+    path
+}
+
+#[test]
+fn set_form_field_value_combo_unsupported() {
+    let fixture = ensure_combo_pdf();
+    let bytes = fs::read(&fixture).expect("read combo fixture");
+
+    let r = set_form_field_value_logic(
+        &bytes,
+        &SetFormFieldOpts {
+            name: "Country".to_string(),
+            value: "UK".to_string(),
+        },
+    );
+    assert!(r.is_err(), "ComboBox write should be unsupported");
+    let err = r.unwrap_err();
+    // 检查错误码是 FormFieldWriteUnsupported
+    assert_eq!(err.code(), "form_field_write_unsupported");
+}

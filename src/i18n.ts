@@ -299,6 +299,8 @@ const en: Record<string, string> = {
   "（无值）": "(empty)",
   "（{kind} 类型暂不支持编辑）":
     "({kind} fields cannot be edited yet)",
+  "设置 {kind} 类型的字段值暂不支持：pdfium-render 0.8.37 没有公开 API 可修改此类字段。":
+    "Setting values for {kind} fields is not yet supported: pdfium-render 0.8.37 does not expose a setter for this field type.",
   "导出明文副本": "Export Plain Copy",
   "导出当前文档": "Export Current Document",
   "在内存中去除加密": "Strip Encryption in Memory",
@@ -763,6 +765,8 @@ const ja: Record<string, string> = {
   "（无值）": "（値なし）",
   "（{kind} 类型暂不支持编辑）":
     "（{kind}フィールドは未対応）",
+  "设置 {kind} 类型的字段值暂不支持：pdfium-render 0.8.37 没有公开 API 可修改此类字段。":
+    "{kind}フィールドへの値設定は未対応：pdfium-render 0.8.37に公開APIなし。",
   "导出明文副本": "平文コピーを書出し",
   "导出当前文档": "現在の文書を書出し",
   "在内存中去除加密": "メモリ上で暗号化解除",

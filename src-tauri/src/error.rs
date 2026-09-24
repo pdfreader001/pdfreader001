@@ -119,6 +119,10 @@ pub enum AppError {
     TessdataMissing { path: String },
     #[error("OCR failed: {detail}")]
     OcrFailed { detail: String },
+
+    // ------ 表单（AcroForm） ------
+    #[error("Setting values for form field type `{kind}` is not yet supported")]
+    FormFieldWriteUnsupported { kind: String },
 }
 
 impl From<pdfium_render::prelude::PdfiumError> for AppError {
@@ -195,6 +199,7 @@ impl AppError {
             AppError::OcrUnavailable => "ocr_unavailable",
             AppError::TessdataMissing { .. } => "tessdata_missing",
             AppError::OcrFailed { .. } => "ocr_failed",
+            AppError::FormFieldWriteUnsupported { .. } => "form_field_write_unsupported",
         }
     }
 
