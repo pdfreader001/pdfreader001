@@ -130,3 +130,45 @@ pub async fn reload_plain(
     };
     commit_and_return(&state, doc_id, new_bytes)
 }
+#[cfg(test)]
+mod tests {
+    //! Unit tests for security status mapping.
+    use super::*;
+    use pdfium_render::prelude::PdfSecurityHandlerRevision;
+
+    /// map_revision: known variants round-trip to stable strings.
+    #[test]
+    fn map_revision_known_variants() {
+        assert_eq!(map_revision(&PdfSecurityHandlerRevision::Unprotected), "Unprotected");
+        assert_eq!(map_revision(&PdfSecurityHandlerRevision::Revision2), "Revision2");
+        assert_eq!(map_revision(&PdfSecurityHandlerRevision::Revision3), "Revision3");
+        assert_eq!(map_revision(&PdfSecurityHandlerRevision::Revision4), "Revision4");
+    }
+
+    /// SecurityStatus: default-constructed status serializes all 8 bool fields.
+    /// (Useful as a sanity check that the schema hasn't drifted.)
+    #[test]
+    fn security_status_default_serializes_all_fields() {
+        let s = SecurityStatus {
+            handler_revision: "Revision3".to_string(),
+            can_print_high_quality: true,
+            can_print_low_quality: false,
+            can_modify_document: true,
+            can_extract_text_and_graphics: true,
+            can_add_annotations: true,
+            can_fill_form_fields: true,
+            can_assemble_document: false,
+            can_create_new_form_fields: false,
+        };
+        let v = serde_json::to_value(&s).unwrap();
+        assert_eq!(v["handlerRevision"], "Revision3");
+        assert_eq!(v["canPrintHighQuality"], true);
+        assert_eq!(v["canPrintLowQuality"], false);
+        assert_eq!(v["canModifyDocument"], true);
+        assert_eq!(v["canExtractTextAndGraphics"], true);
+        assert_eq!(v["canAddAnnotations"], true);
+        assert_eq!(v["canFillFormFields"], true);
+        assert_eq!(v["canAssembleDocument"], false);
+        assert_eq!(v["canCreateNewFormFields"], false);
+    }
+}
