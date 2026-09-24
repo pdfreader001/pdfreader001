@@ -283,3 +283,145 @@ pub async fn apply_watermark_removal(
         removed_count: removed_total,
     })
 }
+
+// ============================================================================
+// Unit tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn approx(a: f32, b: f32) -> bool {
+        (a - b).abs() < 1e-6
+    }
+
+    // ------------------------------------------------------------------
+    // Rect::width / height / valid
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_rect_width_positive() {
+        let r = Rect { left: 10.0, bottom: 0.0, right: 50.0, top: 0.0 };
+        assert!(approx(r.width(), 40.0));
+    }
+
+    #[test]
+    fn test_rect_width_negative_clamps_zero() {
+        let r = Rect { left: 50.0, bottom: 0.0, right: 10.0, top: 0.0 };
+        assert!(approx(r.width(), 0.0));
+    }
+
+    #[test]
+    fn test_rect_height_positive() {
+        let r = Rect { left: 0.0, bottom: 10.0, right: 0.0, top: 50.0 };
+        assert!(approx(r.height(), 40.0));
+    }
+
+    #[test]
+    fn test_rect_height_negative_clamps_zero() {
+        let r = Rect { left: 0.0, bottom: 50.0, right: 0.0, top: 10.0 };
+        assert!(approx(r.height(), 0.0));
+    }
+
+    #[test]
+    fn test_rect_valid_true() {
+        let r = Rect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
+        assert!(r.valid());
+    }
+
+    #[test]
+    fn test_rect_valid_zero_width() {
+        let r = Rect { left: 5.0, bottom: 0.0, right: 5.0, top: 10.0 };
+        assert!(!r.valid());
+    }
+
+    #[test]
+    fn test_rect_valid_zero_height() {
+        let r = Rect { left: 0.0, bottom: 5.0, right: 10.0, top: 5.0 };
+        assert!(!r.valid());
+    }
+
+    #[test]
+    fn test_rect_valid_inverted() {
+        let r = Rect { left: 10.0, bottom: 10.0, right: 0.0, top: 0.0 };
+        assert!(!r.valid());
+    }
+
+    // ------------------------------------------------------------------
+    // rects_intersect
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_rects_intersect_overlap() {
+        let a = Rect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
+        let b = Rect { left: 5.0, bottom: 5.0, right: 15.0, top: 15.0 };
+        assert!(rects_intersect(&a, &b));
+        assert!(rects_intersect(&b, &a));
+    }
+
+    #[test]
+    fn test_rects_intersect_fully_contained() {
+        let a = Rect { left: 0.0, bottom: 0.0, right: 20.0, top: 20.0 };
+        let b = Rect { left: 5.0, bottom: 5.0, right: 15.0, top: 15.0 };
+        assert!(rects_intersect(&a, &b));
+    }
+
+    #[test]
+    fn test_rects_intersect_separate_x() {
+        let a = Rect { left: 0.0, bottom: 0.0, right: 5.0, top: 10.0 };
+        let b = Rect { left: 10.0, bottom: 0.0, right: 15.0, top: 10.0 };
+        assert!(!rects_intersect(&a, &b));
+    }
+
+    #[test]
+    fn test_rects_intersect_separate_y() {
+        let a = Rect { left: 0.0, bottom: 0.0, right: 10.0, top: 5.0 };
+        let b = Rect { left: 0.0, bottom: 10.0, right: 10.0, top: 15.0 };
+        assert!(!rects_intersect(&a, &b));
+    }
+
+    #[test]
+    fn test_rects_intersect_touch_not_overlap() {
+        // Touching at an edge — AABB intersection uses strict inequality
+        let a = Rect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
+        let b = Rect { left: 10.0, bottom: 0.0, right: 20.0, top: 10.0 };
+        assert!(!rects_intersect(&a, &b));
+    }
+
+    #[test]
+    fn test_rects_intersect_identical() {
+        let a = Rect { left: 1.0, bottom: 2.0, right: 3.0, top: 4.0 };
+        assert!(rects_intersect(&a, &a));
+    }
+
+    // ------------------------------------------------------------------
+    // quantize
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_quantize_exact_multiple() {
+        assert_eq!(quantize(10.0, 5.0), 2);
+        assert_eq!(quantize(0.0, 5.0), 0);
+        assert_eq!(quantize(-10.0, 5.0), -2);
+    }
+
+    #[test]
+    fn test_quantize_rounds_half_away_from_zero() {
+        // Rust f32::round() uses round half away from zero
+        assert_eq!(quantize(7.5, 5.0), 2); // 1.5 -> 2
+        assert_eq!(quantize(-7.5, 5.0), -2); // -1.5 -> -2
+    }
+
+    #[test]
+    fn test_quantize_rounds_half_below() {
+        assert_eq!(quantize(7.0, 5.0), 1); // 1.4 -> 1
+        assert_eq!(quantize(9.0, 5.0), 2); // 1.8 -> 2
+    }
+
+    #[test]
+    fn test_quantize_step_one() {
+        assert_eq!(quantize(3.7, 1.0), 4);
+        assert_eq!(quantize(3.2, 1.0), 3);
+    }
+}
