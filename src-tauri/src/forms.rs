@@ -2,18 +2,21 @@
 //!
 //! 能力（pdfium-render 0.8.37 实际支持）：
 //! - 列出表单字段名和当前值（通过 PdfForm::field_values(&pages)）
-//! - 设置表单字段值（Text / Checkbox）—— 待走 Widget annotation mutable 路径
+//! - 设置表单字段值（Text / Checkbox）—— 通过 Widget annotation mutable 路径
 //!
-//! 当前完成：list_form_fields_logic（列出字段名 + 当前值）
-//! 待做：set_form_field_value_logic（需要 mutable Widget annotation 路径）
+//! 写路径方案：
+//!   doc.pages_mut() → page.annotations_mut() → annot.as_widget_annotation_mut()
+//!     → widget.form_field_mut() → 按 name() 匹配 →
+//!        as_text_field_mut().set_value(&str)
+//!        as_checkbox_field_mut().set_checked(bool)
 
 use serde::{Deserialize, Serialize};
 
-use crate::document::pdfium;
+use crate::document::{pdfium as get_pdfium, push_snapshot, AppState, DocumentInfo};
 use crate::error::{AppError, AppResult};
-use crate::pages::load_doc;
+use crate::pages::{commit_and_return, load_doc};
 
-/// 表单字段描述（最小版本：只有 name + value）
+/// 表单字段描述
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FormFieldInfo {
@@ -39,7 +42,7 @@ pub struct SetFormFieldOpts {
 /// `HashMap<String, Option<String>>`，直接是字段名到值的 Map。
 /// 只暴露 name + value（版本 1 简化）。
 pub fn list_form_fields_logic(bytes: &[u8]) -> AppResult<Vec<FormFieldInfo>> {
-    let pdfium_inst = pdfium();
+    let pdfium_inst = get_pdfium();
     let doc = load_doc(pdfium_inst, bytes)?;
 
     let form = match doc.form() {
@@ -66,16 +69,78 @@ pub fn list_form_fields_logic(bytes: &[u8]) -> AppResult<Vec<FormFieldInfo>> {
 
 /// 纯函数版本：设置单个表单字段值，返回修改后的 bytes
 ///
-/// pdfium-render 0.8.37 的字段写 API 有共享引用限制，
-/// 必须通过 **Widget annotation 的 mutable 路径** 实现。
-/// 当前占位版本返回 NotImplemented。
+/// 遍历所有页的 Widget annotations，找到 name 匹配的目标字段。
+/// Text 字段通过 `PdfFormTextField::set_value` 写入；
+/// Checkbox 字段通过 `PdfFormCheckboxField::set_checked` 写入。
 pub fn set_form_field_value_logic(
-    _bytes: &[u8],
-    _opts: &SetFormFieldOpts,
+    bytes: &[u8],
+    opts: &SetFormFieldOpts,
 ) -> AppResult<Vec<u8>> {
-    // pdfium-render 0.8.37 的字段写 API 有共享引用限制。
-    // 当前占位版本返回错误；后续版本通过 Widget annotation mutable 路径实现。
-    Err(AppError::NotFound)
+    use pdfium_render::prelude::PdfFormFieldCommon;
+
+    let pdfium_inst = get_pdfium();
+    let mut doc = load_doc(pdfium_inst, bytes)?;
+
+    // 第一步：扫描所有 Widget annotation，定位目标字段的 (页索引, annotation 索引)
+    let mut target: Option<(u16, u32, String)> = None;
+    let total = doc.pages().len();
+    for p_idx in 0..total {
+        let page = doc.pages().get(p_idx)?;
+        let annots = page.annotations();
+        for i in 0..annots.len() {
+            let mut annot = annots.get(i as usize)?;
+            // 只考虑 Widget annotation
+            let widget = match annot.as_widget_annotation_mut() {
+                Some(w) => w,
+                None => continue,
+            };
+            // 取出字段名（如果可读）
+            let name_opt = widget
+                .form_field()
+                .and_then(|f| PdfFormFieldCommon::name(f));
+            if let Some(name) = name_opt {
+                if name == opts.name {
+                    target = Some((p_idx, i as u32, name));
+                    break;
+                }
+            }
+            // widget/form_field 借用结束（每次循环结束自动 drop）
+        }
+        if target.is_some() {
+            break;
+        }
+    }
+
+    let (page_idx, annot_idx, _) = target.ok_or(AppError::NotFound)?;
+
+    // 第二步：mutable 路径 — 拿到 form_field_mut 后按字段类型分支
+    {
+        let mut pages = doc.pages_mut();
+        let mut page = pages.get(page_idx)?;
+        let mut annots = page.annotations_mut();
+        let mut annot = annots.get(annot_idx as usize)?;
+        let mut widget = annot
+            .as_widget_annotation_mut()
+            .ok_or(AppError::NotFound)?;
+        let field = widget.form_field_mut().ok_or(AppError::NotFound)?;
+
+        // Text 字段：set_value
+        if let Some(text_field) = field.as_text_field_mut() {
+            text_field.set_value(&opts.value)?;
+        }
+        // Checkbox：value 是 "true"/"false" 或 "Yes"/"Off" → 解析布尔
+        else if let Some(checkbox) = field.as_checkbox_field_mut() {
+            let truthy = matches!(
+                opts.value.to_ascii_lowercase().as_str(),
+                "true" | "yes" | "on" | "1" | "checked"
+            );
+            checkbox.set_checked(truthy)?;
+        } else {
+            return Err(AppError::NotFound);
+        }
+    }
+
+    Ok(doc.save_to_bytes()?)
 }
 
 // ============================================================================
@@ -94,11 +159,15 @@ pub async fn list_form_fields(
 
 #[tauri::command]
 pub async fn set_form_field_value(
-    _state: tauri::State<'_, crate::document::AppState>,
-    _doc_id: u64,
-    _opts: SetFormFieldOpts,
-) -> AppResult<crate::document::DocumentInfo> {
-    // pdfium-render 0.8.37 的字段写 API 需要 Widget annotation mutable 路径，
-    // 当前版本暂未实现。返回 NotFound 占位。
-    Err(AppError::NotFound)
+    state: tauri::State<'_, AppState>,
+    doc_id: u64,
+    opts: SetFormFieldOpts,
+) -> AppResult<DocumentInfo> {
+    push_snapshot(&state, doc_id);
+    let new_bytes = {
+        let docs = state.docs.lock().unwrap();
+        let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
+        set_form_field_value_logic(&entry.bytes, &opts)?
+    };
+    commit_and_return(&state, doc_id, new_bytes)
 }

@@ -285,11 +285,17 @@ const en: Record<string, string> = {
   // ---------- P5+P6 表单（AcroForm） ----------
   "表单": "Forms",
   "表单字段": "Form Fields",
-  "列出 PDF 表单（AcroForm）字段并查看当前值；填写功能开发中。":
-    "List PDF form (AcroForm) fields and view current values; filling is under development.",
+  "列出 PDF 表单（AcroForm）字段并填写新值，保存后立即写入文档。":
+    "List PDF form (AcroForm) fields and edit values; saving writes them to the document immediately.",
   "刷新表单字段": "Refresh form fields",
   "当前文档没有表单字段": "This document has no form fields.",
   "共 {n} 个字段": "{n} fields total",
+  "保存表单": "Save Form",
+  "保存中…": "Saving…",
+  "表单已保存": "Form fields saved.",
+  "没有修改": "No changes.",
+  "重置": "Reset",
+  "（未勾选）": "(unchecked)",
   "导出明文副本": "Export Plain Copy",
   "导出当前文档": "Export Current Document",
   "在内存中去除加密": "Strip Encryption in Memory",
@@ -741,11 +747,16 @@ const ja: Record<string, string> = {
   // ---------- P5+P6 フォーム（AcroForm） ----------
   "表单": "フォーム",
   "表单字段": "フォームフィールド",
-  "列出 PDF 表单（AcroForm）字段并查看当前值；填写功能开发中。":
-    "PDFフォーム（AcroForm）フィールド一覧と現在値を表示。入力機能は開発中。",
+  "列出 PDF 表单（AcroForm）字段并填写新值，保存后立即写入文档。":
+    "PDFフォーム（AcroForm）フィールド一覧と値編集。保存すると文書に即書き込み。",
   "刷新表单字段": "フォームフィールドを更新",
   "当前文档没有表单字段": "この文書にフォームフィールドはありません",
   "共 {n} 个字段": "全{n}フィールド",
+  "保存表单": "フォーム保存",
+  "表单已保存": "フォームを保存しました",
+  "没有修改": "変更なし",
+  "重置": "リセット",
+  "（未勾选）": "（未チェック）",
   "导出明文副本": "平文コピーを書出し",
   "导出当前文档": "現在の文書を書出し",
   "在内存中去除加密": "メモリ上で暗号化解除",

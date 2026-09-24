@@ -1,14 +1,14 @@
 //! P5+P6 PDF 表单测试
 //!
 //! 手写 PDF AcroForm fixture：1 Text + 1 Checkbox。
-//! 读路径（list_form_fields_logic）测试。
-//! 写路径（set_form_field_value_logic）当前是占位——pdfium-render 0.8.37
-//! 的字段写 API 需要 Widget annotation mutable 路径，待后续版本实现。
+//! 读路径（list_form_fields_logic）：列出字段名 + 值。
+//! 写路径（set_form_field_value_logic）：Text set_value + Checkbox set_checked
+//! 通过 Widget annotation mutable 路径实现。
 
 use std::fs;
 use std::path::PathBuf;
 
-use pdfe_lib::forms::list_form_fields_logic;
+use pdfe_lib::forms::{list_form_fields_logic, set_form_field_value_logic, SetFormFieldOpts};
 
 fn fixtures_dir() -> PathBuf {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -124,4 +124,111 @@ fn list_form_fields_damaged() {
     let bytes = b"not a pdf";
     let r = list_form_fields_logic(bytes);
     assert!(r.is_err(), "corrupt should fail");
+}
+
+// ---------- 写路径 ----------
+
+/// Text 字段写入 + 读回验证（往返）
+#[test]
+fn set_text_field_value_roundtrip() {
+    let fixture = ensure_form_pdf();
+    let bytes = fs::read(&fixture).expect("read fixture");
+
+    let new_bytes = set_form_field_value_logic(
+        &bytes,
+        &SetFormFieldOpts {
+            name: "FullName".to_string(),
+            value: "Jane Smith".to_string(),
+        },
+    )
+    .expect("set_value should succeed");
+
+    // 写回的 bytes 非空
+    assert!(!new_bytes.is_empty());
+
+    // 重新读取：值应是新值
+    let fields = list_form_fields_logic(&new_bytes).expect("list after set");
+    let full_name = fields.iter().find(|f| f.name == "FullName").expect("found");
+    assert_eq!(
+        full_name.value, "Jane Smith",
+        "Text field value should be updated, got {:?}",
+        full_name.value
+    );
+}
+
+/// Checkbox 字段写入 + 读回验证
+#[test]
+fn set_checkbox_field_value_roundtrip() {
+    let fixture = ensure_form_pdf();
+    let bytes = fs::read(&fixture).expect("read fixture");
+
+    // 设成 truthy
+    let new_bytes = set_form_field_value_logic(
+        &bytes,
+        &SetFormFieldOpts {
+            name: "AgreeTerms".to_string(),
+            value: "true".to_string(),
+        },
+    )
+    .expect("set_checkbox should succeed");
+
+    let fields = list_form_fields_logic(&new_bytes).expect("list after check");
+    let agree = fields.iter().find(|f| f.name == "AgreeTerms").expect("found");
+    // pdfium 对 Checkbox 的 /V 一般表示为 "Yes"/"Off"
+    // 我们这里主要确保值变了（不再是原始的 "false"/"Off"）
+    let val_lc = agree.value.to_ascii_lowercase();
+    assert!(
+        val_lc == "yes" || val_lc == "true" || val_lc == "on" || val_lc == "checked",
+        "Checkbox should be checked, got {:?}",
+        agree.value
+    );
+
+    // 再设回 false
+    let new_bytes2 = set_form_field_value_logic(
+        &new_bytes,
+        &SetFormFieldOpts {
+            name: "AgreeTerms".to_string(),
+            value: "false".to_string(),
+        },
+    )
+    .expect("set_checkbox false should succeed");
+
+    let fields2 = list_form_fields_logic(&new_bytes2).expect("list after uncheck");
+    let agree2 = fields2.iter().find(|f| f.name == "AgreeTerms").expect("found");
+    let val_lc2 = agree2.value.to_ascii_lowercase();
+    assert!(
+        val_lc2 == "off" || val_lc2 == "false" || val_lc2 == "no" || val_lc2 == "unchecked" || val_lc2 == "0",
+        "Checkbox should be unchecked, got {:?}",
+        agree2.value
+    );
+}
+
+/// 不存在的字段名应返回 NotFound
+#[test]
+fn set_form_field_value_missing_name() {
+    let fixture = ensure_form_pdf();
+    let bytes = fs::read(&fixture).expect("read fixture");
+
+    let r = set_form_field_value_logic(
+        &bytes,
+        &SetFormFieldOpts {
+            name: "NonExistent".to_string(),
+            value: "anything".to_string(),
+        },
+    );
+    assert!(r.is_err(), "missing field should error");
+}
+
+/// 非表单 PDF（sample.pdf）写入应返回 NotFound
+#[test]
+fn set_form_field_value_no_form() {
+    let bytes = fs::read(fixtures_dir().join("sample.pdf")).expect("read sample");
+    let r = set_form_field_value_logic(
+        &bytes,
+        &SetFormFieldOpts {
+            name: "FullName".to_string(),
+            value: "test".to_string(),
+        },
+    );
+    assert!(r.is_err(), "no-form pdf should error");
 }

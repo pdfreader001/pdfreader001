@@ -33,8 +33,9 @@ import {
   ocrPage,
   ocrApplyTextOverlay,
   listFormFields,
+  setFormFieldValue,
 } from "../lib/ipc";
-import type { OcrWord, FormFieldInfo } from "../lib/ipc";
+import type { OcrWord, FormFieldInfo, DocumentInfo } from "../lib/ipc";
 import type {
   SplitMode,
   WatermarkStyle,
@@ -2171,12 +2172,18 @@ function OcrPanel() {
 
 function FormPanel() {
   const docId = useApp((s) => s.docId);
+  const updatePages = useApp((s) => s.updatePages);
+  const markDirty = useApp((s) => s.markDirty);
+  const setUndoRedo = useApp((s) => s.setUndoRedo);
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
+  const closeTask = useApp((s) => s.closeTask);
   const t = useT();
 
   const [fields, setFields] = useState<FormFieldInfo[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const loadFields = async () => {
     if (docId === null) return;
@@ -2184,6 +2191,12 @@ function FormPanel() {
     try {
       const data = await listFormFields(docId);
       setFields(data);
+      // 初始化 drafts = 当前值
+      const map: Record<string, string> = {};
+      data.forEach((f) => {
+        map[f.name] = f.value;
+      });
+      setDrafts(map);
       if (data.length === 0) {
         pushToast("info", t("当前文档没有表单字段"));
       }
@@ -2199,22 +2212,88 @@ function FormPanel() {
       loadFields();
     } else {
       setFields([]);
+      setDrafts({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId]);
 
+  // 判断字段类型（启发式）：value 是 Yes/No/Off/true/false/0/1/on/off → checkbox；否则 text
+  const isCheckbox = (name: string): boolean => {
+    const v = (drafts[name] ?? "").toLowerCase();
+    return ["yes", "no", "off", "true", "false", "0", "1", "on", "checked", "unchecked"].includes(v);
+  };
+
+  const isDirty = fields.some(
+    (f) => (drafts[f.name] ?? "") !== f.value,
+  );
+
+  const updateDraft = (name: string, value: string) => {
+    setDrafts((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const save = async () => {
+    if (docId === null) return;
+    if (!isDirty) {
+      pushToast("info", t("没有修改"));
+      return;
+    }
+    setSaving(true);
+    try {
+      let lastInfo: DocumentInfo | null = null;
+      for (const f of fields) {
+        const newVal = drafts[f.name] ?? "";
+        if (newVal === f.value) continue; // 未变
+        const info = await setFormFieldValue(docId, {
+          name: f.name,
+          value: newVal,
+        });
+        lastInfo = info;
+        // 更新列表里的 value，避免下次循环拿旧值
+        f.value = newVal;
+      }
+      if (lastInfo) {
+        updatePages(lastInfo);
+        markDirty(true);
+        setUndoRedo(await refreshUndoRedo(docId));
+      }
+      pushToast("info", t("表单已保存"));
+      closeTask();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const reset = () => {
+    const map: Record<string, string> = {};
+    fields.forEach((f) => {
+      map[f.name] = f.value;
+    });
+    setDrafts(map);
+  };
+
   return (
     <div className="task-body">
       <p className="placeholder" style={{ fontSize: 11 }}>
-        {t("列出 PDF 表单（AcroForm）字段并查看当前值；填写功能开发中。")}
+        {t("列出 PDF 表单（AcroForm）字段并填写新值，保存后立即写入文档。")}
       </p>
-      <div className="task-footer" style={{ marginBottom: 12 }}>
+      <div className="task-footer" style={{ marginBottom: 12, display: "flex", gap: 8 }}>
+        <button onClick={loadFields} disabled={loading || docId === null}>
+          {loading ? t("加载中…") : t("刷新")}
+        </button>
+        {isDirty && (
+          <button onClick={reset} disabled={saving}>
+            {t("重置")}
+          </button>
+        )}
         <button
           className="btn-primary"
-          onClick={loadFields}
-          disabled={loading || docId === null}
+          onClick={save}
+          disabled={saving || docId === null || !isDirty}
+          style={{ marginLeft: "auto" }}
         >
-          {loading ? t("加载中…") : t("刷新表单字段")}
+          {saving ? t("保存中…") : t("保存表单")}
         </button>
       </div>
       {loading && <p className="placeholder">{t("加载中…")}</p>}
@@ -2223,27 +2302,51 @@ function FormPanel() {
       )}
       {fields.length > 0 && (
         <div className="annot-list">
-          {fields.map((f) => (
-            <div key={f.name} className="annot-item" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
-              <span className="annot-kind" style={{ fontWeight: 600, color: "var(--text)" }}>
-                {f.name}
-              </span>
-              <input
-                type="text"
-                value={f.value}
-                readOnly
-                style={{
-                  width: "100%",
-                  fontSize: 12,
-                  padding: "4px 6px",
-                  background: "var(--bg-soft)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 4,
-                  color: "var(--text-dim)",
-                }}
-              />
-            </div>
-          ))}
+          {fields.map((f) => {
+            const checkbox = isCheckbox(f.name);
+            return (
+              <div
+                key={f.name}
+                className="annot-item"
+                style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}
+              >
+                <span className="annot-kind" style={{ fontWeight: 600, color: "var(--text)" }}>
+                  {f.name}
+                </span>
+                {checkbox ? (
+                  <label className="chk" style={{ padding: "2px 0" }}>
+                    <input
+                      type="checkbox"
+                      checked={["yes", "true", "1", "on", "checked"].includes(
+                        (drafts[f.name] ?? "").toLowerCase(),
+                      )}
+                      onChange={(e) =>
+                        updateDraft(f.name, e.target.checked ? "true" : "false")
+                      }
+                    />
+                    <span style={{ marginLeft: 4 }}>
+                      {drafts[f.name] || t("（未勾选）")}
+                    </span>
+                  </label>
+                ) : (
+                  <input
+                    type="text"
+                    value={drafts[f.name] ?? ""}
+                    onChange={(e) => updateDraft(f.name, e.target.value)}
+                    style={{
+                      width: "100%",
+                      fontSize: 12,
+                      padding: "4px 6px",
+                      background: "var(--bg-soft)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 4,
+                      color: "var(--text)",
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
       {fields.length > 0 && (
