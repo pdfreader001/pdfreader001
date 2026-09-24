@@ -521,6 +521,43 @@ export function reloadPlain(docId: number): Promise<DocumentInfo> {
   return invoke<DocumentInfo>("reload_plain", { docId });
 }
 
+// ========== OCR（可选 feature：cargo build --features ocr） ==========
+
+export interface OcrWord {
+  text: string;
+  left: number;
+  bottom: number;
+  right: number;
+  top: number;
+  confidence: number;
+}
+
+export interface OcrPageResult {
+  pageIndex: number;
+  words: OcrWord[];
+}
+
+export function ocrPage(
+  docId: number,
+  pageIndex: number,
+  lang?: string,
+  dpi?: number,
+): Promise<OcrPageResult> {
+  return invoke<OcrPageResult>("ocr_page", { docId, pageIndex, lang, dpi });
+}
+
+export function ocrApplyTextOverlay(
+  docId: number,
+  pageIndex: number,
+  words: OcrWord[],
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("ocr_apply_text_overlay", {
+    docId,
+    pageIndex,
+    words,
+  });
+}
+
 // ---------- 格式互转（M7） ----------
 
 export interface PageRangeSpec {

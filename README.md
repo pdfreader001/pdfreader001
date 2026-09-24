@@ -14,6 +14,34 @@
 - ✅ **M5** 深度编辑（双击文字重写、新增文本框、图片替换、扫描版检测）
 - ✅ **M6** 安全 + 导出（明文副本、内存去加密、PNG/JPEG 导出含 DPI）
 - ✅ **M7** 打磨（性能优化、错误处理 review、性能基线）
+- ✅ **P1** 快捷键体系（Ctrl+1/2/3 视图、Ctrl+Shift+L 中英日三语循环）
+- ✅ **P2** 批注功能（6 种类型：高亮/下划线/删除线/便签/自由文本/矩形）
+- ✅ **P3** 多语言扩展（中英日三语 i18n）
+- ✅ **P4** OCR 占位 + 文档诊断面板（页数/大小/加密/扫描抽样/注释总数）
+- ✅ **P7** 端到端测试（8 跨模块业务场景）
+- ✅ **P8** OCR 真做（可选 feature：Tesseract 识别 + 搜索层写回）
+
+### P8 OCR（可选 feature）
+
+对扫描版 PDF 调用 **Tesseract OCR** 识别文字，结果以透明文本层（`fill alpha=0`）写回 PDF，
+生成可搜索/可选择文本的 searchable PDF。
+
+```bash
+# 默认不引入 OCR（避免 C++ 依赖 + 50MB 二进制膨胀）
+cargo build
+
+# 启用 OCR：需系统已安装 cmake + 预编译 libtesseract + tessdata 语言包
+# Windows：安装 tesseract-ocr（含 eng.traineddata 约 30MB）
+cargo build --features ocr
+```
+
+核心设计：
+- `ocr` feature 门控 `tesseract` crate，默认关闭
+- `ocr.rs` 模块始终编译；feature off 时 commands 返回 `ocr_unavailable` 错误
+- 文本层用 `set_fill_color(alpha=0)` 透明填充实现"不可见"（pdfium-render 0.8.37 的
+  `set_render_mode(Invisible)` 会破坏文本对象导致 garbage 输出）
+- 字体复用 `watermark::load_font_for_text`，ASCII 自动选 `helvetica` 标准字体
+
 - ⏸️ 不上架、不打 MSIX 包（按约束）
 
 ## 测试

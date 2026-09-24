@@ -4,6 +4,7 @@ pub mod edit;
 pub mod edit_ext;
 pub mod ebook;
 pub mod error;
+pub mod ocr;
 pub mod office;
 pub mod pages;
 pub mod render;
@@ -67,7 +68,9 @@ pub fn run() {
             office::detect_office,
             office::convert_office_to_pdf,
             ebook::detect_ebook_tools,
-            ebook::convert_ebook_to_pdf
+            ebook::convert_ebook_to_pdf,
+            ocr::ocr_page,
+            ocr::ocr_apply_text_overlay
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

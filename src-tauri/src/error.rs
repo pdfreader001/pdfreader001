@@ -111,6 +111,14 @@ pub enum AppError {
     CannotDetermineSourceName,
     #[error("No PDF was generated; please check the source file format")]
     NoPdfGenerated,
+
+    // ------ OCR（Tesseract，可选 feature） ------
+    #[error("OCR engine is unavailable: this build was compiled without the `ocr` feature")]
+    OcrUnavailable,
+    #[error("Tesseract tessdata file not found: {path}. Please install a language pack.")]
+    TessdataMissing { path: String },
+    #[error("OCR failed: {detail}")]
+    OcrFailed { detail: String },
 }
 
 impl From<pdfium_render::prelude::PdfiumError> for AppError {
@@ -184,6 +192,9 @@ impl AppError {
             AppError::ToolFailed { .. } => "tool_failed",
             AppError::CannotDetermineSourceName => "cannot_determine_source_name",
             AppError::NoPdfGenerated => "no_pdf_generated",
+            AppError::OcrUnavailable => "ocr_unavailable",
+            AppError::TessdataMissing { .. } => "tessdata_missing",
+            AppError::OcrFailed { .. } => "ocr_failed",
         }
     }
 
@@ -224,6 +235,12 @@ impl AppError {
             }
             AppError::ImageReadFailed { path } => {
                 m.insert("path".into(), path.clone());
+            }
+            AppError::TessdataMissing { path } => {
+                m.insert("path".into(), path.clone());
+            }
+            AppError::OcrFailed { detail } => {
+                m.insert("detail".into(), detail.clone());
             }
             _ => {}
         }

@@ -10,6 +10,7 @@ const TOOLS: { id: Exclude<TaskId, null>; label: string; icon: string }[] = [
   { id: "security", label: "密码", icon: "🔒" },
   { id: "export", label: "导出", icon: "🖼" },
   { id: "diagnose", label: "诊断", icon: "🩺" },
+  { id: "ocr", label: "OCR", icon: "🔍" },
 ];
 
 export default function Toolbar({

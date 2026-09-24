@@ -27,6 +27,16 @@ image = "0.25"
 thiserror = "2"
 tauri-plugin-dialog = "2.7.3"
 
+# 可选 feature：启用后引入 Tesseract OCR 引擎。
+# 注意：构建时需要 cmake + 系统已安装 libtesseract-dev / tesseract-ocr-devel。
+# 默认关闭，普通用户 cargo build 不受影响。
+tesseract = { version = "0.15", optional = true }
+
+[features]
+# 默认无 OCR。启用方法：cargo build --features ocr
+default = []
+ocr = ["dep:tesseract"]
+
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

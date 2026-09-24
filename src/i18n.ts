@@ -264,6 +264,21 @@ const en: Record<string, string> = {
   "刷新加密状态": "Refresh encryption status",
   "运行扫描抽样": "Run scan sample",
   "全文档抽样检测": "Sample full document",
+  // ---------- P8 OCR（扫描版） ----------
+  "OCR": "OCR",
+  "扫描版 OCR": "Scanned OCR",
+  "对扫描版 PDF 调用 Tesseract 识别文字，并把结果作为不可见文本层写回，生成可搜索 PDF。需要编译时启用 ocr feature。":
+    "Run Tesseract OCR on scanned PDF and write the result as an invisible text layer to produce a searchable PDF. Requires the `ocr` build feature.",
+  "对扫描版 PDF 调用 Tesseract 识别文字，结果作为不可见文本层写回，生成可搜索 PDF。需 cargo build --features ocr。":
+    "Run Tesseract OCR on scanned PDF and write the result as an invisible text layer to produce a searchable PDF. Requires `cargo build --features ocr`.",
+  "语言代码": "Language code",
+  "运行 OCR": "Run OCR",
+  "识别中…": "Recognizing…",
+  "OCR 识别完成，共 {n} 个词": "OCR complete: {n} words",
+  "应用为可搜索文本层": "Apply as searchable layer",
+  "OCR 文本层已应用，请立即保存文档": "OCR text layer applied. Save the document now.",
+  "已识别 {n} 个词（页 {p}）": "Recognized {n} words (page {p})",
+  "请先运行 OCR 识别": "Run OCR first",
   "未加密": "Unencrypted",
   "允许": "Allowed",
   "禁止": "Denied",
@@ -909,6 +924,21 @@ const ja: Record<string, string> = {
   "无法获取源文件名": "ソースファイル名を取得できません。",
   "未生成 PDF，请检查源文件格式":
     "PDFが生成されませんでした。ソースファイルの形式を確認してください。",
+  // ---------- P8 OCR ----------
+  "OCR": "OCR",
+  "扫描版 OCR": "スキャンOCR",
+  "对扫描版 PDF 调用 Tesseract 识别文字，并把结果作为不可见文本层写回，生成可搜索 PDF。需要编译时启用 ocr feature。":
+    "スキャン版PDFからTesseractで文字認識し、結果を不可視テキストレイヤーとして書き戻して検索可能PDFを生成します。ビルド時に ocr feature を有効にしてください。",
+  "对扫描版 PDF 调用 Tesseract 识别文字，结果作为不可见文本层写回，生成可搜索 PDF。需 cargo build --features ocr。":
+    "スキャン版PDFからTesseractで文字認識し、結果を不可視テキストレイヤーとして書き戻して検索可能PDFを生成します。cargo build --features ocr でビルドしてください。",
+  "语言代码": "言語コード",
+  "运行 OCR": "OCR実行",
+  "识别中…": "認識中…",
+  "OCR 识别完成，共 {n} 个词": "OCR完了：{n}語",
+  "应用为可搜索文本层": "検索可能テキストレイヤー適用",
+  "OCR 文本层已应用，请立即保存文档": "OCRテキストレイヤーを適用しました。直ちに保存してください。",
+  "已识别 {n} 个词（页 {p}）": "{n}語認識（ページ {p}）",
+  "请先运行 OCR 识别": "先にOCRを実行してください",
 };
 
 export type Locale = "zh" | "en" | "ja";
@@ -970,6 +1000,10 @@ const errZh: Record<string, string> = {
   tool_failed: "{tool} 退出码 {code}",
   cannot_determine_source_name: "无法获取源文件名",
   no_pdf_generated: "未生成 PDF，请检查源文件格式",
+  // ------ OCR（Tesseract，可选 feature） ------
+  ocr_unavailable: "OCR 引擎不可用：当前构建未启用 ocr feature",
+  tessdata_missing: "Tesseract tessdata 文件缺失：{path}，请安装对应语言包",
+  ocr_failed: "OCR 识别失败：{detail}",
 };
 
 /** 开发期断言：errZh 字典必须与后端 AppError code 一一对应。
@@ -991,6 +1025,7 @@ const KNOWN_ERROR_CODES = new Set([
   "tool_not_found", "unsupported_format", "source_not_found",
   "tool_start_failed", "tool_failed", "cannot_determine_source_name",
   "no_pdf_generated",
+  "ocr_unavailable", "tessdata_missing", "ocr_failed",
 ]);
 
 if (import.meta.env?.DEV) {

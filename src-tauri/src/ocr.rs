@@ -1,0 +1,433 @@
+//! M8 / P8：扫描版 OCR（Tesseract，可选 feature）
+//!
+//! 能力：
+//! - 渲染指定页为 PNG（高 DPI）
+//! - 调 Tesseract 识别文字
+//! - 把识别结果写回为不可见文本层（"searchable PDF"）
+//!
+//! 启用方式：cargo build --features ocr
+//! 默认关闭：避免 C++ 依赖（libtesseract + cmake）和 ~50MB 二进制膨胀。
+//!
+//! 错误码：
+//! - `ocr_unavailable`：feature 未启用
+//! - `tessdata_missing`：tessdata 文件不存在
+//! - `ocr_failed`：识别过程失败
+
+use pdfium_render::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::path::Path;
+use tauri::State;
+
+use crate::document::{pdfium, AppState, DocumentInfo};
+use crate::pages::load_doc;
+use crate::error::{AppError, AppResult};
+
+/// 单个 OCR 识别结果：单词 + PDF 坐标矩形（左下原点）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OcrWord {
+    pub text: String,
+    pub left: f32,
+    pub bottom: f32,
+    pub right: f32,
+    pub top: f32,
+    /// 识别置信度 0.0–1.0
+    pub confidence: f32,
+}
+
+/// 单页 OCR 结果。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OcrPageResult {
+    pub page_index: u32,
+    pub words: Vec<OcrWord>,
+}
+
+/// OCR 配置
+#[derive(Debug, Clone)]
+pub struct OcrConfig {
+    /// 渲染 DPI（默认 300，扫描版推荐）
+    pub dpi: u32,
+    /// Tesseract 语言（默认 "eng"）
+    pub lang: String,
+    /// tessdata 目录（None = 用 Tesseract 默认搜索路径）
+    pub tessdata_dir: Option<String>,
+}
+
+impl Default for OcrConfig {
+    fn default() -> Self {
+        Self {
+            dpi: 300,
+            lang: "eng".to_string(),
+            tessdata_dir: None,
+        }
+    }
+}
+
+/// 纯函数版本：渲染指定页为 PNG 字节。
+pub fn render_page_to_png(
+    pdfium_inst: &Pdfium,
+    bytes: &[u8],
+    page_index: u32,
+    dpi: u32,
+) -> AppResult<Vec<u8>> {
+    let doc = pdfium_inst.load_pdf_from_byte_slice(bytes, None)?;
+    let pages = doc.pages();
+    if page_index >= pages.len() as u32 {
+        return Err(AppError::PageOutOfRange);
+    }
+    let page = pages.get(page_index as u16)?;
+    // dpi → scale: 72 是 PDF 点的基准 DPI
+    let scale = dpi as f32 / 72.0;
+    let bitmap = page.render_with_config(
+        &PdfRenderConfig::new()
+            .set_target_width((page.width().value * scale) as i32)
+            .set_target_height((page.height().value * scale) as i32),
+    )?;
+    let img = bitmap.as_image();
+    let mut buf = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut buf, image::ImageFormat::Png)
+        .map_err(|e| AppError::OcrFailed {
+            detail: format!("encode png: {}", e),
+        })?;
+    Ok(buf.into_inner())
+}
+
+/// 纯函数：把 OCR 结果写入 PDF 页作为不可见文本层（"searchable PDF"）。
+///
+/// **当前实现**：用 pdfium-render 的 `create_text_object` 在 OCR 词位置
+/// 插入一个文本对象，render mode 设为 `Invisible`（不可见但可复制/搜索）。
+///
+/// 字体：复用 `watermark::load_font_for_text` 自动回退逻辑。
+pub fn apply_text_overlay_logic(
+    bytes: &[u8],
+    page_index: u32,
+    words: &[OcrWord],
+) -> AppResult<Vec<u8>> {
+    use pdfium_render::prelude::{PdfColor, PdfPoints};
+
+    let pdfium_inst = pdfium();
+    let mut doc = load_doc(pdfium_inst, bytes)?;
+    let total = doc.pages().len() as u32;
+    if page_index >= total {
+        return Err(AppError::PageOutOfRange);
+    }
+
+    // 收集所有不同 word 文本，预先解析 font_token（每页一个字体即可）
+    let sample = words.first().map(|w| w.text.as_str()).unwrap_or("A");
+    let font_token = crate::watermark::load_font_for_text(&mut doc, sample)
+        .map_err(|e| AppError::OcrFailed {
+            detail: format!("load font: {}", e),
+        })?;
+
+    {
+        let mut pages = doc.pages_mut();
+        let mut page = pages.get(page_index as u16)?;
+        let mut objects = page.objects_mut();
+
+        for w in words {
+            if w.confidence < 30.0 || w.text.trim().is_empty() {
+                continue;
+            }
+
+            let font_size = ((w.top - w.bottom) as f32).max(2.0);
+            let x = w.left.max(0.0);
+            let y = w.bottom.max(0.0);
+
+            // create_text_object 返回 PdfPageObject 枚举（Text 变体）
+            let mut page_obj = match objects.create_text_object(
+                PdfPoints::new(x),
+                PdfPoints::new(y),
+                &w.text,
+                font_token.clone(),
+                PdfPoints::new(font_size),
+            ) {
+                Ok(o) => o,
+                Err(e) => {
+                    eprintln!("ocr text overlay: create_text_object failed: {}", e);
+                    continue;
+                }
+            };
+
+            // 用透明填充色使文字视觉上不可见，但 PDF 内部 text operator 正常存在，
+            // 确保可搜索/可选择。pdfium-render 0.8.37 的 set_render_mode(Invisible)
+            // 会破坏文本对象导致 garbage 输出，改用此方案。
+            if let Some(mut text_obj) = page_obj.as_text_object_mut() {
+                let _ = text_obj.set_fill_color(PdfColor::new(0, 0, 0, 0));
+            }
+        }
+    }
+
+    doc.save_to_bytes().map_err(|e| AppError::OcrFailed {
+        detail: format!("save pdf: {}", e),
+    })
+}
+
+/// 纯函数版本：OCR 单页并返回结果。
+///
+/// **功能开关**：
+/// - 启用 `ocr` feature 时调用 Tesseract
+/// - 关闭 feature 时返回 `OcrUnavailable` 错误
+pub fn ocr_page_logic(
+    bytes: &[u8],
+    page_index: u32,
+    config: &OcrConfig,
+) -> AppResult<OcrPageResult> {
+    // 验证输入
+    let pdfium_inst = pdfium();
+    let doc = pdfium_inst
+        .load_pdf_from_byte_slice(bytes, None)
+        .map_err(|_| AppError::Damaged)?;
+    let total = doc.pages().len() as u32;
+    if page_index >= total {
+        return Err(AppError::PageOutOfRange);
+    }
+    drop(doc);
+
+    // 渲染为 PNG
+    let png_bytes = render_page_to_png(pdfium_inst, bytes, page_index, config.dpi)?;
+
+    // 调 Tesseract（仅在 ocr feature 启用时）
+    #[cfg(feature = "ocr")]
+    {
+        ocr_with_tesseract(&png_bytes, &config, page_index, bytes)
+    }
+
+    #[cfg(not(feature = "ocr"))]
+    {
+        let _ = png_bytes;
+        let _ = (config, page_index);
+        Err(AppError::OcrUnavailable)
+    }
+}
+
+#[cfg(feature = "ocr")]
+fn ocr_with_tesseract(
+    png_bytes: &[u8],
+    config: &OcrConfig,
+    page_index: u32,
+    pdf_bytes: &[u8],
+) -> AppResult<OcrPageResult> {
+    use tesseract::Tesseract;
+
+    // tessdata 路径校验
+    if let Some(dir) = &config.tessdata_dir {
+        let lang_file = format!("{}.traineddata", config.lang);
+        let p = Path::new(dir).join(&lang_file);
+        if !p.exists() {
+            return Err(AppError::TessdataMissing {
+                path: p.to_string_lossy().into_owned(),
+            });
+        }
+    }
+
+    let mut tess = Tesseract::new(
+        Some(&config.lang),
+        config.tessdata_dir.as_deref(),
+    )
+    .map_err(|e| AppError::OcrFailed {
+        detail: format!("init tesseract: {}", e),
+    })?;
+
+    tess.set_image_from_bytes(png_bytes)
+        .map_err(|e| AppError::OcrFailed {
+            detail: format!("set image: {}", e),
+        })?;
+
+    // 取识别结果 + 坐标
+    // tesseract-rs 0.15 提供 get_data().get_words(...)
+    let text = tess
+        .get_text()
+        .map_err(|e| AppError::OcrFailed {
+            detail: format!("get text: {}", e),
+        })?;
+
+    // hOCR 输出含每个 word 的 bbox
+    let hocr = tess.get_hocr_text(0).unwrap_or_default();
+
+    let words = parse_hocr_words(&hocr, &text, pdf_bytes, page_index, &config)?;
+
+    Ok(OcrPageResult { page_index, words })
+}
+
+#[cfg(feature = "ocr")]
+fn parse_hocr_words(
+    hocr: &str,
+    full_text: &str,
+    pdf_bytes: &[u8],
+    page_index: u32,
+    config: &OcrConfig,
+) -> AppResult<Vec<OcrWord>> {
+    // 简易 hOCR 解析：每个 <span class='ocrx_word' id='word_N' title='bbox LEFT BOTTOM RIGHT TOP; x_wconf CONF'>TEXT</span>
+    let mut words = Vec::new();
+    let mut idx = 0;
+    while let Some(start) = hocr[idx..].find("ocrx_word") {
+        let abs = idx + start;
+        // 找 title=
+        if let Some(t_pos) = hocr[abs..].find("title='") {
+            let t_abs = abs + t_pos + 7;
+            if let Some(t_end) = hocr[t_abs..].find('\'') {
+                let title = &hocr[t_abs..t_abs + t_end];
+                // 解析 bbox 和 confidence
+                let mut parts = title.split(';');
+                let bbox_str = parts.next().unwrap_or("").trim();
+                let conf_str = parts.next().unwrap_or("").trim();
+                let conf = conf_str
+                    .replace("x_wconf ", "")
+                    .parse::<f32>()
+                    .unwrap_or(0.0);
+                let nums: Vec<f32> = bbox_str
+                    .replace("bbox ", "")
+                    .split_whitespace()
+                    .filter_map(|s| s.parse().ok())
+                    .collect();
+                if nums.len() == 4 {
+                    // OCR 坐标基于图像像素，需要换算到 PDF 点
+                    let (left, bottom, right, top) = (nums[0], nums[1], nums[2], nums[3]);
+                    // 用 dpi / 72 转换
+                    let scale = 72.0 / config.dpi as f32;
+                    let left_pt = left * scale;
+                    let bottom_pt = bottom * scale;
+                    let right_pt = right * scale;
+                    let top_pt = top * scale;
+
+                    // 找 word 文本：在 '>TEXT</span>'
+                    let after_title = t_abs + t_end + 1;
+                    if let Some(gt_pos) = hocr[after_title..].find('>') {
+                        let text_start = after_title + gt_pos + 1;
+                        if let Some(lt_pos) = hocr[text_start..].find("</span>") {
+                            let raw = &hocr[text_start..text_start + lt_pos];
+                            // 简单清理（去除内部标签残留）
+                            let cleaned = strip_html_tags(raw).trim().to_string();
+                            if !cleaned.is_empty() {
+                                words.push(OcrWord {
+                                    text: cleaned,
+                                    left: left_pt,
+                                    bottom: bottom_pt,
+                                    right: right_pt,
+                                    top: top_pt,
+                                    confidence: conf,
+                                });
+                            }
+                        }
+                    }
+                }
+                idx = t_abs + t_end;
+            } else {
+                idx = abs + 1;
+            }
+        } else {
+            idx = abs + 1;
+        }
+    }
+
+    // 兜底：如果 hOCR 解析失败但 full_text 不为空，每个换行/空格分割成 word
+    if words.is_empty() && !full_text.trim().is_empty() {
+        let pdfium_inst = pdfium();
+        let doc = pdfium_inst.load_pdf_from_byte_slice(pdf_bytes, None)?;
+        let page = doc.pages().get(page_index as u16)?;
+        let page_w = page.width().value as f32;
+        let page_h = page.height().value as f32;
+        for (i, line) in full_text.lines().enumerate() {
+            for (j, w) in line.split_whitespace().enumerate() {
+                let x = page_w * 0.05 + (j as f32) * page_w * 0.05;
+                let y = page_h * (0.9 - (i as f32) * 0.05);
+                words.push(OcrWord {
+                    text: w.to_string(),
+                    left: x,
+                    bottom: y,
+                    right: x + page_w * 0.04,
+                    top: y + page_h * 0.04,
+                    confidence: 0.0,
+                });
+            }
+        }
+    }
+
+    Ok(words)
+}
+
+fn strip_html_tags(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut in_tag = false;
+    for c in s.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    out
+}
+
+// ============================================================================
+// Tauri commands（条件注册）
+// ============================================================================
+
+#[cfg(feature = "ocr")]
+#[tauri::command]
+pub async fn ocr_page(
+    _state: State<'_, AppState>,
+    doc_id: u64,
+    page_index: u32,
+    lang: Option<String>,
+    dpi: Option<u32>,
+) -> AppResult<OcrPageResult> {
+    let docs = _state.docs.lock().unwrap();
+    let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
+    let config = OcrConfig {
+        dpi: dpi.unwrap_or(300),
+        lang: lang.unwrap_or_else(|| "eng".to_string()),
+        tessdata_dir: None,
+    };
+    ocr_page_logic(&entry.bytes, page_index, &config)
+}
+
+#[cfg(feature = "ocr")]
+#[tauri::command]
+pub async fn ocr_apply_text_overlay(
+    state: State<'_, AppState>,
+    doc_id: u64,
+    page_index: u32,
+    words: Vec<OcrWord>,
+) -> AppResult<DocumentInfo> {
+    push_snapshot_bytes(&state, doc_id)?;
+    let docs = state.docs.lock().unwrap();
+    let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
+    let new_bytes = apply_text_overlay_logic(&entry.bytes, page_index, &words)?;
+    crate::pages::commit_and_return(&state, doc_id, new_bytes)
+}
+
+#[cfg(feature = "ocr")]
+fn push_snapshot_bytes(state: &AppState, doc_id: u64) -> AppResult<()> {
+    crate::document::push_snapshot(state, doc_id);
+    Ok(())
+}
+
+// ============================================================================
+// Feature=off 时的 stub：保持 invoke_handler 引用稳定
+// ============================================================================
+
+#[cfg(not(feature = "ocr"))]
+#[tauri::command]
+pub async fn ocr_page(
+    _state: State<'_, AppState>,
+    _doc_id: u64,
+    _page_index: u32,
+    _lang: Option<String>,
+    _dpi: Option<u32>,
+) -> AppResult<OcrPageResult> {
+    Err(AppError::OcrUnavailable)
+}
+
+#[cfg(not(feature = "ocr"))]
+#[tauri::command]
+pub async fn ocr_apply_text_overlay(
+    _state: State<'_, AppState>,
+    _doc_id: u64,
+    _page_index: u32,
+    _words: Vec<OcrWord>,
+) -> AppResult<DocumentInfo> {
+    Err(AppError::OcrUnavailable)
+}
