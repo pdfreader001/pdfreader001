@@ -7,7 +7,7 @@ import { translateError } from "../i18n";
 export type ViewMode = "continuous" | "single" | "dual";
 export type FitMode = "none" | "width" | "page";
 export type LeftTab = "thumbnails" | "bookmarks";
-export type TaskId = "merge" | "split" | "watermark" | "edit" | "security" | "export" | "diagnose" | "ocr" | null;
+export type TaskId = "merge" | "split" | "watermark" | "edit" | "security" | "export" | "diagnose" | "ocr" | "forms" | null;
 
 export interface SearchHit {
   pageIndex: number;

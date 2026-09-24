@@ -32,8 +32,9 @@ import {
   convertEbookToPdf,
   ocrPage,
   ocrApplyTextOverlay,
+  listFormFields,
 } from "../lib/ipc";
-import type { OcrWord } from "../lib/ipc";
+import type { OcrWord, FormFieldInfo } from "../lib/ipc";
 import type {
   SplitMode,
   WatermarkStyle,
@@ -2168,6 +2169,92 @@ function OcrPanel() {
   );
 }
 
+function FormPanel() {
+  const docId = useApp((s) => s.docId);
+  const pushToast = useApp((s) => s.pushToast);
+  const errorToast = useApp((s) => s.errorToast);
+  const t = useT();
+
+  const [fields, setFields] = useState<FormFieldInfo[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const loadFields = async () => {
+    if (docId === null) return;
+    setLoading(true);
+    try {
+      const data = await listFormFields(docId);
+      setFields(data);
+      if (data.length === 0) {
+        pushToast("info", t("当前文档没有表单字段"));
+      }
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (docId !== null) {
+      loadFields();
+    } else {
+      setFields([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docId]);
+
+  return (
+    <div className="task-body">
+      <p className="placeholder" style={{ fontSize: 11 }}>
+        {t("列出 PDF 表单（AcroForm）字段并查看当前值；填写功能开发中。")}
+      </p>
+      <div className="task-footer" style={{ marginBottom: 12 }}>
+        <button
+          className="btn-primary"
+          onClick={loadFields}
+          disabled={loading || docId === null}
+        >
+          {loading ? t("加载中…") : t("刷新表单字段")}
+        </button>
+      </div>
+      {loading && <p className="placeholder">{t("加载中…")}</p>}
+      {!loading && fields.length === 0 && (
+        <p className="placeholder">{t("当前文档没有表单字段")}</p>
+      )}
+      {fields.length > 0 && (
+        <div className="annot-list">
+          {fields.map((f) => (
+            <div key={f.name} className="annot-item" style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}>
+              <span className="annot-kind" style={{ fontWeight: 600, color: "var(--text)" }}>
+                {f.name}
+              </span>
+              <input
+                type="text"
+                value={f.value}
+                readOnly
+                style={{
+                  width: "100%",
+                  fontSize: 12,
+                  padding: "4px 6px",
+                  background: "var(--bg-soft)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 4,
+                  color: "var(--text-dim)",
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+      {fields.length > 0 && (
+        <p className="placeholder" style={{ marginTop: 8, fontSize: 11 }}>
+          {t("共 {n} 个字段", { n: fields.length })}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function DiagnosePanel() {
   const docId = useApp((s) => s.docId);
   const fileName = useApp((s) => s.fileName);
@@ -3026,6 +3113,7 @@ export default function TaskPanel() {
     export: t("导出图片"),
     diagnose: t("文档诊断"),
     ocr: t("扫描版 OCR"),
+    forms: t("表单字段"),
   };
 
   const DESC: Record<Exclude<TaskId, null>, string> = {
@@ -3037,6 +3125,7 @@ export default function TaskPanel() {
     export: t("PDF 与图片互转：PDF → PNG/JPEG（按页可调 DPI）；PNG/JPG/JPEG/BMP/WebP → PDF（多图合并）。"),
     diagnose: t("查看文档关键统计：页数、文件大小、加密状态、注释总数、扫描版抽样。"),
     ocr: t("对扫描版 PDF 调用 Tesseract 识别文字，并把结果作为不可见文本层写回，生成可搜索 PDF。需要编译时启用 ocr feature。"),
+    forms: t("列出 PDF 表单（AcroForm）字段并查看当前值；填写功能开发中。"),
   };
 
   if (task === null) return null;
@@ -3058,7 +3147,8 @@ export default function TaskPanel() {
         {task === "export" && <ConvertPanel />}
         {task === "diagnose" && <DiagnosePanel />}
         {task === "ocr" && <OcrPanel />}
-        {task !== "merge" && task !== "split" && task !== "watermark" && task !== "edit" && task !== "security" && task !== "export" && task !== "diagnose" && task !== "ocr" && (
+        {task === "forms" && <FormPanel />}
+        {task !== "merge" && task !== "split" && task !== "watermark" && task !== "edit" && task !== "security" && task !== "export" && task !== "diagnose" && task !== "ocr" && task !== "forms" && (
           <>
             <p className="placeholder">{DESC[task]}</p>
             <p className="placeholder" style={{ marginTop: 12 }}>

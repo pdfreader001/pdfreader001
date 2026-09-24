@@ -11,6 +11,7 @@ const TOOLS: { id: Exclude<TaskId, null>; label: string; icon: string }[] = [
   { id: "export", label: "导出", icon: "🖼" },
   { id: "diagnose", label: "诊断", icon: "🩺" },
   { id: "ocr", label: "OCR", icon: "🔍" },
+  { id: "forms", label: "表单", icon: "📝" },
 ];
 
 export default function Toolbar({

@@ -637,6 +637,29 @@ export function convertEbookToPdf(
   return invoke<string>("convert_ebook_to_pdf", { toolPath, opts });
 }
 
+// ---------- 表单（P5+P6 AcroForm） ----------
+
+export interface FormFieldInfo {
+  name: string;
+  value: string;
+}
+
+export interface SetFormFieldOpts {
+  name: string;
+  value: string;
+}
+
+export function listFormFields(docId: number): Promise<FormFieldInfo[]> {
+  return invoke<FormFieldInfo[]>("list_form_fields", { docId });
+}
+
+export function setFormFieldValue(
+  docId: number,
+  opts: SetFormFieldOpts,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("set_form_field_value", { docId, opts });
+}
+
 // ---------- 二进制渲染 ----------
 
 /**
