@@ -36,6 +36,7 @@ import {
   setFormFieldValue,
 } from "../lib/ipc";
 import type { OcrWord, FormFieldInfo, DocumentInfo } from "../lib/ipc";
+import type { FormFieldKind } from "../lib/ipc";
 import type {
   SplitMode,
   WatermarkStyle,
@@ -2217,11 +2218,21 @@ function FormPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId]);
 
-  // 判断字段类型（启发式）：value 是 Yes/No/Off/true/false/0/1/on/off → checkbox；否则 text
-  const isCheckbox = (name: string): boolean => {
-    const v = (drafts[name] ?? "").toLowerCase();
-    return ["yes", "no", "off", "true", "false", "0", "1", "on", "checked", "unchecked"].includes(v);
+  // 字段类型徽章 + 控件渲染（按后端返回的 kind，不再依赖启发式）
+  const kindLabel: Record<FormFieldKind, string> = {
+    unknown: "?",
+    pushButton: "Btn",
+    checkbox: "☑",
+    radioButton: "◉",
+    comboBox: "▼T",
+    listBox: "▼L",
+    text: "T",
+    signature: "✎",
   };
+
+  // 可编辑的字段类型
+  const isEditable = (kind: FormFieldKind): boolean =>
+    kind === "text" || kind === "checkbox";
 
   const isDirty = fields.some(
     (f) => (drafts[f.name] ?? "") !== f.value,
@@ -2302,51 +2313,83 @@ function FormPanel() {
       )}
       {fields.length > 0 && (
         <div className="annot-list">
-          {fields.map((f) => {
-            const checkbox = isCheckbox(f.name);
-            return (
-              <div
-                key={f.name}
-                className="annot-item"
-                style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}
-              >
-                <span className="annot-kind" style={{ fontWeight: 600, color: "var(--text)" }}>
+          {fields.map((f) => (
+            <div
+              key={f.name}
+              className="annot-item"
+              style={{ flexDirection: "column", alignItems: "flex-start", gap: 4 }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span
+                  className="annot-kind"
+                  style={{
+                    fontWeight: 600,
+                    color: "var(--text)",
+                    fontSize: 11,
+                    padding: "1px 5px",
+                    background: "var(--bg-soft)",
+                    borderRadius: 3,
+                    border: "1px solid var(--border)",
+                  }}
+                  title={f.kind}
+                >
+                  {kindLabel[f.kind]}
+                </span>
+                <span style={{ fontWeight: 600, color: "var(--text)" }}>
                   {f.name}
                 </span>
-                {checkbox ? (
-                  <label className="chk" style={{ padding: "2px 0" }}>
-                    <input
-                      type="checkbox"
-                      checked={["yes", "true", "1", "on", "checked"].includes(
-                        (drafts[f.name] ?? "").toLowerCase(),
-                      )}
-                      onChange={(e) =>
-                        updateDraft(f.name, e.target.checked ? "true" : "false")
-                      }
-                    />
-                    <span style={{ marginLeft: 4 }}>
-                      {drafts[f.name] || t("（未勾选）")}
-                    </span>
-                  </label>
-                ) : (
-                  <input
-                    type="text"
-                    value={drafts[f.name] ?? ""}
-                    onChange={(e) => updateDraft(f.name, e.target.value)}
-                    style={{
-                      width: "100%",
-                      fontSize: 12,
-                      padding: "4px 6px",
-                      background: "var(--bg-soft)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 4,
-                      color: "var(--text)",
-                    }}
-                  />
-                )}
               </div>
-            );
-          })}
+              {f.kind === "checkbox" ? (
+                <label className="chk" style={{ padding: "2px 0" }}>
+                  <input
+                    type="checkbox"
+                    checked={["yes", "true", "1", "on", "checked"].includes(
+                      (drafts[f.name] ?? "").toLowerCase(),
+                    )}
+                    onChange={(e) =>
+                      updateDraft(f.name, e.target.checked ? "true" : "false")
+                    }
+                  />
+                  <span style={{ marginLeft: 4 }}>
+                    {drafts[f.name] || t("（未勾选）")}
+                  </span>
+                </label>
+              ) : isEditable(f.kind) ? (
+                <input
+                  type="text"
+                  value={drafts[f.name] ?? ""}
+                  onChange={(e) => updateDraft(f.name, e.target.value)}
+                  style={{
+                    width: "100%",
+                    fontSize: 12,
+                    padding: "4px 6px",
+                    background: "var(--bg-soft)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 4,
+                    color: "var(--text)",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: "100%",
+                    fontSize: 12,
+                    padding: "4px 6px",
+                    background: "var(--bg-soft)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 4,
+                    color: "var(--text-dim)",
+                    fontStyle: "italic",
+                  }}
+                >
+                  {drafts[f.name] || t("（无值）")}
+                  <span style={{ marginLeft: 6, fontSize: 11 }}>
+                    {t("（{kind} 类型暂不支持编辑）", { kind: f.kind })}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
       {fields.length > 0 && (

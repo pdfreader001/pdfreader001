@@ -16,12 +16,43 @@ use crate::document::{pdfium as get_pdfium, push_snapshot, AppState, DocumentInf
 use crate::error::{AppError, AppResult};
 use crate::pages::{commit_and_return, load_doc};
 
+/// 表单字段类型（对应 pdfium-render 的 PdfFormFieldType）
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum FormFieldKind {
+    Unknown,
+    PushButton,
+    Checkbox,
+    RadioButton,
+    ComboBox,
+    ListBox,
+    Text,
+    Signature,
+}
+
+impl FormFieldKind {
+    fn from_pdfium(k: pdfium_render::prelude::PdfFormFieldType) -> Self {
+        use pdfium_render::prelude::PdfFormFieldType as F;
+        match k {
+            F::PushButton => Self::PushButton,
+            F::Checkbox => Self::Checkbox,
+            F::RadioButton => Self::RadioButton,
+            F::ComboBox => Self::ComboBox,
+            F::ListBox => Self::ListBox,
+            F::Text => Self::Text,
+            F::Signature => Self::Signature,
+            F::Unknown => Self::Unknown,
+        }
+    }
+}
+
 /// 表单字段描述
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FormFieldInfo {
     pub name: String,
     pub value: String,
+    pub kind: FormFieldKind,
 }
 
 /// 设置表单字段值
@@ -42,6 +73,8 @@ pub struct SetFormFieldOpts {
 /// `HashMap<String, Option<String>>`，直接是字段名到值的 Map。
 /// 只暴露 name + value（版本 1 简化）。
 pub fn list_form_fields_logic(bytes: &[u8]) -> AppResult<Vec<FormFieldInfo>> {
+    use pdfium_render::prelude::PdfFormFieldCommon;
+
     let pdfium_inst = get_pdfium();
     let doc = load_doc(pdfium_inst, bytes)?;
 
@@ -53,11 +86,41 @@ pub fn list_form_fields_logic(bytes: &[u8]) -> AppResult<Vec<FormFieldInfo>> {
     let pages = doc.pages();
     let values_map = form.field_values(&pages);
 
+    // 扫描所有页的 Widget annotation，拿到每个字段的 (name, kind)
+    let mut kinds: Vec<(String, FormFieldKind)> = Vec::new();
+    let total = doc.pages().len();
+    for p_idx in 0..total {
+        let page = doc.pages().get(p_idx)?;
+        let annots = page.annotations();
+        for i in 0..annots.len() {
+            let mut annot = annots.get(i as usize)?;
+            let widget = match annot.as_widget_annotation_mut() {
+                Some(w) => w,
+                None => continue,
+            };
+            let field = match widget.form_field() {
+                Some(f) => f,
+                None => continue,
+            };
+            if let Some(name) = PdfFormFieldCommon::name(field) {
+                kinds.push((name, FormFieldKind::from_pdfium(field.field_type())));
+            }
+        }
+    }
+
     let mut result: Vec<FormFieldInfo> = values_map
         .into_iter()
-        .map(|(name, value)| FormFieldInfo {
-            name,
-            value: value.unwrap_or_default(),
+        .map(|(name, value)| {
+            let kind = kinds
+                .iter()
+                .find(|(n, _)| n == &name)
+                .map(|(_, k)| *k)
+                .unwrap_or(FormFieldKind::Unknown);
+            FormFieldInfo {
+                name,
+                value: value.unwrap_or_default(),
+                kind,
+            }
         })
         .collect();
 

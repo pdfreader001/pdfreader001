@@ -639,9 +639,20 @@ export function convertEbookToPdf(
 
 // ---------- 表单（P5+P6 AcroForm） ----------
 
+export type FormFieldKind =
+  | "unknown"
+  | "pushButton"
+  | "checkbox"
+  | "radioButton"
+  | "comboBox"
+  | "listBox"
+  | "text"
+  | "signature";
+
 export interface FormFieldInfo {
   name: string;
   value: string;
+  kind: FormFieldKind;
 }
 
 export interface SetFormFieldOpts {

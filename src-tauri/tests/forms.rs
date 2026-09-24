@@ -8,7 +8,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use pdfe_lib::forms::{list_form_fields_logic, set_form_field_value_logic, SetFormFieldOpts};
+use pdfe_lib::forms::{list_form_fields_logic, set_form_field_value_logic, FormFieldKind, SetFormFieldOpts};
 
 fn fixtures_dir() -> PathBuf {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -116,6 +116,34 @@ fn list_form_fields_finds_generated_fields() {
     let agree = fields.iter().find(|f| f.name == "AgreeTerms").unwrap();
     // Checkbox value 可能是 "Off" 或空，取决于 pdfium 解析
     assert!(!agree.value.is_empty() || agree.name == "AgreeTerms");
+}
+
+/// 验证返回的 kind 字段：FullName → Text，AgreeTerms → Checkbox
+#[test]
+fn list_form_fields_returns_kind() {
+    let fixture = ensure_form_pdf();
+    let bytes = fs::read(&fixture).expect("read fixture");
+    let fields = list_form_fields_logic(&bytes).expect("list ok");
+
+    let full_name = fields
+        .iter()
+        .find(|f| f.name == "FullName")
+        .expect("FullName found");
+    assert_eq!(
+        full_name.kind,
+        FormFieldKind::Text,
+        "FullName should be Text kind"
+    );
+
+    let agree = fields
+        .iter()
+        .find(|f| f.name == "AgreeTerms")
+        .expect("AgreeTerms found");
+    assert_eq!(
+        agree.kind,
+        FormFieldKind::Checkbox,
+        "AgreeTerms should be Checkbox kind"
+    );
 }
 
 /// 损坏 PDF 应返回错误（pdfium 自己会报错）

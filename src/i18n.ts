@@ -296,6 +296,9 @@ const en: Record<string, string> = {
   "没有修改": "No changes.",
   "重置": "Reset",
   "（未勾选）": "(unchecked)",
+  "（无值）": "(empty)",
+  "（{kind} 类型暂不支持编辑）":
+    "({kind} fields cannot be edited yet)",
   "导出明文副本": "Export Plain Copy",
   "导出当前文档": "Export Current Document",
   "在内存中去除加密": "Strip Encryption in Memory",
@@ -757,6 +760,9 @@ const ja: Record<string, string> = {
   "没有修改": "変更なし",
   "重置": "リセット",
   "（未勾选）": "（未チェック）",
+  "（无值）": "（値なし）",
+  "（{kind} 类型暂不支持编辑）":
+    "（{kind}フィールドは未対応）",
   "导出明文副本": "平文コピーを書出し",
   "导出当前文档": "現在の文書を書出し",
   "在内存中去除加密": "メモリ上で暗号化解除",
