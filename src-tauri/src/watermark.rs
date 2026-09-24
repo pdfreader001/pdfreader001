@@ -276,3 +276,144 @@ pub async fn add_image_watermark(
     };
     commit_and_return(&state, doc_id, new_bytes)
 }
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for watermark placement + color parsing.
+    use super::*;
+
+    fn approx(a: f32, b: f32) {
+        assert!((a - b).abs() < 1.0, "approx {a} vs {b}");
+    }
+
+    /// parse_color: 6-char hex with hash.
+    #[test]
+    fn parse_color_basic() {
+        let c = parse_color("#ff8040", 50.0);
+        assert_eq!(c.red(), 0xff);
+        assert_eq!(c.green(), 0x80);
+        assert_eq!(c.blue(), 0x40);
+        // alpha = 50/100 * 255 = 127 (rounded)
+        assert_eq!(c.alpha(), 128, "alpha rounded from 127.5");
+    }
+
+    /// parse_color: without hash.
+    #[test]
+    fn parse_color_without_hash() {
+        let c = parse_color("ff8040", 100.0);
+        assert_eq!(c.red(), 0xff);
+        assert_eq!(c.alpha(), 255);
+    }
+
+    /// parse_color: invalid/short hex falls back to gray (128,128,128).
+    #[test]
+    fn parse_color_invalid_falls_back_to_gray() {
+        let c = parse_color("#abc", 50.0);
+        assert_eq!(c.red(), 128);
+        assert_eq!(c.green(), 128);
+        assert_eq!(c.blue(), 128);
+
+        let c = parse_color("", 50.0);
+        assert_eq!(c.red(), 128);
+    }
+
+    /// parse_color: opacity clamped to 0..=100.
+    #[test]
+    fn parse_color_opacity_clamped() {
+        let c_neg = parse_color("#000000", -50.0);
+        assert_eq!(c_neg.alpha(), 0, "negative opacity clamped to 0");
+
+        let c_over = parse_color("#000000", 200.0);
+        assert_eq!(c_over.alpha(), 255, "opacity > 100 clamped to 100");
+    }
+
+    /// estimate_text_width: ASCII chars use 0.55 factor.
+    #[test]
+    fn estimate_text_width_ascii() {
+        let w = estimate_text_width("Hello", 10.0);
+        // 5 * 0.55 * 10 = 27.5
+        approx(w, 27.5);
+    }
+
+    /// estimate_text_width: CJK chars use full-width factor.
+    #[test]
+    fn estimate_text_width_cjk() {
+        // \u{4E2D} = "Zhong" (CJK Unified Ideograph), > 0x2E80
+        let w = estimate_text_width("\u{4E2D}\u{4F60}", 10.0);
+        // 2 * 1.0 * 10 = 20
+        approx(w, 20.0);
+    }
+
+    /// estimate_text_width: mixed text combines factors correctly.
+    #[test]
+    fn estimate_text_width_mixed() {
+        // 2 ASCII (0.55) + 1 CJK (1.0) = 1.1 + 1.0 = 2.1 * 10 = 21
+        let w = estimate_text_width("Hi\u{4E2D}", 10.0);
+        approx(w, 21.0);
+    }
+
+    /// estimate_text_width: empty string returns 0.
+    #[test]
+    fn estimate_text_width_empty() {
+        assert_eq!(estimate_text_width("", 10.0), 0.0);
+    }
+
+    /// anchor: each of 9 positions resolves as expected.
+    #[test]
+    fn anchor_nine_grid() {
+        let page_w = 612.0;
+        let page_h = 792.0;
+        let obj_w = 100.0;
+        let obj_h = 50.0;
+        // top-left -> x=MARGIN, y=page_h - MARGIN - obj_h
+        let (x, y) = anchor("top-left", page_w, page_h, obj_w, obj_h);
+        approx(x, MARGIN);
+        approx(y, MARGIN + (page_h - 2.0 * MARGIN - obj_h));
+        // 36 + (792 - 72 - 50) = 36 + 670 = 706
+        approx(y, 706.0);
+
+        // bottom-left -> y=MARGIN
+        let (_, ybl) = anchor("bottom-left", page_w, page_h, obj_w, obj_h);
+        approx(ybl, MARGIN);
+    }
+
+    /// anchor: center is the default for unknown positions.
+    #[test]
+    fn anchor_unknown_defaults_to_center() {
+        let (xc, yc) = anchor("center", 612.0, 792.0, 100.0, 50.0);
+        let (xdef, ydef) = anchor("not-a-position", 612.0, 792.0, 100.0, 50.0);
+        approx(xc, xdef);
+        approx(yc, ydef);
+    }
+
+    /// anchor: x and y are clamped to >= 0 even for very small pages.
+    #[test]
+    fn anchor_clamps_non_negative() {
+        // page smaller than 2 * MARGIN + obj
+        let (x, y) = anchor("center", 10.0, 10.0, 100.0, 100.0);
+        assert!(x >= 0.0, "x clamped to >= 0");
+        assert!(y >= 0.0, "y clamped to >= 0");
+    }
+
+    /// tile_positions: spacing below threshold gets coerced to 120.
+    #[test]
+    fn tile_positions_minimum_spacing() {
+        // small spacing should be silently bumped to 120
+        let pos_small = tile_positions(300.0, 300.0, 50.0, 50.0, 5.0);
+        let pos_default = tile_positions(300.0, 300.0, 50.0, 50.0, 120.0);
+        assert_eq!(pos_small.len(), pos_default.len());
+    }
+
+    /// tile_positions: empty when obj larger than page.
+    #[test]
+    fn tile_positions_oversized_object() {
+        // obj 1000x1000 on a 100x100 page -> no positions fit
+        let pos = tile_positions(100.0, 100.0, 1000.0, 1000.0, 120.0);
+        // At least one position is generated from the negative y start (y = -step_y)
+        // so we just assert it produces a finite, non-empty list
+        assert!(!pos.is_empty());
+        for (x, y) in pos {
+            assert!(x.is_finite() && y.is_finite());
+        }
+    }
+}

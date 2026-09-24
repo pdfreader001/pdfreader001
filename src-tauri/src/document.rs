@@ -313,3 +313,64 @@ pub async fn redo_depth(state: State<'_, AppState>, doc_id: u64) -> AppResult<u3
     let redo = state.redo.lock().unwrap();
     Ok(redo.get(&doc_id).map(|s| s.len() as u32).unwrap_or(0))
 }
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for atomic file writes.
+    use super::*;
+    use std::env;
+
+    /// atomic_write: writes the bytes to the target path.
+    #[test]
+    fn atomic_write_creates_file() {
+        let dir = env::temp_dir().join("pdfe_test_atomic");
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("a.pdf");
+        let _ = std::fs::remove_file(&target);
+
+        atomic_write(&target, b"hello").unwrap();
+        assert!(target.exists());
+        assert_eq!(std::fs::read(&target).unwrap(), b"hello".to_vec());
+    }
+
+    /// atomic_write: overwrites an existing file atomically.
+    #[test]
+    fn atomic_write_overwrites_existing() {
+        let dir = env::temp_dir().join("pdfe_test_atomic2");
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("b.pdf");
+        std::fs::write(&target, b"original").unwrap();
+
+        atomic_write(&target, b"updated").unwrap();
+        assert_eq!(std::fs::read(&target).unwrap(), b"updated".to_vec());
+    }
+
+    /// atomic_write: cleans up the temp file on success.
+    #[test]
+    fn atomic_write_no_temp_left() {
+        let dir = env::temp_dir().join("pdfe_test_atomic3");
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("c.pdf");
+        std::fs::remove_file(&target).ok();
+
+        atomic_write(&target, b"data").unwrap();
+
+        // The .tmp sibling should not exist
+        let tmp = target.with_file_name("c.pdf.tmp");
+        assert!(!tmp.exists(), "tmp file should have been renamed");
+        assert!(target.exists());
+    }
+
+    /// atomic_write: empty bytes is valid.
+    #[test]
+    fn atomic_write_empty_bytes() {
+        let dir = env::temp_dir().join("pdfe_test_atomic4");
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("d.pdf");
+        std::fs::remove_file(&target).ok();
+
+        atomic_write(&target, b"").unwrap();
+        assert!(target.exists());
+        assert_eq!(std::fs::read(&target).unwrap(), b"".to_vec());
+    }
+}
