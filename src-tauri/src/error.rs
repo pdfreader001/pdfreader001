@@ -290,6 +290,7 @@ impl Serialize for AppError {
                 | AppError::SearchFailed
                 | AppError::CannotDetermineSourceName
                 | AppError::NoPdfGenerated
+                | AppError::FormFieldWriteUnsupported { .. }
         );
         let fields = if has_args { 3 } else { 2 };
         let mut s = serializer.serialize_struct("AppError", fields)?;
@@ -303,3 +304,138 @@ impl Serialize for AppError {
 }
 
 pub type AppResult<T> = Result<T, AppError>;
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests: error code() mapping + Display + Serialize shape.
+
+    use super::*;
+    use serde_json::json;
+
+    /// Every AppError variant maps to a non-empty, snake_case error code.
+    #[test]
+    fn code_mapping_is_stable_and_unique() {
+        // Static list of all variant constructors (one per arm).
+        let codes: Vec<(&str, AppError)> = vec![
+            ("password", AppError::Password),
+            ("damaged", AppError::Damaged),
+            ("not_found", AppError::NotFound),
+            ("page_out_of_range", AppError::PageOutOfRange),
+            ("security", AppError::Security),
+            ("internal", AppError::Internal("x".into())),
+            ("nothing_to_undo", AppError::NothingToUndo),
+            ("nothing_to_redo", AppError::NothingToRedo),
+            ("no_save_path", AppError::NoSavePath),
+            ("no_pages_to_delete", AppError::NoPagesToDelete),
+            ("cannot_delete_all_pages", AppError::CannotDeleteAllPages),
+            ("no_pages_to_duplicate", AppError::NoPagesToDuplicate),
+            ("no_pages_to_move", AppError::NoPagesToMove),
+            ("no_pages_to_extract", AppError::NoPagesToExtract),
+            ("invalid_page_range", AppError::InvalidPageRange { range: "1".into() }),
+            ("need_at_least_one_file", AppError::NeedAtLeastOneFile),
+            ("merge_result_empty", AppError::MergeResultEmpty),
+            ("pages_per_file_zero", AppError::PagesPerFileZero),
+            ("nothing_to_split", AppError::NothingToSplit),
+            ("watermark_text_empty", AppError::WatermarkTextEmpty),
+            ("invalid_image_size", AppError::InvalidImageSize),
+            ("no_pages_for_watermark", AppError::NoPagesForWatermark),
+            ("no_chinese_font", AppError::NoChineseFont),
+            ("annotation_out_of_range", AppError::AnnotationOutOfRange),
+            ("text_empty", AppError::TextEmpty),
+            ("no_pages_to_export", AppError::NoPagesToExport),
+            ("dpi_out_of_range", AppError::DpiOutOfRange { dpi: 50, min: 36, max: 600 }),
+            ("image_construct_failed", AppError::ImageConstructFailed),
+            ("no_images_provided", AppError::NoImagesProvided),
+            ("image_read_failed", AppError::ImageReadFailed { path: "p".into() }),
+            ("pdf_write_failed", AppError::PdfWriteFailed),
+            ("invalid_rect", AppError::InvalidRect),
+            ("no_candidates", AppError::NoCandidates),
+            ("search_failed", AppError::SearchFailed),
+            ("tool_not_found", AppError::ToolNotFound { tool: "x".into() }),
+            ("unsupported_format", AppError::UnsupportedFormat { format: "f".into() }),
+            ("source_not_found", AppError::SourceNotFound { path: "p".into() }),
+            ("tool_start_failed", AppError::ToolStartFailed { tool: "t".into(), detail: "d".into() }),
+            ("tool_failed", AppError::ToolFailed { tool: "t".into(), code: 1 }),
+            ("cannot_determine_source_name", AppError::CannotDetermineSourceName),
+            ("no_pdf_generated", AppError::NoPdfGenerated),
+            ("ocr_unavailable", AppError::OcrUnavailable),
+            ("tessdata_missing", AppError::TessdataMissing { path: "x".into() }),
+            ("ocr_failed", AppError::OcrFailed { detail: "x".into() }),
+            ("form_field_write_unsupported", AppError::FormFieldWriteUnsupported { kind: "k".into() }),
+        ];
+
+        // All codes must be non-empty.
+        for (code, err) in &codes {
+            assert_eq!(err.code(), *code, "code mismatch for {:?}", err);
+            assert!(!code.is_empty(), "empty code");
+            assert!(!code.contains(' '), "code must be snake_case: {}", code);
+        }
+
+        // All codes must be unique.
+        let mut all_codes: Vec<&str> = codes.iter().map(|(c, _)| *c).collect();
+        all_codes.sort();
+        let len_before = all_codes.len();
+        all_codes.dedup();
+        assert_eq!(all_codes.len(), len_before, "duplicate codes detected");
+    }
+
+    /// Display strings contain key information for parameterized variants.
+    #[test]
+    fn display_strings_use_args() {
+        let e = AppError::InvalidPageRange { range: "1-99".into() };
+        assert!(e.to_string().contains("1-99"), "Display should embed range");
+
+        let e = AppError::DpiOutOfRange { dpi: 50, min: 36, max: 600 };
+        let s = e.to_string();
+        assert!(s.contains("50") && s.contains("36") && s.contains("600"), "Display should embed dpi/min/max");
+
+        let e = AppError::ToolFailed { tool: "soffice".into(), code: 7 };
+        assert!(e.to_string().contains("soffice"));
+        assert!(e.to_string().contains("7"));
+    }
+
+    /// args() exposes interpolatable variables for the frontend.
+    #[test]
+    fn args_exposes_variables() {
+        let e = AppError::InvalidPageRange { range: "abc".into() };
+        let args = e.args();
+        assert_eq!(args.get("range").map(|s| s.as_str()), Some("abc"));
+
+        let e = AppError::DpiOutOfRange { dpi: 50, min: 36, max: 600 };
+        let args = e.args();
+        assert_eq!(args.get("dpi").map(|s| s.as_str()), Some("50"));
+        assert_eq!(args.get("min").map(|s| s.as_str()), Some("36"));
+        assert_eq!(args.get("max").map(|s| s.as_str()), Some("600"));
+
+        let e = AppError::ToolFailed { tool: "x".into(), code: 1 };
+        let args = e.args();
+        assert_eq!(args.get("tool").map(|s| s.as_str()), Some("x"));
+        assert_eq!(args.get("code").map(|s| s.as_str()), Some("1"));
+    }
+
+    /// Plain (non-parameterized) errors serialize without an "args" field.
+    #[test]
+    fn serialize_plain_no_args_field() {
+        let e = AppError::NotFound;
+        let v = serde_json::to_value(&e).unwrap();
+        assert_eq!(v["code"], "not_found");
+        assert!(v.get("args").is_none(), "plain errors should not have args");
+    }
+
+    /// Parameterized errors include "args" field for frontend interpolation.
+    #[test]
+    fn serialize_parameterized_has_args() {
+        let e = AppError::InvalidPageRange { range: "x".into() };
+        let v = serde_json::to_value(&e).unwrap();
+        assert_eq!(v["code"], "invalid_page_range");
+        assert_eq!(v["args"]["range"], "x");
+
+        let e = AppError::DpiOutOfRange { dpi: 50, min: 36, max: 600 };
+        let v = serde_json::to_value(&e).unwrap();
+        assert_eq!(v["code"], "dpi_out_of_range");
+        // args() exposes values as strings (frontend substitutes them into i18n templates)
+        assert_eq!(v["args"]["dpi"], "50");
+        assert_eq!(v["args"]["min"], "36");
+        assert_eq!(v["args"]["max"], "600");
+    }
+}

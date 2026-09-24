@@ -393,7 +393,7 @@ pub enum SplitMode {
     Selected { pages: Vec<u32> },
 }
 
-fn parse_ranges(spec: &str, total: u32) -> AppResult<Vec<(u32, u32)>> {
+pub(crate) fn parse_ranges(spec: &str, total: u32) -> AppResult<Vec<(u32, u32)>> {
     let mut out = Vec::new();
     for part in spec.split(',') {
         let part = part.trim();
@@ -614,5 +614,111 @@ fn build_bookmark_children(bookmark: &PdfBookmark, level: u32, out: &mut Vec<Boo
     });
     if let Some(sibling) = bookmark.next_sibling() {
         build_bookmark_children(&sibling, level, out);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Unit tests: page-range parsing + index normalization.
+    use super::*;
+
+    /// parse_ranges: single page
+    #[test]
+    fn parse_ranges_single_page() {
+        let r = parse_ranges("3", 10).unwrap();
+        assert_eq!(r, vec![(2, 2)]);
+    }
+
+    /// parse_ranges: contiguous range
+    #[test]
+    fn parse_ranges_contiguous() {
+        let r = parse_ranges("1-3", 10).unwrap();
+        assert_eq!(r, vec![(0, 2)]);
+    }
+
+    /// parse_ranges: multiple segments
+    #[test]
+    fn parse_ranges_multiple_segments() {
+        let r = parse_ranges("1-2,5,7-9", 10).unwrap();
+        assert_eq!(r, vec![(0, 1), (4, 4), (6, 8)]);
+    }
+
+    /// parse_ranges: tolerates surrounding whitespace
+    #[test]
+    fn parse_ranges_trims_whitespace() {
+        let r = parse_ranges(" 1 , 3 ,  5-7 ", 10).unwrap();
+        assert_eq!(r, vec![(0, 0), (2, 2), (4, 6)]);
+    }
+
+    /// parse_ranges: 0 is rejected (1-based)
+    #[test]
+    fn parse_ranges_zero_rejected() {
+        assert!(parse_ranges("0", 10).is_err());
+        assert!(parse_ranges("0-3", 10).is_err());
+    }
+
+    /// parse_ranges: out-of-range and inverted ranges
+    #[test]
+    fn parse_ranges_out_of_range() {
+        assert!(parse_ranges("11", 10).is_err());
+        assert!(parse_ranges("1-11", 10).is_err());
+        assert!(parse_ranges("5-3", 10).is_err(), "start > end should fail");
+    }
+
+    /// parse_ranges: invalid numbers
+    #[test]
+    fn parse_ranges_invalid_number() {
+        assert!(parse_ranges("abc", 10).is_err());
+        assert!(parse_ranges("1-xyz", 10).is_err());
+    }
+
+    /// parse_ranges: empty string yields empty vector
+    #[test]
+    fn parse_ranges_empty_string() {
+        let r = parse_ranges("", 10).unwrap();
+        assert!(r.is_empty());
+    }
+
+    /// parse_ranges: consecutive commas are skipped
+    #[test]
+    fn parse_ranges_consecutive_commas() {
+        let r = parse_ranges("1,,3", 10).unwrap();
+        assert_eq!(r, vec![(0, 0), (2, 2)]);
+    }
+
+    /// to_u16: normal values
+    #[test]
+    fn to_u16_normal() {
+        assert_eq!(to_u16(0).unwrap(), 0);
+        assert_eq!(to_u16(123).unwrap(), 123);
+        assert_eq!(to_u16(u16::MAX as u32).unwrap(), u16::MAX);
+    }
+
+    /// to_u16: overflow is rejected
+    #[test]
+    fn to_u16_overflow() {
+        assert!(to_u16(u16::MAX as u32 + 1).is_err());
+        assert!(to_u16(u32::MAX).is_err());
+    }
+
+    /// normalize_indices: sort + dedup
+    #[test]
+    fn normalize_indices_sort_dedup() {
+        let v = normalize_indices(&[5, 2, 5, 0, 2, 8], 10).unwrap();
+        assert_eq!(v, vec![0, 2, 5, 8]);
+    }
+
+    /// normalize_indices: out-of-range
+    #[test]
+    fn normalize_indices_out_of_range() {
+        assert!(normalize_indices(&[0, 5, 10], 10).is_err());
+        assert!(normalize_indices(&[0, 100], 10).is_err());
+    }
+
+    /// normalize_indices: empty
+    #[test]
+    fn normalize_indices_empty() {
+        let v = normalize_indices(&[], 10).unwrap();
+        assert!(v.is_empty());
     }
 }

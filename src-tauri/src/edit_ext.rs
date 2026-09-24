@@ -424,3 +424,45 @@ pub async fn clear_page_text(
 fn _path_exists_marker(p: &str) -> bool {
     Path::new(p).exists()
 }
+#[cfg(test)]
+mod tests {
+    //! Unit tests for hex color parsing used by rewrite_text / add_text_box.
+
+    use super::*;
+
+    /// parse_hex_color: accepts 6-char hex with hash.
+    #[test]
+    fn parse_hex_color_basic() {
+        let c = parse_hex_color("#ff8040");
+        assert_eq!(c.red(), 0xff);
+        assert_eq!(c.green(), 0x80);
+        assert_eq!(c.blue(), 0x40);
+        assert_eq!(c.alpha(), 255);
+    }
+
+    /// parse_hex_color: accepts 6-char hex without hash.
+    #[test]
+    fn parse_hex_color_without_hash() {
+        let c = parse_hex_color("ff8040");
+        assert_eq!(c.red(), 0xff);
+        assert_eq!(c.green(), 0x80);
+        assert_eq!(c.blue(), 0x40);
+    }
+
+    /// parse_hex_color: short / malformed inputs fall back to black (0,0,0).
+    #[test]
+    fn parse_hex_color_invalid_is_black() {
+        let c = parse_hex_color("#abc"); // 3-char short hex
+        assert_eq!(c.red(), 0);
+        assert_eq!(c.green(), 0);
+        assert_eq!(c.blue(), 0);
+
+        let c = parse_hex_color("zzzzzz"); // 6 chars but invalid hex digits -> byte=0
+        assert_eq!(c.red(), 0);
+        assert_eq!(c.green(), 0);
+        assert_eq!(c.blue(), 0);
+
+        let c = parse_hex_color(""); // empty
+        assert_eq!(c.red(), 0);
+    }
+}

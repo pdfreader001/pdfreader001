@@ -13,7 +13,7 @@ use crate::document::{pdfium as get_pdfium, push_snapshot, AppState, DocumentInf
 use crate::error::{AppError, AppResult};
 use crate::pages::{commit_and_return, load_doc, normalize_indices};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum AnnotationKind {
     Highlight,
@@ -336,4 +336,112 @@ pub async fn clear_annotations(
         doc.save_to_bytes()?
     };
     commit_and_return(&state, doc_id, new_bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for color parsing, region-to-PDF-rect conversion, and
+    //! PdfPageAnnotationType -> AnnotationKind mapping.
+
+    use super::*;
+
+    /// parse_color_hex accepts both #RRGGBB and RRGGBB.
+    #[test]
+    fn parse_color_hex_with_and_without_hash() {
+        let c1 = parse_color_hex("#ff8040");
+        let c2 = parse_color_hex("ff8040");
+        assert_eq!(c1.red(), c2.red());
+        assert_eq!(c1.green(), c2.green());
+        assert_eq!(c1.blue(), c2.blue());
+        assert_eq!(c1.red(), 0xff);
+        assert_eq!(c1.green(), 0x80);
+        assert_eq!(c1.blue(), 0x40);
+        assert_eq!(c1.alpha(), 255, "alpha is fully opaque by default");
+    }
+
+    /// parse_color_hex: short (non-6-char) inputs hit the catch-all branch
+    /// and produce yellow (255, 255, 0).
+    #[test]
+    fn parse_color_hex_short_falls_back_to_yellow() {
+        // 3-char short hex (#abc) takes the `_ => yellow` branch.
+        let c = parse_color_hex("#abc");
+        assert_eq!(c.red(), 255);
+        assert_eq!(c.green(), 255);
+        assert_eq!(c.blue(), 0);
+    }
+
+    /// color_to_hex roundtrips parse_color_hex for the basic RGB triple.
+    #[test]
+    fn color_to_hex_roundtrip() {
+        // We can not construct a PdfColor directly without going through
+        // parse_color_hex or a from-pdfium path. So we exercise the roundtrip
+        // by parsing then formatting.
+        let original = parse_color_hex("#123abc");
+        let formatted = color_to_hex(original);
+        let reparsed = parse_color_hex(&formatted);
+        assert_eq!(original.red(), reparsed.red());
+        assert_eq!(original.green(), reparsed.green());
+        assert_eq!(original.blue(), reparsed.blue());
+    }
+
+    fn approx(a: f32, b: f32) {
+        assert!((a - b).abs() < 1e-3, "approx {a} vs {b}");
+    }
+
+    /// region_to_pdf_rect: standard interior rectangle.
+    #[test]
+    fn region_to_pdf_rect_interior() {
+        // Page 100x100 pt, region left=0.1 top=0.2 width=0.5 height=0.3
+        let r = RegionSpec { left: 0.1, top: 0.2, width: 0.5, height: 0.3 };
+        let (left, bottom, right, top) = region_to_pdf_rect(100.0, 100.0, &r);
+        // x: 0.1 -> 10, right = 0.1+0.5 = 0.6 -> 60
+        approx(left.value, 10.0);
+        approx(right.value, 60.0);
+        // y: top=0.2 -> pdf 80 (1 - 0.2 = 0.8 * 100); bottom = 1 - 0.5 = 0.5 * 100 = 50
+        approx(top.value, 80.0);
+        approx(bottom.value, 50.0);
+    }
+
+    /// region_to_pdf_rect clamps inputs to [0, 1].
+    #[test]
+    fn region_to_pdf_rect_clamps() {
+        let r = RegionSpec { left: -0.5, top: 1.5, width: 2.0, height: 0.5 };
+        let (left, bottom, right, top) = region_to_pdf_rect(100.0, 100.0, &r);
+        // left clamped to 0, right clamped to 1 (1.0 * 100 = 100)
+        assert_eq!(left.value, 0.0);
+        assert_eq!(right.value, 100.0);
+        // top = 1 - clamp(1.5)= 1 - 1 = 0; bottom = 1 - clamp(2.0)= 1 - 1 = 0
+        // Both clamp to 0 -> min/max of 0
+        assert_eq!(top.value, 0.0);
+        assert_eq!(bottom.value, 0.0);
+    }
+
+    /// region_to_pdf_rect guarantees left <= right and bottom <= top.
+    #[test]
+    fn region_to_pdf_rect_invariant() {
+        // Pathological: left > right (width=0 should still work)
+        let r = RegionSpec { left: 0.5, top: 0.5, width: 0.0, height: 0.0 };
+        let (left, bottom, right, top) = region_to_pdf_rect(100.0, 100.0, &r);
+        assert!(left.value <= right.value);
+        assert!(bottom.value <= top.value);
+    }
+
+    /// map_kind covers all supported annotation kinds.
+    #[test]
+    fn map_kind_supported() {
+        assert_eq!(map_kind(PdfPageAnnotationType::Highlight), Some(AnnotationKind::Highlight));
+        assert_eq!(map_kind(PdfPageAnnotationType::Underline), Some(AnnotationKind::Underline));
+        assert_eq!(map_kind(PdfPageAnnotationType::Strikeout), Some(AnnotationKind::Strikeout));
+        assert_eq!(map_kind(PdfPageAnnotationType::Text), Some(AnnotationKind::StickyNote));
+        assert_eq!(map_kind(PdfPageAnnotationType::FreeText), Some(AnnotationKind::FreeText));
+        assert_eq!(map_kind(PdfPageAnnotationType::Square), Some(AnnotationKind::Square));
+    }
+
+    /// map_kind returns None for unsupported kinds.
+    #[test]
+    fn map_kind_unsupported_returns_none() {
+        assert_eq!(map_kind(PdfPageAnnotationType::Widget), None);
+        assert_eq!(map_kind(PdfPageAnnotationType::Link), None);
+        assert_eq!(map_kind(PdfPageAnnotationType::Popup), None);
+    }
 }
