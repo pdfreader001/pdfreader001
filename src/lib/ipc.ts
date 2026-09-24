@@ -381,6 +381,8 @@ export interface ObjectFingerprint {
   top: number;
   occurrence: number;
   totalSampled: number;
+  /** Backend fingerprint key. Use this when calling `applyWatermarkRemoval`. */
+  key?: string;
 }
 
 export interface DetectResult {
@@ -420,11 +422,14 @@ export function detectWatermarkCandidates(
 
 export function applyWatermarkRemoval(
   docId: number,
-  selectedIndices: number[],
+  fingerprintKeys: string[],
 ): Promise<RemovedSummary> {
   return invoke<RemovedSummary>("apply_watermark_removal", {
     docId,
-    selectedIndices,
+    fingerprintKeys,
+    // legacy field, kept so older callers still work — backend will treat it
+    // as positional indices if fingerprintKeys is empty.
+    selectedIndices: null,
   });
 }
 

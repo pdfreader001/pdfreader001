@@ -680,7 +680,7 @@ function WatermarkRemovePanel() {
   const [threshold, setThreshold] = useState(0.6);
   const [detectResult, setDetectResult] = useState<DetectResult | null>(null);
   const [detecting, setDetecting] = useState(false);
-  const [selectedFp, setSelectedFp] = useState<Set<number>>(new Set());
+  const [selectedFp, setSelectedFp] = useState<Set<string>>(new Set());
 
   const requireDoc = (): number | null => {
     if (docId === null) {
@@ -747,7 +747,13 @@ function WatermarkRemovePanel() {
     try {
       const res = await detectWatermarkCandidates(id, samplePages, threshold);
       setDetectResult(res);
-      setSelectedFp(new Set(res.candidates.map((c) => c.objectIndex)));
+      // Pre-select every candidate. Use the backend fingerprint key when
+      // available so removal matches the same object across pages.
+      setSelectedFp(
+        new Set(
+          res.candidates.map((c) => c.key ?? `idx:${c.objectIndex}`),
+        ),
+      );
     } catch (e) {
       errorToast(e);
     } finally {
@@ -761,10 +767,10 @@ function WatermarkRemovePanel() {
       pushToast("info", t("未检测到候选水印。请先点击「开始检测」。"));
       return;
     }
-    const indices = Array.from(selectedFp).sort((a, b) => b - a);
+    const keys = Array.from(selectedFp);
     setBusy(true);
     try {
-      const res = await applyWatermarkRemoval(id, indices);
+      const res = await applyWatermarkRemoval(id, keys);
       updatePages(res.info);
       markDirty(true);
       setUndoRedo(await refreshUndoRedo(id));
@@ -777,11 +783,11 @@ function WatermarkRemovePanel() {
     }
   };
 
-  const toggleFp = (idx: number) => {
+  const toggleFp = (key: string) => {
     setSelectedFp((prev) => {
       const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
@@ -941,15 +947,18 @@ function WatermarkRemovePanel() {
                 <p className="placeholder">{t("无候选水印")}</p>
               ) : (
                 <div className="wm-candidate-list">
-                  {detectResult.candidates.map((fp) => (
-                    <WatermarkCandidateRow
-                      key={fp.objectIndex}
-                      fp={fp}
-                      totalSampled={detectResult.sampledPages}
-                      checked={selectedFp.has(fp.objectIndex)}
-                      onToggle={() => toggleFp(fp.objectIndex)}
-                    />
-                  ))}
+                  {detectResult.candidates.map((fp) => {
+                    const k = fp.key ?? `idx:${fp.objectIndex}`;
+                    return (
+                      <WatermarkCandidateRow
+                        key={k}
+                        fp={fp}
+                        totalSampled={detectResult.sampledPages}
+                        checked={selectedFp.has(k)}
+                        onToggle={() => toggleFp(k)}
+                      />
+                    );
+                  })}
                 </div>
               )}
               <div className="task-footer">
