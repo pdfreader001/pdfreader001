@@ -29,14 +29,25 @@ pub struct PtRect {
 }
 
 impl PtRect {
-    fn valid(&self) -> bool {
+    pub(crate) fn valid(&self) -> bool {
         self.right > self.left && self.top > self.bottom
     }
-    fn width(&self) -> f32 {
+    pub(crate) fn width(&self) -> f32 {
         (self.right - self.left).max(0.0)
     }
-    fn height(&self) -> f32 {
+    pub(crate) fn height(&self) -> f32 {
         (self.top - self.bottom).max(0.0)
+    }
+    /// AABB intersection test (strict): returns true iff the two rects have non-zero overlap.
+    pub(crate) fn intersects(&self, other: &PtRect) -> bool {
+        self.left < other.right
+            && self.right > other.left
+            && self.bottom < other.top
+            && self.top > other.bottom
+    }
+    /// Returns true iff `point` (x, y) lies within this rect (inclusive on edges).
+    pub(crate) fn contains(&self, x: f32, y: f32) -> bool {
+        x >= self.left && x <= self.right && y >= self.bottom && y <= self.top
     }
 }
 
@@ -119,16 +130,13 @@ pub fn rewrite_text_logic(
                     bounds.right().value as f32,
                     bounds.top().value as f32,
                 );
-                let obj_left = l.min(r);
-                let obj_right = l.max(r);
-                let obj_bottom = b.min(t);
-                let obj_top = b.max(t);
-                // AABB 相交检测
-                if obj_left < region.right
-                    && obj_right > region.left
-                    && obj_bottom < region.top
-                    && obj_top > region.bottom
-                {
+                let obj_rect = PtRect {
+                    left: l.min(r),
+                    bottom: b.min(t),
+                    right: l.max(r),
+                    top: b.max(t),
+                };
+                if region.intersects(&obj_rect) {
                     to_remove.push(i as u32);
                 }
             }
@@ -464,5 +472,132 @@ mod tests {
 
         let c = parse_hex_color(""); // empty
         assert_eq!(c.red(), 0);
+    }
+
+    // ------------------------------------------------------------------
+    // PtRect: valid / width / height
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn pt_rect_valid_true() {
+        let r = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
+        assert!(r.valid());
+    }
+
+    #[test]
+    fn pt_rect_valid_zero_width() {
+        let r = PtRect { left: 5.0, bottom: 0.0, right: 5.0, top: 10.0 };
+        assert!(!r.valid());
+    }
+
+    #[test]
+    fn pt_rect_valid_zero_height() {
+        let r = PtRect { left: 0.0, bottom: 5.0, right: 10.0, top: 5.0 };
+        assert!(!r.valid());
+    }
+
+    #[test]
+    fn pt_rect_valid_inverted() {
+        let r = PtRect { left: 10.0, bottom: 10.0, right: 0.0, top: 0.0 };
+        assert!(!r.valid());
+    }
+
+    #[test]
+    fn pt_rect_width_positive() {
+        let r = PtRect { left: 10.0, bottom: 0.0, right: 50.0, top: 0.0 };
+        assert_eq!(r.width(), 40.0);
+    }
+
+    #[test]
+    fn pt_rect_width_negative_clamps_zero() {
+        let r = PtRect { left: 50.0, bottom: 0.0, right: 10.0, top: 0.0 };
+        assert_eq!(r.width(), 0.0);
+    }
+
+    #[test]
+    fn pt_rect_height_positive() {
+        let r = PtRect { left: 0.0, bottom: 10.0, right: 0.0, top: 50.0 };
+        assert_eq!(r.height(), 40.0);
+    }
+
+    #[test]
+    fn pt_rect_height_negative_clamps_zero() {
+        let r = PtRect { left: 0.0, bottom: 50.0, right: 0.0, top: 10.0 };
+        assert_eq!(r.height(), 0.0);
+    }
+
+    // ------------------------------------------------------------------
+    // PtRect::intersects
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn pt_rect_intersects_overlap() {
+        let a = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
+        let b = PtRect { left: 5.0, bottom: 5.0, right: 15.0, top: 15.0 };
+        assert!(a.intersects(&b));
+        assert!(b.intersects(&a));
+    }
+
+    #[test]
+    fn pt_rect_intersects_contained() {
+        let outer = PtRect { left: 0.0, bottom: 0.0, right: 20.0, top: 20.0 };
+        let inner = PtRect { left: 5.0, bottom: 5.0, right: 15.0, top: 15.0 };
+        assert!(outer.intersects(&inner));
+        assert!(inner.intersects(&outer));
+    }
+
+    #[test]
+    fn pt_rect_intersects_separate_x() {
+        let a = PtRect { left: 0.0, bottom: 0.0, right: 5.0, top: 10.0 };
+        let b = PtRect { left: 10.0, bottom: 0.0, right: 15.0, top: 10.0 };
+        assert!(!a.intersects(&b));
+    }
+
+    #[test]
+    fn pt_rect_intersects_separate_y() {
+        let a = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 5.0 };
+        let b = PtRect { left: 0.0, bottom: 10.0, right: 10.0, top: 15.0 };
+        assert!(!a.intersects(&b));
+    }
+
+    #[test]
+    fn pt_rect_intersects_touch_not_overlap() {
+        // Touching at edge: strict inequality -> no overlap
+        let a = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
+        let b = PtRect { left: 10.0, bottom: 0.0, right: 20.0, top: 10.0 };
+        assert!(!a.intersects(&b));
+    }
+
+    #[test]
+    fn pt_rect_intersects_identical() {
+        let a = PtRect { left: 1.0, bottom: 2.0, right: 3.0, top: 4.0 };
+        assert!(a.intersects(&a));
+    }
+
+    // ------------------------------------------------------------------
+    // PtRect::contains
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn pt_rect_contains_inside() {
+        let r = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
+        assert!(r.contains(5.0, 5.0));
+    }
+
+    #[test]
+    fn pt_rect_contains_outside() {
+        let r = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
+        assert!(!r.contains(15.0, 5.0));
+        assert!(!r.contains(5.0, 15.0));
+        assert!(!r.contains(-1.0, 5.0));
+    }
+
+    #[test]
+    fn pt_rect_contains_on_edge() {
+        // Inclusive on edges
+        let r = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
+        assert!(r.contains(0.0, 0.0));
+        assert!(r.contains(10.0, 10.0));
+        assert!(r.contains(10.0, 5.0));
     }
 }
