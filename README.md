@@ -100,10 +100,13 @@ cd src-tauri
 cargo test -- --test-threads=1    # 首次会生成 large_100/500.pdf fixture
 cargo test --test e2e             # 仅跑 E2E 场景
 cargo test --test commands        # 仅跑命令层集成测试
+cargo clippy --all-targets        # 提交前门禁：应零告警
 
 # 前端
 npx tsc --noEmit
 ```
+
+提交前门禁：`cargo clippy --all-targets` 必须零告警（含测试目标）。该门禁于 M7 接入，当时一次性清掉 54 条存量告警（mechanical lint 为主，53 处 rustfix 自动修复 + 1 处手工改写），此后新增代码须保持零告警。
 
 ## 架构
 

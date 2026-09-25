@@ -75,9 +75,14 @@ src-tauri/src/
 cd src-tauri && cargo check
 cd src-tauri && cargo test -- --test-threads=1
 
+# Rust lint 门禁（应零告警）
+cd src-tauri && cargo clippy --all-targets
+
 # 前端类型检查
 npx tsc --noEmit
 ```
+
+- **提交前 `cargo clippy --all-targets` 必须零告警**（含测试目标），可自动修复的直接 `cargo clippy --fix --all-targets`
 
 ## 关键约定
 
