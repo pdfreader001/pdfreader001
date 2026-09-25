@@ -45,6 +45,10 @@ ocr = ["dep:tesseract"]
 # 用于生成带 AcroForm 字段的测试 PDF fixture（和 perf.rs 自动生成 large_*.pdf 同模式）
 printpdf = { version = "0.7", default-features = false, features = ["embedded_images"] }
 
+# 命令层集成测试（tests/commands.rs）需要 tauri::test（mock 运行时）。
+# 该模块被 #[cfg(any(test, feature = "test"))] 门控，外部 crate 的集成测试必须显式开启 test feature。
+tauri = { version = "2", features = ["test"] }
+
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
 codegen-units = 1
