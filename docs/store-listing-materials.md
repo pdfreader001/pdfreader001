@@ -238,13 +238,15 @@ $dst.Dispose(); $src.Dispose()
 
 字段限制（来自 Partner Center 一览文档）：说明必填 ≤10,000 字符；简短说明上限 1000、最佳 <270；产品功能最多 20 条、每条 ≤200 字符；短标题 ≤50；排序标题／语音标题 ≤255；「此版本中的新增功能」≤1500（**首次提交留空**）。
 
+**实测字符数（按 Unicode 码点计）**：简短说明 中 75 / EN 236（均 <270）；说明 中 723 / EN 1868（≤10,000）；产品功能 中 10 条最长 35、EN 10 条最长 90（各 10 条，共 20 条 ≤20，每条 ≤200）；短标题 4 / 排序标题 22 / 语音标题 4（≤255）。**全部达标**。
+
 ### 3.1 简短说明
 
-**中**（约 90 字）：
+**中**（实测 75 字符）：
 
 > 轻量、离线的 Windows PDF 阅读与编辑工具：阅读、批注、搜索、页面管理、水印增删、表单填写、密码保护与图片导出，全部在本机完成，文件不上传。
 
-**EN**（约 260 字符，留出余量给 270 截断）：
+**EN**（实测 236 字符，<270 上限，留余量）：
 
 > A lightweight, offline PDF reader and editor for Windows. Read, annotate, search, manage pages, add or remove watermarks, fill forms, protect with passwords, and export to images — all processed locally on your PC, with no file uploads.
 
@@ -256,7 +258,7 @@ $dst.Dispose(); $src.Dispose()
 PDFe 是一款面向 Windows 的轻量 PDF 阅读与编辑工具，基于 PDFium 渲染，启动快、内存占用低，所有处理都在本机完成——文档不会上传到任何服务器。
 
 阅读
-· 连续滚动、单页、双页对开三种视图，缩放 10%–600%，支持适应宽度/页面
+· 连续滚动、单页、双页对开三种视图，缩放 10%–800%，支持适应宽度/页面
 · 左侧缩略图导航与书签大纲，底部状态栏显示页码与文件名
 · 深色 / 浅色主题，中 / 英 / 日三语界面
 
@@ -266,7 +268,7 @@ PDFe 是一款面向 Windows 的轻量 PDF 阅读与编辑工具，基于 PDFium
 
 页面与文档
 · 旋转、删除、重排、提取页面；多文档合并；按页数、自定义范围或书签层级拆分
-· 文本重写：双击正文进入编辑态，遮盖原区域后按原样式重绘（字体缺失自动近似替换并提示）
+· 文本重写：在编辑模式下双击正文即原位改写，遮盖原区域后按原样式重绘（字体缺失自动近似替换并提示）
 · 图片选中、移动、缩放、替换、删除
 
 水印
@@ -293,7 +295,7 @@ Ctrl+1/2/3 视图切换 · Ctrl+Shift+L 语言 · Ctrl+Shift+T 主题 · F1 帮�
 PDFe is a lightweight PDF reader and editor for Windows, built on PDFium for fast startup and low memory use. Everything runs locally on your PC — your documents are never uploaded.
 
 READ
-· Continuous, single-page and two-page views; zoom from 10% to 600%, fit-to-width and fit-to-page
+· Continuous, single-page and two-page views; zoom from 10% to 800%, fit-to-width and fit-to-page
 · Thumbnail navigation and bookmark outline on the left; page number and file name in the status bar
 · Dark and light themes; Chinese, English and Japanese interface
 
@@ -303,7 +305,7 @@ FIND & ANNOTATE
 
 PAGES & DOCUMENTS
 · Rotate, delete, reorder and extract pages; merge documents; split by page count, custom ranges or bookmark levels
-· Text rewrite: double-click text to edit in place, covering the original area and redrawing with the original style (falls back to a near match when a font is missing)
+· Text rewrite: in edit mode, double-click text to rewrite it in place, covering the original area and redrawing with the original style (falls back to a near match when a font is missing)
 · Select, move, resize, replace and delete images
 
 WATERMARKS
@@ -328,11 +330,11 @@ System requirements: Windows 10 version 1809 or later (x64).
 
 **中（10 条）**
 
-1. 连续 / 单页 / 双页三种阅读视图，10%–600% 缩放
+1. 连续 / 单页 / 双页三种阅读视图，10%–800% 缩放
 2. 全文搜索，命中结果页面高亮并逐条跳转
 3. 6 种批注：高亮、下划线、删除线、便签、自由文本、矩形
 4. 页面旋转 / 删除 / 重排 / 提取，多文档合并，按页数或书签拆分
-5. 双击正文直接改写文字，按原字体样式重绘
+5. 编辑模式下双击正文即原位改写文字，按原字体样式重绘
 6. 水印添加；自动检测重复水印对象或手动框选去除
 7. 打开密码与权限密码，权限矩阵查看，导出明文副本
 8. 页面导出 PNG / JPG 并可指定 DPI，图片反向合并为 PDF
@@ -341,11 +343,11 @@ System requirements: Windows 10 version 1809 or later (x64).
 
 **EN（10 条）**
 
-1. Continuous, single-page and two-page reading views with 10%–600% zoom
+1. Continuous, single-page and two-page reading views with 10%–800% zoom
 2. Full-text search with on-page highlights and jump-to-hit
 3. Six annotation types: highlight, underline, strikeout, sticky note, free text, rectangle
 4. Rotate, delete, reorder and extract pages; merge documents; split by pages or bookmarks
-5. Double-click to rewrite text in place, redrawn with the original font style
+5. In edit mode, double-click to rewrite text in place with the original font style
 6. Add watermarks; remove them by auto-detecting repeating objects or drag-selecting a region
 7. Open and permission passwords, permission matrix, plain-copy export
 8. Export pages to PNG / JPG at a chosen DPI; merge images back into PDF
