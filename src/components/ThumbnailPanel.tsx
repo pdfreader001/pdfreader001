@@ -9,7 +9,10 @@ import {
   duplicatePages,
   insertBlankPage,
   reorderPages,
+  extractPages,
+  closeDocument,
 } from "../lib/ipc";
+import { save } from "@tauri-apps/plugin-dialog";
 import { useT } from "../i18n";
 
 const THUMB_W = 150;
@@ -115,6 +118,7 @@ const ThumbItem = React.memo(function ThumbItem({
 export default function ThumbnailPanel() {
   const docId = useApp((s) => s.docId);
   const pages = useApp((s) => s.pages);
+  const fileName = useApp((s) => s.fileName);
   const selectedPages = useApp((s) => s.selectedPages);
   const currentPage = useApp((s) => s.currentPage);
   const toggleSelect = useApp((s) => s.toggleSelect);
@@ -236,6 +240,33 @@ export default function ThumbnailPanel() {
       markDirty(true);
       setUndoRedo(await refreshUndoRedo(docId));
       pushToast("info", t("已插入空白页"));
+    } catch (e) {
+      errorToast(e);
+    }
+  };
+
+  const handleExtract = async () => {
+    if (docId === null || !contextMenu) return;
+    const pages = selectedPages.size > 0 ? Array.from(selectedPages) : [contextMenu.pageIndex];
+    setContextMenu(null);
+    const base = (fileName || "document").replace(/\.pdf$/i, "");
+    const outPath = await save({
+      title: t("选择提取结果保存位置"),
+      defaultPath: `${base}-extract.pdf`,
+      filters: [{ name: t("PDF 文档"), extensions: ["pdf"] }],
+    });
+    if (typeof outPath !== "string") return;
+    try {
+      const info = await extractPages(docId, pages, outPath);
+      // 后端提取时会在内存中登记一份临时文档；此处只导出文件，随即释放它。
+      await closeDocument(info.docId).catch(() => {});
+      pushToast(
+        "info",
+        t("已提取 {n} 页到 {name}", {
+          n: pages.length,
+          name: outPath.split(/[\\/]/).pop() || outPath,
+        }),
+      );
     } catch (e) {
       errorToast(e);
     }
@@ -399,7 +430,7 @@ export default function ThumbnailPanel() {
             {t("🗑 删除页面")}
           </button>
           <div className="ctx-sep" />
-          <button onClick={() => setContextMenu(null)}>{t("📤 提取为新文档")}</button>
+          <button onClick={handleExtract}>{t("📤 提取为新文档")}</button>
         </div>
       )}
     </div>
