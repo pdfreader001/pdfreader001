@@ -366,6 +366,10 @@ pub async fn merge_documents(
         let bytes = fs::read(&src.path)?;
         let doc = load_doc(pdfium, &bytes)?;
         let total = doc.pages().len();
+        // 0 页源无法贡献任何页；且 `total - 1` 会下溢（debug panic / release 回绕）。
+        if total == 0 {
+            continue;
+        }
         let dest_idx = merged.pages().len();
         if let Some(ref ranges) = src.ranges {
             if ranges.trim().is_empty() {
