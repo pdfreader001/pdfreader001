@@ -24,13 +24,9 @@ export interface ApiError {
 }
 
 export function isApiError(e: unknown): e is ApiError {
-  return (
-    typeof e === "object" &&
-    e !== null &&
-    "code" in e &&
-    "message" in e &&
-    typeof (e as ApiError).message === "string"
-  );
+  if (typeof e !== "object" || e === null) return false;
+  const o = e as Record<string, unknown>;
+  return typeof o.code === "string" && typeof o.message === "string";
 }
 
 // ---------- 命令封装 ----------
