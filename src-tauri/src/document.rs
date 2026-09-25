@@ -151,6 +151,7 @@ pub async fn open_document(
 pub async fn close_document(state: State<'_, AppState>, doc_id: u64) -> AppResult<()> {
     state.docs.lock().unwrap().remove(&doc_id);
     state.undo.lock().unwrap().remove(&doc_id);
+    state.redo.lock().unwrap().remove(&doc_id);
     Ok(())
 }
 
@@ -245,20 +246,26 @@ pub(crate) fn push_redo_snapshot(state: &AppState, doc_id: u64, bytes: Vec<u8>) 
 /// 撤销一步修改，返回新元数据。
 #[tauri::command]
 pub async fn undo_document(state: State<'_, AppState>, doc_id: u64) -> AppResult<DocumentInfo> {
-    let snapshot = {
+    // 在独立作用域内取快照，确保离开时已释放 undo 锁（锁序恒为 docs → {undo, redo}）
+    let popped = {
         let mut undo = state.undo.lock().unwrap();
-        let Some(stack) = undo.get_mut(&doc_id) else {
-            return Err(AppError::NotFound);
-        };
-        let Some(snap) = stack.pop() else {
-            return Err(AppError::NothingToUndo);
-        };
-        snap
+        undo.get_mut(&doc_id).and_then(|stack| stack.pop())
     };
-    // 把撤销前的当前 bytes 推入 redo 栈
-    push_redo_snapshot(&state, doc_id, snapshot.clone());
+    let snapshot = match popped {
+        Some(snap) => snap,
+        None => {
+            // 文档已关闭 → NotFound；文档在但还没压过快照 → 等同于栈空
+            return if state.docs.lock().unwrap().contains_key(&doc_id) {
+                Err(AppError::NothingToUndo)
+            } else {
+                Err(AppError::NotFound)
+            };
+        }
+    };
     let mut docs = state.docs.lock().unwrap();
     let entry = docs.get_mut(&doc_id).ok_or(AppError::NotFound)?;
+    // 把撤销前的当前 bytes 推入 redo 栈，重做即回到这一步
+    push_redo_snapshot(&state, doc_id, entry.bytes.clone());
     entry.bytes = snapshot;
     let (count, pages) = inspect(&entry.bytes, None)?;
     Ok(build_info(doc_id, entry, count, pages))
@@ -267,20 +274,25 @@ pub async fn undo_document(state: State<'_, AppState>, doc_id: u64) -> AppResult
 /// 重做一步（撤销的反向操作）
 #[tauri::command]
 pub async fn redo_document(state: State<'_, AppState>, doc_id: u64) -> AppResult<DocumentInfo> {
-    let snapshot = {
+    let popped = {
         let mut redo = state.redo.lock().unwrap();
-        let Some(stack) = redo.get_mut(&doc_id) else {
-            return Err(AppError::NothingToRedo);
-        };
-        let Some(snap) = stack.pop() else {
-            return Err(AppError::NothingToRedo);
-        };
-        snap
+        redo.get_mut(&doc_id).and_then(|stack| stack.pop())
     };
-    // 把当前 bytes 推回 undo 栈（保证再撤销仍可用）
-    push_snapshot_inner(&state, doc_id, snapshot.clone());
+    let snapshot = match popped {
+        Some(snap) => snap,
+        None => {
+            // 文档已关闭 → NotFound；文档在但还没压过快照 → 等同于栈空
+            return if state.docs.lock().unwrap().contains_key(&doc_id) {
+                Err(AppError::NothingToRedo)
+            } else {
+                Err(AppError::NotFound)
+            };
+        }
+    };
     let mut docs = state.docs.lock().unwrap();
     let entry = docs.get_mut(&doc_id).ok_or(AppError::NotFound)?;
+    // 把重做前的当前 bytes 推回 undo 栈（保证再撤销仍可用）
+    push_snapshot_inner(&state, doc_id, entry.bytes.clone());
     entry.bytes = snapshot;
     let (count, pages) = inspect(&entry.bytes, None)?;
     Ok(build_info(doc_id, entry, count, pages))
