@@ -88,27 +88,150 @@ $dst.Dispose(); $src.Dispose()
 
 > 依赖说明：应用无 CLI 参数、无文件关联、无拖放，打开文档只能走 `@tauri-apps/plugin-dialog` 的原生对话框，因此「有内容」的截图**必须人工操作**（自动化需 SendKeys 驱动原生对话框，会抢焦点且可能把路径键入其他程序）。
 
-### 2.3 建议顺序（8 张）
+### 2.3 逐张操作卡（建议 8 张）
 
-界面元素取自 [Toolbar.tsx](../src/components/Toolbar.tsx)、[Rail.tsx](../src/components/Rail.tsx)、[StatusBar.tsx](../src/components/StatusBar.tsx)。
+界面元素取自 [Toolbar.tsx](../src/components/Toolbar.tsx)、[Rail.tsx](../src/components/Rail.tsx)、[StatusBar.tsx](../src/components/StatusBar.tsx)、[ThumbnailPanel.tsx](../src/components/ThumbnailPanel.tsx) 及各 `panels/*Panel.tsx`。**按钮名一律照抄界面中文文案**（界面默认中文；英文界面下的对应文案见各卡「说明（EN）」）。
 
-| # | 场景 | 复现步骤 | 画面应包含 | 说明（中） | 说明（EN） |
-|---|------|----------|------------|-----------|-----------|
-| 1 | 阅读主界面 | 打开多页图文 PDF，选中连续视图 | 顶部工具栏（打开/撤销/重做 + 9 个工具）、左栏缩略图、正文、底部状态栏（文件名 · 共 N 页、第 x / N、缩放百分比） | 打开即读：连续滚动、缩略图导航、深色/浅色主题 | Open and read: continuous scrolling, thumbnail navigation, light/dark themes |
-| 2 | 全文搜索与高亮 | `Ctrl+F` 打开搜索面板，输入命中词 | 搜索面板命中列表 + 页面上高亮块 | 全文搜索，命中结果在页面直接高亮并逐条跳转 | Full-text search with on-page highlighting and jump-to-hit |
-| 3 | 批注 | 打开「编辑」，在页面上落一个高亮或便签 | 批注列表 + 页面上的批注标记 | 6 种批注：高亮、下划线、删除线、便签、自由文本、矩形 | Six annotation types: highlight, underline, strikeout, sticky note, free text, rectangle |
-| 4 | 页面管理 | 在缩略图栏多选页面 | 多选状态 + 操作按钮（旋转/删除/重排/提取） | 缩略图管理页面：旋转、删除、重排、提取为新文档 | Manage pages from thumbnails: rotate, delete, reorder, extract |
-| 5 | 水印去除 | 打开「水印」，用自动检测或手动框选 | 检测结果列表/框选区域 | 添加水印，或自动检测重复水印对象后一键去除 | Add watermarks, or auto-detect repeating watermark objects and remove them |
-| 6 | 深度编辑 | 双击正文文字进入编辑态 | 虚线编辑框 + 浮动工具胶囊 + 右侧面板 | 双击正文即改：遮盖原区域后按原样式重绘，字体缺失自动近似替换 | Double-click text to rewrite in place, redrawing with the original style |
-| 7 | 密码与权限 | 打开「密码」（加密文档） | 加密状态 + 权限矩阵 + 导出明文副本入口 | 查看加密状态与权限矩阵，导出明文副本或内存去加密 | Inspect encryption status and permissions, export a plain copy or strip encryption |
-| 8 | 导出图片 | 打开「导出」，选 DPI | DPI 选项 + 格式选择（PNG/JPG） | 页面导出 PNG/JPG，可选 DPI；图片也能反向合并成 PDF | Export pages to PNG/JPG at a chosen DPI; images can be merged back into PDF |
+#### 通用流程（每张都先做）
 
-可选补位（替换/追加到 10 张内）：
+1. **启动**：开始菜单搜 `PDFe`，或 PowerShell（已装 MSIX）：
 
-| # | 场景 | 备注 |
-|---|------|------|
-| 9 | 表单字段填写 | 打开「表单」，列出 AcroForm 字段并填入新值（[FormPanel.tsx](../src/components/panels/FormPanel.tsx)） |
-| 10 | 诊断面板 / 英文界面 | 诊断面板展示页数/大小/加密/扫描抽样/注释总数；切到英文界面（`Ctrl+Shift+L`）再拍一套 |
+   ```powershell
+   $pkg = Get-AppxPackage konnyyuan.pdfe
+   Start-Process ("shell:AppsFolder\{0}!App" -f $pkg.PackageFamilyName)
+   ```
+
+2. **最大化窗口**：标题栏双击或点最大化（默认 1280×800 宽度不足 1366，不最大化会不达标）。
+3. **打开文档**：点工具栏 `📂 打开`（或 `Ctrl+O`）→ 原生对话框选文件。
+4. **截图**：`Win + PrtScn`（整屏 → `图片\屏幕截图`）或 `Win+Shift+S` 框选后另存。
+5. **核对尺寸**：文件右键 → 属性 → 详细信息，确认 ≥1366×768（本机实测 2560×1379）。
+6. **命名与存放**：`docs/store-listing/screenshots/{nn}-{scene}-{lang}.png`（如 `01-reader-zh.png`）；中英各一套，英文界面点工具栏 `EN`（或 `Ctrl+Shift+L` 循环语言）。
+7. **主题**：左栏底部 `☀`/`🌙` 切换；建议 7 张浅色、1 张深色。
+
+---
+
+#### 01 阅读主界面 — `01-reader-zh.png`
+
+- **前置**：多页图文 PDF（≥10 页、带书签）
+- **步骤**：
+  1. 打开文档（`📂 打开`）
+  2. 工具栏视图切换点 `连续`
+  3. 左栏点 `▦ 页面缩略图` 展开缩略图
+  4. 滚到一页图文并茂的正文（状态栏「第 x / N」正常刷新）
+- **入镜**：工具栏（`PDFe` + `📂 打开` / `↶ 撤销` / `↷ 重做` + 9 工具 `🗂 合并`/`✂ 拆分`/`💧 水印`/`✏ 编辑`/`🔒 密码`/`🖼 导出`/`🩺 诊断`/`🔍 OCR`/`📝 表单` + `连续/单页/双页` + `🔍 搜索` + `中/EN` + `?`）、左栏缩略图、正文、底部状态栏（`文件名 · 共 N 页`、`第 x / N`、`− 适应宽度 ＋ ⤢`）
+- **自检**：状态栏显示文件名与总页数；缩略图栏可见；关键内容在上 2/3
+- **说明（中）**：打开即读：连续滚动、缩略图导航、深色/浅色主题
+- **说明（EN）**：Open and read: continuous scrolling, thumbnail navigation, light/dark themes
+
+#### 02 全文搜索与高亮 — `02-search-zh.png`
+
+- **前置**：同一份图文 PDF
+- **步骤**：
+  1. `Ctrl+F`（或点 `🔍 搜索`）打开搜索面板
+  2. 输入一个文中多次出现的词，回车
+  3. 面板顶部变为 `{x} / {y} 个结果`，列表逐行显示 `第 {n} 页` + 命中片段（命中词用 `<mark>` 高亮）
+  4. 按 `↓`（或 `F3`）跳到下一个命中，页面上出现高亮块
+- **入镜**：搜索面板（结果计数 + 命中列表 + `↑`/`↓`/`✕`）、页面上的高亮块
+- **自检**：面板顶部**不是**「输入关键词后回车」；页面高亮块可见
+- **说明（中）**：全文搜索，命中结果在页面直接高亮并逐条跳转
+- **说明（EN）**：Full-text search with on-page highlighting and jump-to-hit
+
+#### 03 批注 — `03-annot-zh.png`
+
+- **前置**：同一份图文 PDF
+- **步骤**：
+  1. 点工具栏 `✏ 编辑` 打开右侧面板（默认停在 `注释` 页签，无需切换）
+  2. 选一种批注类型：`🖍 高亮` / `U̲ 下划线` / `S̶ 删除线` / `📝 便签` / `T 文字框` / `▭ 矩形`
+  3. （可选）在「文本」里填内容 → 点 `添加到当前页`
+  4. 批注出现在页面**左上固定条带**；若要多条，**每种换一页**再添加
+- **入镜**：右侧「编辑 · 注释」面板（类型选择 + 文本 + `添加到当前页`）、下方「本页注释（n）」列表（色块 + 类型 + 文本）、页面上的批注标记
+- **自检**：列表 ≥2 条；页面标记在上部可见
+- **注意**：批注落点是**硬编码固定区域**（`left 15% / top 20% / 宽 70% / 高 7%`，见 [EditPanel.tsx](../src/components/panels/EditPanel.tsx#L111-L116)），**不支持画布框选**；同页叠加多种类型会互相重叠——拍摄时每页只加 1 种。
+- **说明（中）**：6 种批注：高亮、下划线、删除线、便签、自由文本、矩形
+- **说明（EN）**：Six annotation types: highlight, underline, strikeout, sticky note, free text, rectangle
+
+#### 04 页面管理 — `04-pages-zh.png`
+
+- **前置**：≥10 页 PDF
+- **步骤**：
+  1. 左栏点 `▦ 页面缩略图`
+  2. 按住 `Ctrl`/`Shift` 点击缩略图**多选** 2–3 页（出现选中态）
+  3. 在选中的缩略图上**右键**，弹出菜单：`↺ 逆时针旋转 90°`、`↻ 顺时针旋转 90°`、`⟲ 旋转 180°`、`📋 复制页面`、`➕ 插入空白页`、`🗑 删除页面`、`📤 提取为新文档`
+  4. **让右键菜单保持展开**再截图（菜单本身是本张的画面重点）
+- **入镜**：缩略图多选态 + 展开的右键菜单
+- **自检**：菜单可见；多选 ≥2 页
+- **注意**：`📤 提取为新文档` 当前**只关闭菜单、不做任何事**（空实现）——拍摄与文案**不要以它为主角**。
+- **说明（中）**：缩略图管理页面：多选、拖拽重排、旋转与删除
+- **说明（EN）**：Manage pages from thumbnails: multi-select, drag to reorder, rotate and delete
+
+#### 05 水印去除 — `05-watermark-zh.png`
+
+- **前置**：带**重复**水印的 PDF
+- **步骤（自动检测）**：
+  1. 点工具栏 `💧 水印` 打开面板
+  2. 顶层切到 `去除水印`，子模式选 `自动检测`
+  3. 采样页数保持默认 → 点 `开始检测`
+  4. 候选列表出现 `类型: kind · 位置: (l,b)–(r,t) · 出现: n/total`
+  5. 勾选候选 → 点 `应用去除`
+- **步骤（手动框选，备选）**：切 `手动框选` → 点 `🎯 在画布上框选水印区域` → 画布上拖框 → 核对左下/右下/左上/右上坐标 → `应用到当前页`
+- **入镜**：水印面板「去除水印 · 自动检测」+ 候选列表 + 画布上的水印本体
+- **自检**：候选列表非空（「出现」如 `8/12`）
+- **说明（中）**：添加水印，或自动检测重复水印对象后一键去除
+- **说明（EN）**：Add watermarks, or auto-detect repeating watermark objects and remove them
+
+#### 06 深度编辑 — `06-rewrite-zh.png`
+
+- **前置**：正文为**可选文字**的 PDF（非扫描件）
+- **步骤**：
+  1. 点工具栏 `✏ 编辑` → 面板切到 `深度编辑` 页签
+  2. 画布底部浮动胶囊点 `编辑`（会自动切到深度编辑页签；点 `选择` 模式下双击无反应）
+  3. 二选一取词：
+     - **双击**正文某处文字，或
+     - 在画布上**拖拽框选**一段文字
+  4. 弹出 `RewriteModal`：顶部「已选区 · 第 n 页」+ 矩形 pt 尺寸，含`原文`、`原字体`、新文本、字号、颜色
+  5. 改新文本 → 点 `确认重写`（原字体不可用时另弹 toast「原字体不可用，已用近似字体替换」）
+- **入镜**：画布虚线编辑框、底部胶囊（`选择`/`编辑`/`文字`）、`RewriteModal`（原文 / 原字体 / 新文本 / `确认重写`）
+- **自检**：弹窗出现「原文」「原字体」字段
+- **说明（中）**：原位重写正文：保留原字号与颜色，字体缺失自动近似替换
+- **说明（EN）**：Rewrite text in place keeping the original style; missing fonts are substituted automatically
+
+#### 07 密码与权限 — `07-security-zh.png`
+
+- **前置**：一个**加密**（带打开密码）的 PDF；无加密样本时可用普通 PDF 但说服力弱
+- **步骤**：
+  1. 点工具栏 `🔒 密码` 打开面板
+  2. 顶部徽章应显示 `已加密（{handler}）`（未加密文档显示 `未加密`）
+  3. 「现有打开密码」输入密码 → 点 `读取加密状态`
+  4. 下方 8 行权限矩阵：`高质量打印`/`低质量打印`/`修改文档内容`/`抽取文本与图形`/`添加或修改注释`/`填写表单字段`/`组装文档（插页/旋转/删页等）`/`创建新表单字段`，每行 `允许` 或 `禁止` + 圆点
+  5. 底部三个按钮：`导出明文副本` / `在内存中去除加密` / `导出加密副本`
+- **入镜**：状态徽章 + 权限矩阵 + 底部按钮
+- **自检**：徽章是「已加密…」而非「未加密」；矩阵为 8 行
+- **说明（中）**：查看加密状态与权限矩阵，导出明文副本或内存去加密
+- **说明（EN）**：Inspect encryption status and permissions, export a plain copy or strip encryption
+
+#### 08 导出图片 — `08-export-zh.png`
+
+- **前置**：任意 PDF
+- **步骤**：
+  1. 点工具栏 `🖼 导出` 打开面板
+  2. 模式选 `PDF → 图片`
+  3. 「页码范围」填 `1,3,5-7`（留空 = 当前页）
+  4. 格式选 `PNG（无损）` 或 `JPEG（体积小）`
+  5. DPI 设 150（范围 36–600）
+  6. 点 `导出图片` → 原生「选择文件夹」对话框 → 导出完成后弹 toast
+- **入镜**：导出面板（4 个模式 `PDF → 图片` / `图片 → PDF` / `Office → PDF` / `电子书 → PDF`、页码范围、格式、DPI、`导出图片` 按钮）
+- **自检**：`PDF → 图片` 处于选中态；DPI 数值可见
+- **说明（中）**：页面导出 PNG/JPG，可选 DPI；图片也能反向合并成 PDF
+- **说明（EN）**：Export pages to PNG/JPG at a chosen DPI; images can be merged back into PDF
+
+---
+
+**可选补位（替换/追加到 10 张内）**：
+
+| # | 场景 | 操作要点 |
+|---|------|----------|
+| 09 | 表单字段填写 — `09-form-zh.png` | 点工具栏 `📝 表单` → 面板列出 AcroForm 字段（`text` 显示为 `T`、`checkbox` 显示为 `☑`，其余只读）→ 改一个文本字段值 → 保持画面（可点 `保存表单`）。无字段时提示「当前文档没有表单字段」。 |
+| 10 | 诊断面板 / 英文界面 — `10-diag-en.png` | 点工具栏 `🩺 诊断` 展示页数/大小/加密/扫描抽样/注释总数；再切英文界面（工具栏 `EN` 或 `Ctrl+Shift+L`）重拍整套。 |
 
 **OCR 面板不建议入镜**：`ocr` 为可选 feature，默认构建下调用返回 `ocr_unavailable`。要拍该场景必须先 `cargo build --features ocr`（需 Tesseract + 语言包）。
 
