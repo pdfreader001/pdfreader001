@@ -297,6 +297,15 @@ input:focus {
     opacity: 0;
   }
 }
+/* 水印去除预览：标出「将被删除」的区域（强制预览确认步骤，红色警示） */
+.removal-preview-rect {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1.5px dashed #d93025;
+  background: rgba(217, 48, 37, 0.18);
+  pointer-events: none;
+  z-index: 3;
+}
 .search-highlight {
   position: absolute;
   background: rgba(255, 215, 0, 0.4);

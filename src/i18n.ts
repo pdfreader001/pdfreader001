@@ -166,6 +166,16 @@ const en: Record<string, string> = {
   请先检测或调整阈值: "Please detect first or adjust the threshold.",
   未选择任何候选: "No candidates selected.",
   应用去除: "Apply Removal",
+  预览删除区域: "Preview Removal Area",
+  重新预览: "Preview Again",
+  确认去除: "Confirm Removal",
+  "确认去除（已选 {n} 项）": "Confirm Removal ({n} selected)",
+  "请先预览将被删除的区域，确认无误后再执行。":
+    "Please preview the areas to be removed and verify them before executing.",
+  "红色区域将被删除；确认无误后再执行。":
+    "The areas shown in red will be removed. Verify them, then confirm.",
+  请检查矩形坐标: "Please check the rectangle coordinates.",
+  "删除中…": "Removing…",
   "在当前页用鼠标框选区域，或自动检测重复水印对象":
     "Drag-select a region on the current page, or auto-detect repeating watermark objects.",
   "已删除 {n} 个对象": "Removed {n} object(s).",
@@ -648,6 +658,16 @@ const ja: Record<string, string> = {
   请先检测或调整阈值: "先に検出するか閾値を調整してください",
   未选择任何候选: "候補が選択されていません",
   应用去除: "除去を適用",
+  预览删除区域: "削除範囲をプレビュー",
+  重新预览: "再プレビュー",
+  确认去除: "除去を確定",
+  "确认去除（已选 {n} 项）": "除去を確定（{n}件選択）",
+  "请先预览将被删除的区域，确认无误后再执行。":
+    "削除される範囲を先にプレビューし、問題がないことを確認してから実行してください。",
+  "红色区域将被删除；确认无误后再执行。":
+    "赤色の範囲が削除されます。確認してから実行してください。",
+  请检查矩形坐标: "矩形座標を確認してください",
+  "删除中…": "削除中…",
   "在当前页用鼠标框选区域，或自动检测重复水印对象":
     "現在のページでドラッグ範囲選択、または繰返しウォーターマークを自動検出。",
   "已删除 {n} 个对象": "{n}個のオブジェクトを削除しました",

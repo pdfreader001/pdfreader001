@@ -62,11 +62,11 @@
       > 部分实现：文字/图片、样式参数、九宫格/平铺、范围选择均已有；画布拖放定位未实现。
 - [ ] 当前页实时预览（叠加层）
       > 未实现：`WatermarkPanel.tsx` 无预览叠加层。
-- [ ] 去除-自动：内容流分析（每页重复对象）→ 候选清单 → 勾选 → 预览 → redaction 移除
-      > 部分实现：跨页采样 + 指纹 + 候选清单 + 勾选已实现（`watermark_remove::detect_watermark_candidates`）；「预览」步骤缺失。
+- [x] 去除-自动：内容流分析（每页重复对象）→ 候选清单 → 勾选 → 预览 → redaction 移除
+      > 跨页采样 + 指纹 + 候选清单 + 勾选（`watermark_remove::detect_watermark_candidates`）；「预览」由面板「预览删除区域」按钮把候选边界叠加到画布（store `removalPreview` + `.removal-preview-rect`）；移除按指纹在每页删除命中对象（`apply_watermark_removal`），非 PDF redaction 注释。
 - [x] 去除-手动：框选区域删除
-- [ ] 误删保护：强制预览确认 + 撤销兜底
-      > 部分实现：仅有撤销兜底；强制预览确认未实现。
+- [x] 误删保护：强制预览确认 + 撤销兜底
+      > 强制预览确认：自动与手动两条路径都需先点「预览删除区域」，画布以红色叠加层标出将被删除的范围；勾选、矩形坐标、作用范围或页码任一变化即令预览失效（`previewFresh` / `manualPreviewFresh`），未预览时执行被拦截并提示。撤销兜底：`apply_watermark_removal` / `remove_objects_in_rect` 开头即 `push_snapshot`。
 
 ### M5 · 深度编辑
 - [x] 扫描版检测（无文本层）→ 明确提示

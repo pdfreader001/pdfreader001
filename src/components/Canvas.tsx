@@ -68,6 +68,8 @@ const PageView = React.memo(function PageView({
   // 注释：精细订阅当前页的注释列表
   const pageAnnotations: AnnotationInfo[] = useApp((s) => s.annotations[pageIndex] ?? []);
   const setPageAnnotations = useApp((s) => s.setPageAnnotations);
+  // 水印去除预览区域：所有页都叠加显示（水印按位置在各页重复出现）
+  const removalPreview = useApp((s) => s.removalPreview);
   const updatePages = useApp((s) => s.updatePages);
   const markDirty = useApp((s) => s.markDirty);
   const setUndoRedo = useApp((s) => s.setUndoRedo);
@@ -369,6 +371,24 @@ const PageView = React.memo(function PageView({
               style={style}
               onContextMenu={(e) => onAnnotationContextMenu(e, ann)}
               title={ann.contents || kind}
+            />
+          );
+        })}
+      {/* 水印去除预览：标出「将被删除」的区域（强制预览确认步骤）。
+          pageIndex 为 null 表示该预览作用于所有页（自动检测命中的是每页同位置重复对象）。 */}
+      {removalPreview &&
+        (removalPreview.pageIndex === null || removalPreview.pageIndex === pageIndex) &&
+        removalPreview.regions.map((r, i) => {
+          const left = r.left * scale;
+          const top = (page.height - r.top) * scale;
+          const width = (r.right - r.left) * scale;
+          const height = (r.top - r.bottom) * scale;
+          if (width <= 0 || height <= 0) return null;
+          return (
+            <div
+              key={`rmp-${i}`}
+              className="removal-preview-rect"
+              style={{ left, top, width, height }}
             />
           );
         })}

@@ -62,6 +62,13 @@ export interface PdfRegion {
   top: number;
 }
 
+/** 水印去除的「待删区域」预览（误删保护：执行前必须先让用户看到将被删除的内容）。
+ * `pageIndex` 为 null 表示叠加到所有页 —— 自动检测命中的是每页同位置重复对象。 */
+export interface RemovalPreview {
+  regions: PdfRegion[];
+  pageIndex: number | null;
+}
+
 /** 双击文字命中：区域 + 原文 + 原字体样式（用于重写时预填/沿用）。 */
 export interface DblClickText {
   region: PdfRegion;
@@ -162,6 +169,9 @@ interface AppState {
   dblClickText: DblClickText | null;
   /** 文字编辑态目标：画布上显示虚线框 + 光标；由重写面板关闭时清空 */
   editTarget: TextEditTarget | null;
+  /** 水印去除的待删预览区域（见 RemovalPreview）。非空时叠加显示在画布上，
+   * 用于「强制预览确认」：用户必须先看到将被删除的区域才能执行删除。 */
+  removalPreview: RemovalPreview | null;
 
   toasts: Toast[];
   jumpTarget: { page: number; nonce: number };
@@ -192,6 +202,8 @@ interface AppState {
   setCompletedSelection: (s: (Omit<CompletedSelection, "mode"> & { mode?: string }) | null) => void;
   setDblClickText: (s: DblClickText | null) => void;
   setEditTarget: (t: TextEditTarget | null) => void;
+  /** 设置 / 清空水印去除预览区域（null 表示关闭预览） */
+  setRemovalPreview: (preview: RemovalPreview | null) => void;
   setSearch: (query: string, hits: SearchHit[]) => void;
   setSearchActive: (i: number) => void;
   setSearching: (b: boolean) => void;
@@ -290,6 +302,7 @@ export const useApp = create<AppState>((set, get) => ({
   completedSelection: null,
   dblClickText: null,
   editTarget: null,
+  removalPreview: null,
   searchOpen: false,
   helpOpen: false,
 
@@ -363,6 +376,7 @@ export const useApp = create<AppState>((set, get) => ({
       searchQuery: "",
       searchHighlights: {},
       loadingHighlights: new Set(),
+      removalPreview: null,
     });
   },
   clearDoc: () =>
@@ -379,6 +393,7 @@ export const useApp = create<AppState>((set, get) => ({
       dblClickText: null,
       editTarget: null,
       annotations: {},
+      removalPreview: null,
       ...exitEditState(),
     }),
   setViewMode: (m) => set({ viewMode: m, fitMode: m === "single" ? "page" : "width" }),
@@ -389,8 +404,8 @@ export const useApp = create<AppState>((set, get) => ({
   setScrollTop: (t) => set({ scrollTop: t }),
   setLeftTab: (t) => set({ leftTab: t, leftVisible: true }),
   toggleLeft: () => set((s) => ({ leftVisible: !s.leftVisible })),
-  openTask: (t) => set({ task: t, searchOpen: false, ...exitEditState() }),
-  closeTask: () => set({ task: null, ...exitEditState() }),
+  openTask: (t) => set({ task: t, searchOpen: false, removalPreview: null, ...exitEditState() }),
+  closeTask: () => set({ task: null, removalPreview: null, ...exitEditState() }),
   setEditTab: (t) => set({ editTab: t }),
   setEditMode: (m) =>
     set({
@@ -426,6 +441,7 @@ export const useApp = create<AppState>((set, get) => ({
     }),
   setDblClickText: (s) => set({ dblClickText: s }),
   setEditTarget: (t) => set({ editTarget: t }),
+  setRemovalPreview: (preview) => set({ removalPreview: preview }),
   setSearch: (query, hits) =>
     set({
       searchQuery: query,

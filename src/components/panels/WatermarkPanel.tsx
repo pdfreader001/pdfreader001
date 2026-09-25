@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../../state/store";
 import { useT } from "../../i18n";
@@ -311,6 +311,7 @@ function WatermarkRemovePanel() {
   const setSelectingFor = useApp((s) => s.setSelectingFor);
   const completedSelection = useApp((s) => s.completedSelection);
   const setCompletedSelection = useApp((s) => s.setCompletedSelection);
+  const setRemovalPreview = useApp((s) => s.setRemovalPreview);
   const t = useT();
 
   type SubMode = "manual" | "auto";
@@ -328,6 +329,45 @@ function WatermarkRemovePanel() {
   const [detectResult, setDetectResult] = useState<DetectResult | null>(null);
   const [detecting, setDetecting] = useState(false);
   const [selectedFp, setSelectedFp] = useState<Set<string>>(new Set());
+  /** 已预览过的候选 key 快照；与当前勾选不一致即视为「预览已过期」，需重新预览 */
+  const [previewKeys, setPreviewKeys] = useState<string[] | null>(null);
+  /** 手动路径已预览过的参数快照；与当前矩形/范围/页码不一致即视为「预览已过期」 */
+  const [manualPreview, setManualPreview] = useState<{
+    rect: RemoveRect;
+    onlyCurrent: boolean;
+    page: number;
+  } | null>(null);
+
+  /** 预览是否对应当前勾选（误删保护：必须先看到将被删除的区域才能执行） */
+  const previewFresh =
+    previewKeys !== null &&
+    previewKeys.length === selectedFp.size &&
+    previewKeys.every((k) => selectedFp.has(k));
+
+  /** 手动预览是否对应当前参数（矩形、作用范围、当前页任一变化即失效） */
+  const manualPreviewFresh =
+    manualPreview !== null &&
+    manualPreview.onlyCurrent === onlyCurrent &&
+    manualPreview.page === currentPage &&
+    manualPreview.rect.left === rect.left &&
+    manualPreview.rect.bottom === rect.bottom &&
+    manualPreview.rect.right === rect.right &&
+    manualPreview.rect.top === rect.top;
+
+  /** 关闭预览叠加层 */
+  const clearPreview = useCallback(() => {
+    setPreviewKeys(null);
+    setManualPreview(null);
+    setRemovalPreview(null);
+  }, [setRemovalPreview]);
+
+  // 离开面板（切页签 / 关闭）时清掉叠加层，避免残留
+  useEffect(() => clearPreview, [clearPreview]);
+
+  // 手动参数变化后，叠加层不再代表将要删除的区域，立即收起以免误导
+  useEffect(() => {
+    if (manualPreview && !manualPreviewFresh) setRemovalPreview(null);
+  }, [manualPreview, manualPreviewFresh, setRemovalPreview]);
 
   const requireDoc = (): number | null => {
     if (docId === null) {
@@ -364,10 +404,25 @@ function WatermarkRemovePanel() {
 
   const validRect = rect.right > rect.left && rect.top > rect.bottom;
 
+  /** 手动路径的预览步骤：把手动矩形叠加到画布（当前页或全部页） */
+  const previewManual = () => {
+    if (!validRect) {
+      pushToast("info", t("请检查矩形坐标"));
+      return;
+    }
+    setManualPreview({ rect, onlyCurrent, page: currentPage });
+    setRemovalPreview({ regions: [rect], pageIndex: onlyCurrent ? currentPage : null });
+  };
+
   const applyManual = async () => {
     const id = requireDoc();
     if (!id || !validRect) {
       pushToast("info", t("请检查矩形坐标"));
+      return;
+    }
+    // 误删保护：未经预览确认不允许执行删除
+    if (!manualPreviewFresh) {
+      pushToast("info", t("请先预览将被删除的区域，确认无误后再执行。"));
       return;
     }
     const pages = onlyCurrent ? [currentPage] : Array.from({ length: pageCount }, (_, i) => i);
@@ -378,6 +433,7 @@ function WatermarkRemovePanel() {
       markDirty(true);
       setUndoRedo(await refreshUndoRedo(id));
       pushToast("info", t("已删除 {n} 个对象", { n: res.removedCount }));
+      clearPreview();
       closeTask();
     } catch (e) {
       errorToast(e);
@@ -389,6 +445,7 @@ function WatermarkRemovePanel() {
   const runDetect = async () => {
     const id = requireDoc();
     if (!id) return;
+    clearPreview();
     setDetecting(true);
     try {
       const res = await detectWatermarkCandidates(id, samplePages, threshold);
@@ -401,10 +458,32 @@ function WatermarkRemovePanel() {
     }
   };
 
+  /** 预览步骤：把选中候选的边界矩形叠加到画布上，让用户看清将被删除的区域 */
+  const previewRemoval = () => {
+    if (!detectResult || selectedFp.size === 0) {
+      pushToast("info", t("未检测到候选水印。请先点击「开始检测」。"));
+      return;
+    }
+    const keys = Array.from(selectedFp);
+    const regions = detectResult.candidates
+      .filter((c) => selectedFp.has(c.key ?? `idx:${c.objectIndex}`))
+      .map((c) => ({ left: c.left, bottom: c.bottom, right: c.right, top: c.top }))
+      .filter((r) => r.right > r.left && r.top > r.bottom);
+    setPreviewKeys(keys);
+    setManualPreview(null);
+    // 自动检测命中的是「每页同位置重复的对象」，故叠加到所有页
+    setRemovalPreview({ regions, pageIndex: null });
+  };
+
   const applyAuto = async () => {
     const id = requireDoc();
     if (!id || !detectResult || selectedFp.size === 0) {
       pushToast("info", t("未检测到候选水印。请先点击「开始检测」。"));
+      return;
+    }
+    // 误删保护：未经预览确认不允许执行删除
+    if (!previewFresh) {
+      pushToast("info", t("请先预览将被删除的区域，确认无误后再执行。"));
       return;
     }
     const keys = Array.from(selectedFp);
@@ -415,6 +494,7 @@ function WatermarkRemovePanel() {
       markDirty(true);
       setUndoRedo(await refreshUndoRedo(id));
       pushToast("info", t("已删除 {n} 个对象", { n: res.removedCount }));
+      clearPreview();
       closeTask();
     } catch (e) {
       errorToast(e);
@@ -424,6 +504,8 @@ function WatermarkRemovePanel() {
   };
 
   const toggleFp = (key: string) => {
+    // 勾选变化会让已显示的预览失效，直接收起叠加层，避免预览与实际删除不符
+    clearPreview();
     setSelectedFp((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
@@ -440,7 +522,10 @@ function WatermarkRemovePanel() {
           <input
             type="radio"
             checked={subMode === "manual"}
-            onChange={() => setSubMode("manual")}
+            onChange={() => {
+              clearPreview();
+              setSubMode("manual");
+            }}
             style={{ display: "none" }}
           />
           {t("手动框选")}
@@ -449,7 +534,10 @@ function WatermarkRemovePanel() {
           <input
             type="radio"
             checked={subMode === "auto"}
-            onChange={() => setSubMode("auto")}
+            onChange={() => {
+              clearPreview();
+              setSubMode("auto");
+            }}
             style={{ display: "none" }}
           />
           {t("自动检测")}
@@ -520,18 +608,29 @@ function WatermarkRemovePanel() {
           <p className="placeholder" style={{ marginTop: 8, fontSize: 11 }}>
             {t("建议：先在画布上选区 → 自动获取矩形 → 确认。")}
           </p>
+          {manualPreviewFresh && (
+            <p className="placeholder" style={{ marginTop: 8, fontSize: 11 }}>
+              {t("红色区域将被删除；确认无误后再执行。")}
+            </p>
+          )}
           <div className="task-footer">
+            <button
+              className="btn-ghost"
+              onClick={previewManual}
+              disabled={busy || !validRect || docId === null}
+            >
+              {manualPreviewFresh ? t("重新预览") : t("预览删除区域")}
+            </button>
             <button
               className="btn-primary"
               onClick={applyManual}
               disabled={busy || !validRect || docId === null}
             >
-              {busy ? t("删除中…") : t("去除水印")}
+              {busy ? t("删除中…") : t("确认去除")}
             </button>
             <button
               onClick={() => setRect({ left: 100, bottom: 100, right: 300, top: 200 })}
               disabled={busy}
-              style={{ marginLeft: 6 }}
             >
               {t("清除")}
             </button>
@@ -597,13 +696,25 @@ function WatermarkRemovePanel() {
                   })}
                 </div>
               )}
+              {previewFresh && (
+                <p className="placeholder" style={{ marginTop: 8, fontSize: 11 }}>
+                  {t("红色区域将被删除；确认无误后再执行。")}
+                </p>
+              )}
               <div className="task-footer">
+                <button
+                  className="btn-ghost"
+                  onClick={previewRemoval}
+                  disabled={busy || selectedFp.size === 0}
+                >
+                  {previewFresh ? t("重新预览") : t("预览删除区域")}
+                </button>
                 <button
                   className="btn-primary"
                   onClick={applyAuto}
                   disabled={busy || selectedFp.size === 0}
                 >
-                  {busy ? t("删除中…") : t("应用去除")}
+                  {busy ? t("删除中…") : t("确认去除（已选 {n} 项）", { n: selectedFp.size })}
                 </button>
               </div>
             </>
