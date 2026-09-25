@@ -59,6 +59,8 @@ pub fn run() {
             edit_ext::add_text_box,
             edit_ext::replace_image,
             edit_ext::delete_image_object,
+            edit_ext::list_image_objects,
+            edit_ext::set_image_bounds,
             edit_ext::is_scanned_page,
             edit_ext::clear_page_text,
             security::get_security_status,

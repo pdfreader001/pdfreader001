@@ -8,6 +8,8 @@ import {
   addTextBox,
   replaceImage,
   deleteImageObject,
+  listImageObjects,
+  setImageBounds,
   isScannedPage,
   clearPageText,
   addAnnotation,
@@ -15,7 +17,11 @@ import {
   deleteAnnotation,
   clearAnnotations,
 } from "../../lib/ipc";
-import type { AnnotationInfo, AnnotationKind } from "../../lib/ipc";
+import type {
+  AnnotationInfo,
+  AnnotationKind,
+  ImageObjectInfo,
+} from "../../lib/ipc";
 
 const ANNOT_KINDS: { k: AnnotationKind; labelKey: string; icon: string }[] = [
   { k: "highlight", labelKey: "高亮", icon: "🖍" },
@@ -256,6 +262,15 @@ function AnnotationEditor() {
   );
 }
 
+/** 输入框文本 → 数字（非法输入回退 0）。 */
+const parseNum = (v: string) => {
+  const n = Number.parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+/** 保留一位小数，避免输入框里出现 123.45000000000002。 */
+const round1 = (v: number) => Math.round(v * 10) / 10;
+
 function DeepEditor() {
   const docId = useApp((s) => s.docId);
   const currentPage = useApp((s) => s.currentPage);
@@ -298,6 +313,13 @@ function DeepEditor() {
   const [imgPath, setImgPath] = useState<string | null>(null);
   const [imgName, setImgName] = useState("");
   const [objIndex, setObjIndex] = useState(0);
+  // 图片对象的选中与移动/缩放（单位：PDF 点，左下原点）
+  const [imgObjects, setImgObjects] = useState<ImageObjectInfo[]>([]);
+  const [imgLoading, setImgLoading] = useState(false);
+  const [imgL, setImgL] = useState(0);
+  const [imgB, setImgB] = useState(0);
+  const [imgW, setImgW] = useState(0);
+  const [imgH, setImgH] = useState(0);
 
   const [scanState, setScanState] = useState<"unknown" | "scanned" | "not">(
     "unknown",
@@ -320,6 +342,27 @@ function DeepEditor() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
+
+  // 进入图片模式或切换页面时，刷新本页图片对象列表。
+  useEffect(() => {
+    if (mode !== "image" || docId === null) return;
+    let cancelled = false;
+    setImgLoading(true);
+    listImageObjects(docId, currentPage)
+      .then((list) => {
+        if (!cancelled) setImgObjects(list);
+      })
+      .catch((e) => {
+        if (!cancelled) errorToast(e);
+      })
+      .finally(() => {
+        if (!cancelled) setImgLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, docId, currentPage]);
 
   const [rwModal, setRwModal] = useState<{
     region: { left: number; bottom: number; right: number; top: number };
@@ -504,6 +547,38 @@ function DeepEditor() {
       setUndoRedo(await refreshUndoRedo(id));
       pushToast("info", t("已删除图片"));
       closeTask();
+    } catch (e) {
+      errorToast(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** 选中一个图片对象，并把其当前包围盒填入 X/Y/宽/高 输入框。 */
+  const selectImageObject = (o: ImageObjectInfo) => {
+    setObjIndex(o.objectIndex);
+    setImgL(round1(o.left));
+    setImgB(round1(o.bottom));
+    setImgW(round1(o.right - o.left));
+    setImgH(round1(o.top - o.bottom));
+  };
+
+  const onApplyImageBounds = async () => {
+    const id = requireDoc();
+    if (!id) return;
+    setBusy(true);
+    try {
+      const info = await setImageBounds(id, currentPage, objIndex, {
+        left: imgL,
+        bottom: imgB,
+        right: imgL + imgW,
+        top: imgB + imgH,
+      });
+      updatePages(info);
+      markDirty(true);
+      setUndoRedo(await refreshUndoRedo(id));
+      pushToast("info", t("已应用图片位置"));
+      setImgObjects(await listImageObjects(id, currentPage));
     } catch (e) {
       errorToast(e);
     } finally {
@@ -816,9 +891,77 @@ function DeepEditor() {
       {mode === "image" && (
         <>
           <p className="placeholder" style={{ fontSize: 11 }}>
-            {t("替换/删除图片：替换整张图片或仅删除该图片对象。")}
+            {t("选中图片后可移动/缩放，也可替换整张图片或删除该对象。")}
           </p>
           <div className="form-row">
+            <label>{t("本页图片")}</label>
+            <span className="placeholder" style={{ fontSize: 11 }}>
+              {imgLoading
+                ? t("加载中…")
+                : imgObjects.length === 0
+                  ? t("本页没有图片对象")
+                  : t("共 {n} 个，点击选中", { n: imgObjects.length })}
+            </span>
+          </div>
+          {imgObjects.length > 0 && (
+            <div className="merge-output" style={{ flexWrap: "wrap", gap: 4 }}>
+              {imgObjects.map((o) => (
+                <button
+                  key={o.objectIndex}
+                  onClick={() => selectImageObject(o)}
+                  disabled={busy}
+                  className={o.objectIndex === objIndex ? "btn-primary" : undefined}
+                  title={`L${round1(o.left)} B${round1(o.bottom)} → R${round1(
+                    o.right,
+                  )} T${round1(o.top)}`}
+                >
+                  #{o.objectIndex}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="form-row">
+            <label>{t("X（左，pt）")}</label>
+            <input
+              type="number"
+              value={imgL}
+              onChange={(e) => setImgL(parseNum(e.target.value))}
+              style={{ width: 80 }}
+            />
+            <label>{t("Y（下，pt）")}</label>
+            <input
+              type="number"
+              value={imgB}
+              onChange={(e) => setImgB(parseNum(e.target.value))}
+              style={{ width: 80 }}
+            />
+          </div>
+          <div className="form-row">
+            <label>{t("宽（pt）")}</label>
+            <input
+              type="number"
+              min={0}
+              value={imgW}
+              onChange={(e) => setImgW(parseNum(e.target.value))}
+              style={{ width: 80 }}
+            />
+            <label>{t("高（pt）")}</label>
+            <input
+              type="number"
+              min={0}
+              value={imgH}
+              onChange={(e) => setImgH(parseNum(e.target.value))}
+              style={{ width: 80 }}
+            />
+          </div>
+          <button
+            className="btn-primary"
+            onClick={onApplyImageBounds}
+            disabled={busy || docId === null || imgW <= 0 || imgH <= 0}
+          >
+            {busy ? t("应用中…") : t("应用移动/缩放")}
+          </button>
+          <div className="form-row" style={{ marginTop: 12 }}>
             <label>{t("对象索引")}</label>
             <input
               type="number"

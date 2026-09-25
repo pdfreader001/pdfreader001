@@ -96,6 +96,10 @@ pub enum AppError {
     #[error("No candidate watermarks detected")]
     NoCandidates,
 
+    // ------ 图片对象编辑 ------
+    #[error("The object at the given index is not an image")]
+    ObjectNotImage,
+
     // ------ Office / 电子书（外部工具） ------
     #[error("{tool} not found. Please install it first.")]
     ToolNotFound { tool: String },
@@ -188,6 +192,7 @@ impl AppError {
             AppError::PdfWriteFailed => "pdf_write_failed",
             AppError::InvalidRect => "invalid_rect",
             AppError::NoCandidates => "no_candidates",
+            AppError::ObjectNotImage => "object_not_image",
             AppError::SearchFailed => "search_failed",
             AppError::ToolNotFound { .. } => "tool_not_found",
             AppError::UnsupportedFormat { .. } => "unsupported_format",
@@ -287,6 +292,7 @@ impl Serialize for AppError {
                 | AppError::PdfWriteFailed
                 | AppError::InvalidRect
                 | AppError::NoCandidates
+                | AppError::ObjectNotImage
                 | AppError::SearchFailed
                 | AppError::CannotDetermineSourceName
                 | AppError::NoPdfGenerated
@@ -350,6 +356,7 @@ mod tests {
             ("pdf_write_failed", AppError::PdfWriteFailed),
             ("invalid_rect", AppError::InvalidRect),
             ("no_candidates", AppError::NoCandidates),
+            ("object_not_image", AppError::ObjectNotImage),
             ("search_failed", AppError::SearchFailed),
             ("tool_not_found", AppError::ToolNotFound { tool: "x".into() }),
             ("unsupported_format", AppError::UnsupportedFormat { format: "f".into() }),

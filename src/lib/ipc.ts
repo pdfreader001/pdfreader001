@@ -345,6 +345,37 @@ export function deleteImageObject(
   });
 }
 
+/** 页面上的图片对象（包围盒为 PDF 点坐标，左下原点）。 */
+export interface ImageObjectInfo {
+  objectIndex: number;
+  left: number;
+  bottom: number;
+  right: number;
+  top: number;
+}
+
+export function listImageObjects(
+  docId: number,
+  pageIndex: number,
+): Promise<ImageObjectInfo[]> {
+  return invoke<ImageObjectInfo[]>("list_image_objects", { docId, pageIndex });
+}
+
+/** 移动/缩放图片对象：把当前包围盒映射到目标矩形。 */
+export function setImageBounds(
+  docId: number,
+  pageIndex: number,
+  objectIndex: number,
+  target: PtRect,
+): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("set_image_bounds", {
+    docId,
+    pageIndex,
+    objectIndex,
+    target,
+  });
+}
+
 export function isScannedPage(
   docId: number,
   pageIndex: number,
