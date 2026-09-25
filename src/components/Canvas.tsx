@@ -5,6 +5,7 @@ import type { PageInfo, AnnotationInfo } from "../lib/ipc";
 import { searchPageText, pickTextAtPoint, deleteAnnotation, listAnnotations, refreshUndoRedo } from "../lib/ipc";
 import type { SearchHitRect } from "../lib/ipc";
 import { useT } from "../i18n";
+import type { DeepEditMode } from "../state/store";
 
 const GAP = 16;
 
@@ -220,6 +221,10 @@ const PageView = React.memo(function PageView({
     async (e: React.MouseEvent) => {
       if (selectingFor) return; // 选区模式下不触发
       if (docId === null) return;
+      // 仅在内容编辑态取字：否则会在画布留下不消失的虚线框，
+      // 且 dblClickText 残留会在之后打开面板时意外弹出重写弹窗。
+      const st = useApp.getState();
+      if (st.task !== "edit") return;
       const rect = holderRef.current?.getBoundingClientRect();
       if (!rect) return;
       const cssX = e.clientX - rect.left;
@@ -238,8 +243,9 @@ const PageView = React.memo(function PageView({
           top: result.top,
         };
         // 进入文字编辑态：先在画布上标出虚线框 + 光标，再由 EditPanel 打开重写面板。
-        useApp.getState().setEditTarget({ pageIndex, region });
-        useApp.getState().setDblClickText({
+        st.setEditTab("deep");
+        st.setEditTarget({ pageIndex, region });
+        st.setDblClickText({
           region,
           pageIndex,
           originalText: result.text,
@@ -400,6 +406,39 @@ interface Row {
   height: number;
 }
 
+/** 编辑态浮动工具胶囊：仅当 task === "edit" 时显示在画布底部居中。 */
+function EditToolCapsule() {
+  const t = useT();
+  const editMode = useApp((s) => s.editMode);
+  const setEditMode = useApp((s) => s.setEditMode);
+  const setEditTab = useApp((s) => s.setEditTab);
+  const tools: { id: DeepEditMode; label: string }[] = [
+    { id: "select", label: t("选择") },
+    { id: "rewrite", label: t("编辑") },
+    { id: "addtext", label: t("文字") },
+  ];
+  return (
+    <div className="edit-capsule">
+      {tools.map((tool) => (
+        <button
+          key={tool.id}
+          type="button"
+          className={editMode === tool.id ? "active" : ""}
+          onClick={() => {
+            // 面板默认停在「注释」页签，不切页签会出现「高亮但画布无反应」。
+            setEditTab("deep");
+            // 不做 toggle-off：框选完成后 selectingFor 会被清空，
+            // 再次点击已激活的工具正好是「重新武装选区」的通道。
+            setEditMode(tool.id);
+          }}
+        >
+          {tool.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function Canvas() {
   const docId = useApp((s) => s.docId);
   const pages = useApp((s) => s.pages);
@@ -413,6 +452,7 @@ export default function Canvas() {
   const jumpTarget = useApp((s) => s.jumpTarget);
   const flashTarget = useApp((s) => s.flashTarget);
   const setScrollTop = useApp((s) => s.setScrollTop);
+  const task = useApp((s) => s.task);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
@@ -574,36 +614,39 @@ export default function Canvas() {
   if (docId === null || !pages.length) return null;
 
   return (
-    <div className="canvas-wrap" ref={wrapRef} onScroll={onScroll}>
-      <div style={{ height: totalHeight, position: "relative" }}>
-        {rows.slice(visible.start, visible.end).map((row, i) => {
-          const rowIndex = visible.start + i;
-          return (
-            <div
-              key={rowIndex}
-              style={{
-                position: "absolute",
-                top: row.top,
-                left: 0,
-                right: 0,
-                display: "flex",
-                justifyContent: "center",
-                gap: GAP,
-              }}
-            >
-              {row.pages.map((p) => (
-                <PageView
-                  key={p}
-                  page={pages[p]}
-                  pageIndex={p}
-                  scale={scale}
-                  flashNonce={flashTarget.page === p ? flashTarget.nonce : 0}
-                />
-              ))}
-            </div>
-          );
-        })}
+    <div className="canvas-stage">
+      <div className="canvas-wrap" ref={wrapRef} onScroll={onScroll}>
+        <div style={{ height: totalHeight, position: "relative" }}>
+          {rows.slice(visible.start, visible.end).map((row, i) => {
+            const rowIndex = visible.start + i;
+            return (
+              <div
+                key={rowIndex}
+                style={{
+                  position: "absolute",
+                  top: row.top,
+                  left: 0,
+                  right: 0,
+                  display: "flex",
+                  justifyContent: "center",
+                  gap: GAP,
+                }}
+              >
+                {row.pages.map((p) => (
+                  <PageView
+                    key={p}
+                    page={pages[p]}
+                    pageIndex={p}
+                    scale={scale}
+                    flashNonce={flashTarget.page === p ? flashTarget.nonce : 0}
+                  />
+                ))}
+              </div>
+            );
+          })}
+        </div>
       </div>
+      {task === "edit" && <EditToolCapsule />}
     </div>
   );
 }

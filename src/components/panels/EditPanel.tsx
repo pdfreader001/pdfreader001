@@ -33,30 +33,32 @@ const ANNOT_KINDS: { k: AnnotationKind; labelKey: string; icon: string }[] = [
 ];
 
 export default function EditPanel() {
-  const [mode, setMode] = useState<"annot" | "deep">("annot");
+  // 内层页签放在 store：画布浮动胶囊点工具时可直接切到「深度编辑」。
+  const tab = useApp((s) => s.editTab);
+  const setTab = useApp((s) => s.setEditTab);
   return (
     <>
       <div className="split-modes" style={{ marginBottom: 12 }}>
-        <label className={`split-mode${mode === "annot" ? " active" : ""}`}>
+        <label className={`split-mode${tab === "annot" ? " active" : ""}`}>
           <input
             type="radio"
-            checked={mode === "annot"}
-            onChange={() => setMode("annot")}
+            checked={tab === "annot"}
+            onChange={() => setTab("annot")}
             style={{ display: "none" }}
           />
           <EditAnnotLabel />
         </label>
-        <label className={`split-mode${mode === "deep" ? " active" : ""}`}>
+        <label className={`split-mode${tab === "deep" ? " active" : ""}`}>
           <input
             type="radio"
-            checked={mode === "deep"}
-            onChange={() => setMode("deep")}
+            checked={tab === "deep"}
+            onChange={() => setTab("deep")}
             style={{ display: "none" }}
           />
           <EditDeepLabel />
         </label>
       </div>
-      {mode === "annot" ? <AnnotationEditor /> : <DeepEditor />}
+      {tab === "annot" ? <AnnotationEditor /> : <DeepEditor />}
     </>
   );
 }
@@ -282,7 +284,6 @@ function DeepEditor() {
   const pushToast = useApp((s) => s.pushToast);
   const errorToast = useApp((s) => s.errorToast);
   const closeTask = useApp((s) => s.closeTask);
-  const setSelectingFor = useApp((s) => s.setSelectingFor);
   const completedSelection = useApp((s) => s.completedSelection);
   const setCompletedSelection = useApp((s) => s.setCompletedSelection);
   const dblClickText = useApp((s) => s.dblClickText);
@@ -291,8 +292,9 @@ function DeepEditor() {
   const jumpToPage = useApp((s) => s.jumpToPage);
   const t = useT();
 
-  type Mode = "rewrite" | "addtext" | "image" | "scandetect";
-  const [mode, setMode] = useState<Mode>("rewrite");
+  // 当前工具与画布浮动胶囊共用 store 状态；切换工具时由 store 同步 selectingFor。
+  const mode = useApp((s) => s.editMode);
+  const setMode = useApp((s) => s.setEditMode);
   const [busy, setBusy] = useState(false);
 
   const [region] = useState({
@@ -332,17 +334,6 @@ function DeepEditor() {
     ratio: number;
   } | null>(null);
   const [docScanning, setDocScanning] = useState(false);
-
-  useEffect(() => {
-    if (mode === "rewrite") {
-      setSelectingFor("rewrite");
-    } else if (mode === "addtext") {
-      setSelectingFor("addText");
-    } else {
-      setSelectingFor(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
 
   // 进入图片模式或切换页面时，刷新本页图片对象列表。
   useEffect(() => {
@@ -389,7 +380,8 @@ function DeepEditor() {
       fontSize: dblClickText.fontSize || undefined,
       color: dblClickText.color || undefined,
     });
-    setMode("rewrite");
+    // 不切换工具：双击取字只是打开重写弹窗。若在这里 setMode("rewrite")，
+    // 会重新武装 selectingFor，反而挡住后续双击（Canvas.onDoubleClick 首行即 return）。
     if (dblClickText.pageIndex !== currentPage) {
       jumpToPage(dblClickText.pageIndex);
     }
@@ -746,6 +738,12 @@ function DeepEditor() {
           {t("扫描版")}
         </label>
       </div>
+
+      {mode === "select" && (
+        <p className="placeholder" style={{ fontSize: 11 }}>
+          {t("选择态：双击画布上的文字即可编辑；要框选重写或放置文本，请点「编辑」「文字」，或使用画布底部工具条。")}
+        </p>
+      )}
 
       {scanState === "scanned" && (
         <div

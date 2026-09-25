@@ -8,6 +8,10 @@ export type ViewMode = "continuous" | "single" | "dual";
 export type FitMode = "none" | "width" | "page";
 export type LeftTab = "thumbnails" | "bookmarks";
 export type TaskId = "merge" | "split" | "watermark" | "edit" | "security" | "export" | "diagnose" | "ocr" | "forms" | null;
+/** 内容编辑面板的内层页签 */
+export type EditTab = "annot" | "deep";
+/** 深度编辑当前工具：select 不请求画布选区；rewrite/addtext 请求框选；image/scandetect 为纯参数模式 */
+export type DeepEditMode = "select" | "rewrite" | "addtext" | "image" | "scandetect";
 
 export interface SearchHit {
   pageIndex: number;
@@ -96,6 +100,10 @@ interface AppState {
   leftTab: LeftTab;
   leftVisible: boolean;
   task: TaskId;
+  /** 内容编辑面板的内层页签 */
+  editTab: EditTab;
+  /** 深度编辑当前工具；画布浮动胶囊与面板单选共用这一状态 */
+  editMode: DeepEditMode;
   searchOpen: boolean;
   helpOpen: boolean;
 
@@ -158,6 +166,9 @@ interface AppState {
   toggleLeft: () => void;
   openTask: (t: TaskId) => void;
   closeTask: () => void;
+  setEditTab: (t: EditTab) => void;
+  /** 切换深度编辑工具；同时同步画布选区模式（唯一的联动入口） */
+  setEditMode: (m: DeepEditMode) => void;
   setSearchOpen: (b: boolean) => void;
   setHelpOpen: (b: boolean) => void;
   setSelectingFor: (mode: string | null) => void;
@@ -222,6 +233,14 @@ export function loadReadingPos(
 
 let toastSeq = 0;
 
+/** 退出内容编辑态：清掉工具选择与画布选区，避免残留在其它面板上。 */
+const exitEditState = () => ({
+  editMode: "select" as DeepEditMode,
+  selectingFor: null,
+  liveSelection: null,
+  completedSelection: null,
+});
+
 export const useApp = create<AppState>((set, get) => ({
   docId: null,
   fileName: "",
@@ -246,6 +265,8 @@ export const useApp = create<AppState>((set, get) => ({
   leftTab: "thumbnails",
   leftVisible: true,
   task: null,
+  editTab: "annot",
+  editMode: "select",
   selectingFor: null,
   liveSelection: null,
   completedSelection: null,
@@ -336,6 +357,7 @@ export const useApp = create<AppState>((set, get) => ({
       dblClickText: null,
       editTarget: null,
       annotations: {},
+      ...exitEditState(),
     }),
   setViewMode: (m) => set({ viewMode: m, fitMode: m === "single" ? "page" : "width" }),
   setScale: (s) => set({ scale: Math.min(8, Math.max(0.1, s)), fitMode: "none" }),
@@ -345,8 +367,16 @@ export const useApp = create<AppState>((set, get) => ({
   setScrollTop: (t) => set({ scrollTop: t }),
   setLeftTab: (t) => set({ leftTab: t, leftVisible: true }),
   toggleLeft: () => set((s) => ({ leftVisible: !s.leftVisible })),
-  openTask: (t) => set({ task: t, searchOpen: false }),
-  closeTask: () => set({ task: null }),
+  openTask: (t) => set({ task: t, searchOpen: false, ...exitEditState() }),
+  closeTask: () => set({ task: null, ...exitEditState() }),
+  setEditTab: (t) => set({ editTab: t }),
+  setEditMode: (m) =>
+    set({
+      editMode: m,
+      selectingFor: m === "rewrite" ? "rewrite" : m === "addtext" ? "addText" : null,
+      liveSelection: null,
+      completedSelection: null,
+    }),
   setSearchOpen: (b) => set({ searchOpen: b }),
   setHelpOpen: (b) => set({ helpOpen: b }),
   setSelectingFor: (mode) =>
