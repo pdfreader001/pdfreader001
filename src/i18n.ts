@@ -188,6 +188,9 @@ const en: Record<string, string> = {
   "扫描版提示": "This page appears to be a scanned document (no text layer). Deep editing is disabled. OCR is planned for v2.",
   "新文本内容": "New text content",
   "原文": "Original text",
+  "原字体": "Original font",
+  "原字体不可用，已用近似字体替换":
+    "Original font is unavailable; a similar font was substituted.",
   "字号（pt）": "Font size (pt)",
   "X 坐标（pt）": "X (pt)",
   "Y 坐标（pt）": "Y (pt)",
@@ -310,6 +313,11 @@ const en: Record<string, string> = {
   "已去除内存中的加密，请立即 Ctrl+S 另存":
     "Encryption removed from memory. Press Ctrl+S to save immediately.",
   "已导出明文副本：{path}": "Exported plain copy: {path}",
+  "现有打开密码（读取加密状态与去除密码时需要）":
+    "Existing open password (needed to read encryption status and to remove the password)",
+  "读取加密状态": "Read Encryption Status",
+  "该文档已加密，请填写现有打开密码后重试":
+    "This document is encrypted. Enter the existing open password and try again.",
   "PDF → 图片": "PDF → Images",
   "图片 → PDF": "Images → PDF",
   "Office → PDF": "Office → PDF",
@@ -670,6 +678,9 @@ const ja: Record<string, string> = {
     "このページはスキャン文書のようです（テキストレイヤーなし）。詳細編集は無効。OCRはv2予定。",
   "新文本内容": "新しいテキスト内容",
   "原文": "元のテキスト",
+  "原字体": "元のフォント",
+  "原字体不可用，已用近似字体替换":
+    "元のフォントが利用できないため、近似フォントで置き換えました。",
   "字号（pt）": "フォントサイズ（pt）",
   "X 坐标（pt）": "X座標（pt）",
   "Y 坐标（pt）": "Y座標（pt）",
@@ -776,6 +787,11 @@ const ja: Record<string, string> = {
   "已去除内存中的加密，请立即 Ctrl+S 另存":
     "メモリ上の暗号化を解除しました。すぐCtrl+Sで保存してください",
   "已导出明文副本：{path}": "平文コピーを書き出しました：{path}",
+  "现有打开密码（读取加密状态与去除密码时需要）":
+    "既存の開くパスワード（暗号化状態の取得と解除に必要）",
+  "读取加密状态": "暗号化状態を取得",
+  "该文档已加密，请填写现有打开密码后重试":
+    "この文書は暗号化されています。既存の開くパスワードを入力して再試行してください。",
   "PDF → 图片": "PDF → 画像",
   "图片 → PDF": "画像 → PDF",
   "Office → PDF": "Office → PDF",

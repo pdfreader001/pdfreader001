@@ -97,8 +97,9 @@ fn rewrite_text_insert_only_produces_valid_pdf() {
         new_text: "Inserted".into(),
         font_size: 18.0,
         color: "#FF0000".into(),
+        font_name: None,
     };
-    let new_bytes = rewrite_text_logic(pdfium, &bytes, 0, region, &opts).unwrap();
+    let (new_bytes, _approximated) = rewrite_text_logic(pdfium, &bytes, 0, region, &opts).unwrap();
     assert!(!new_bytes.is_empty());
     // 输出能被 pdfium 重新打开
     let _doc = pdfium.load_pdf_from_byte_slice(&new_bytes, None).unwrap();
@@ -114,6 +115,7 @@ fn rewrite_text_empty_string_errors() {
         new_text: "".into(),
         font_size: 12.0,
         color: "#000000".into(),
+        font_name: None,
     };
     let result = rewrite_text_logic(pdfium, &bytes, 0, region, &opts);
     assert!(result.is_err());
@@ -131,6 +133,7 @@ fn rewrite_text_invalid_rect_errors() {
         new_text: "test".into(),
         font_size: 12.0,
         color: "#000000".into(),
+        font_name: None,
     };
     let result = rewrite_text_logic(pdfium, &bytes, 0, region, &opts);
     assert!(result.is_err());
@@ -147,6 +150,7 @@ fn rewrite_text_page_out_of_range() {
         new_text: "test".into(),
         font_size: 12.0,
         color: "#000000".into(),
+        font_name: None,
     };
     let result = rewrite_text_logic(pdfium, &bytes, 99, region, &opts);
     assert!(result.is_err());
@@ -170,13 +174,37 @@ fn rewrite_text_outside_region_still_inserts() {
         new_text: "NewText".into(),
         font_size: 12.0,
         color: "#000000".into(),
+        font_name: None,
     };
-    let new_bytes = rewrite_text_logic(pdfium, &bytes, 0, region, &opts).unwrap();
+    let (new_bytes, _approximated) = rewrite_text_logic(pdfium, &bytes, 0, region, &opts).unwrap();
     let doc_after = pdfium.load_pdf_from_byte_slice(&new_bytes, None).unwrap();
     let text_after = doc_after.pages().get(0).unwrap().text().unwrap().all();
     // 原文保留（因为 region 没命中）+ 新文字插入
     assert!(text_after.contains("KeepMe"), "original text outside region should remain");
     assert!(text_after.contains("NewText"), "new text should be inserted at region");
+}
+
+/// 文字重写：原字体名无法映射到系统字体 → 标记为「近似替换」。
+#[test]
+fn rewrite_text_with_unknown_font_marks_approximated() {
+    let pdfium = pdfium();
+    let bytes = make_text_pdf("Baseline");
+
+    let region = PtRect {
+        left: 500.0,
+        bottom: 50.0,
+        right: 590.0,
+        top: 100.0,
+    };
+    let opts = RewriteTextOpts {
+        new_text: "Inserted".into(),
+        font_size: 18.0,
+        color: "#000000".into(),
+        font_name: Some("NoSuchFont-1234".into()),
+    };
+    let (new_bytes, approximated) = rewrite_text_logic(pdfium, &bytes, 0, region, &opts).unwrap();
+    assert!(!new_bytes.is_empty());
+    assert!(approximated, "unknown source font should be flagged as approximated");
 }
 
 // ---------- add_text_box ----------

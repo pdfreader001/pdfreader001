@@ -287,6 +287,7 @@ function DeepEditor() {
   const setCompletedSelection = useApp((s) => s.setCompletedSelection);
   const dblClickText = useApp((s) => s.dblClickText);
   const setDblClickText = useApp((s) => s.setDblClickText);
+  const setEditTarget = useApp((s) => s.setEditTarget);
   const jumpToPage = useApp((s) => s.jumpToPage);
   const t = useT();
 
@@ -368,6 +369,10 @@ function DeepEditor() {
     region: { left: number; bottom: number; right: number; top: number };
     pageIndex: number;
     originalText?: string;
+    /** 双击取字得到的原字体样式，用于预填重写表单。 */
+    fontName?: string;
+    fontSize?: number;
+    color?: string;
   } | null>(null);
 
   useEffect(() => {
@@ -380,6 +385,9 @@ function DeepEditor() {
       region: dblClickText.region,
       pageIndex: dblClickText.pageIndex,
       originalText: dblClickText.originalText,
+      fontName: dblClickText.fontName || undefined,
+      fontSize: dblClickText.fontSize || undefined,
+      color: dblClickText.color || undefined,
     });
     setMode("rewrite");
     if (dblClickText.pageIndex !== currentPage) {
@@ -388,6 +396,13 @@ function DeepEditor() {
     setDblClickText(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dblClickText]);
+
+  // 重写面板关闭（或本面板因 Escape 卸载）时退出文字编辑态，清掉画布上的虚线框。
+  useEffect(() => {
+    if (!rwModal) return;
+    return () => setEditTarget(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rwModal]);
 
   useEffect(() => {
     if (!completedSelection || docId === null) return;
@@ -437,6 +452,7 @@ function DeepEditor() {
     newText: string;
     fontSize: number;
     color: string;
+    fontName?: string | null;
   }) => {
     const id = requireDoc();
     if (!id) return;
@@ -446,18 +462,22 @@ function DeepEditor() {
     }
     setBusy(true);
     try {
-      const info = await rewriteText(id, opts.pageIndex, opts.region, {
+      const result = await rewriteText(id, opts.pageIndex, opts.region, {
         newText: opts.newText.trim(),
         fontSize: opts.fontSize,
         color: opts.color,
+        fontName: opts.fontName ?? null,
       });
-      updatePages(info);
+      updatePages(result.info);
       markDirty(true);
       setUndoRedo(await refreshUndoRedo(id));
       pushToast(
         "info",
         t("已重写第 {n} 页文字", { n: opts.pageIndex + 1 }),
       );
+      if (result.approximated) {
+        pushToast("info", t("原字体不可用，已用近似字体替换"));
+      }
       setRwModal(null);
       closeTask();
     } catch (e) {
@@ -661,6 +681,9 @@ function DeepEditor() {
         region={modal.region}
         pageIndex={modal.pageIndex}
         originalText={modal.originalText}
+        fontName={modal.fontName}
+        fontSize={modal.fontSize}
+        color={modal.color}
         onCancel={() => setRwModal(null)}
         onSubmit={(opts) => {
           onRewrite({
@@ -669,6 +692,7 @@ function DeepEditor() {
             newText: opts.newText,
             fontSize: opts.fontSize,
             color: opts.color,
+            fontName: opts.fontName,
           });
         }}
         busy={busy}
@@ -1099,6 +1123,9 @@ function RewriteModal({
   region,
   pageIndex,
   originalText,
+  fontName,
+  fontSize: originalFontSize,
+  color: originalColor,
   onCancel,
   onSubmit,
   busy,
@@ -1106,14 +1133,24 @@ function RewriteModal({
   region: { left: number; bottom: number; right: number; top: number };
   pageIndex: number;
   originalText?: string;
+  fontName?: string;
+  fontSize?: number;
+  color?: string;
   onCancel: () => void;
-  onSubmit: (opts: { newText: string; fontSize: number; color: string }) => void;
+  onSubmit: (opts: {
+    newText: string;
+    fontSize: number;
+    color: string;
+    fontName?: string;
+  }) => void;
   busy: boolean;
 }) {
   const t = useT();
   const [text, setText] = useState(originalText ?? "");
-  const [fontSize, setFontSize] = useState(24);
-  const [color, setColor] = useState("#000000");
+  const [fontSize, setFontSize] = useState(() =>
+    originalFontSize ? Math.round(originalFontSize * 10) / 10 : 24,
+  );
+  const [color, setColor] = useState(originalColor || "#000000");
   const width = region.right - region.left;
   const height = region.top - region.bottom;
   return (
@@ -1141,6 +1178,11 @@ function RewriteModal({
         >
           <strong>{t("原文")}：</strong>
           <span>{originalText}</span>
+        </p>
+      )}
+      {fontName && (
+        <p className="placeholder" style={{ fontSize: 12, margin: "0 0 8px 0" }}>
+          {t("原字体")}：{fontName}
         </p>
       )}
       <div className="form-row">
@@ -1176,7 +1218,7 @@ function RewriteModal({
       <div className="task-footer">
         <button
           className="btn-primary"
-          onClick={() => onSubmit({ newText: text, fontSize, color })}
+          onClick={() => onSubmit({ newText: text, fontSize, color, fontName })}
           disabled={busy || !text.trim()}
         >
           {busy ? t("处理中…") : t("确认重写")}

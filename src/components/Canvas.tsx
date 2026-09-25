@@ -41,6 +41,10 @@ const PageView = React.memo(function PageView({
   const setLiveSelection = useApp((s) => s.setLiveSelection);
   const setCompletedSelection = useApp((s) => s.setCompletedSelection);
   const setCurrentPage = useApp((s) => s.setCurrentPage);
+  // 精细订阅：只有本页处于文字编辑态时才渲染虚线框
+  const editTarget = useApp((s) =>
+    s.editTarget && s.editTarget.pageIndex === pageIndex ? s.editTarget : null,
+  );
   const holderRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -227,15 +231,21 @@ const PageView = React.memo(function PageView({
       try {
         const result = await pickTextAtPoint(docId, pageIndex, x, y);
         if (!result) return;
+        const region = {
+          left: result.left,
+          bottom: result.bottom,
+          right: result.right,
+          top: result.top,
+        };
+        // 进入文字编辑态：先在画布上标出虚线框 + 光标，再由 EditPanel 打开重写面板。
+        useApp.getState().setEditTarget({ pageIndex, region });
         useApp.getState().setDblClickText({
-          region: {
-            left: result.left,
-            bottom: result.bottom,
-            right: result.right,
-            top: result.top,
-          },
+          region,
           pageIndex,
           originalText: result.text,
+          fontName: result.fontName,
+          fontSize: result.fontSize,
+          color: result.color,
         });
       } catch {
         // 双击命中失败静默忽略
@@ -259,6 +269,21 @@ const PageView = React.memo(function PageView({
     >
       <canvas ref={ref} style={{ width: cssW, height: cssH }} />
       <span className="page-number-tag">{pageIndex + 1}</span>
+      {/* 文字编辑态：双击命中的区域显示虚线框 + 闪烁光标 */}
+      {editTarget &&
+        (() => {
+          const r = editTarget.region;
+          const left = r.left * scale;
+          const top = (page.height - r.top) * scale;
+          const width = (r.right - r.left) * scale;
+          const height = (r.top - r.bottom) * scale;
+          if (width <= 0 || height <= 0) return null;
+          return (
+            <div className="text-edit-region" style={{ left, top, width, height }}>
+              <span className="text-edit-caret" />
+            </div>
+          );
+        })()}
       {/* 搜索高亮 overlay */}
       {pageHitRects.length > 0 &&
         pageHitRects.map((r, i) => {

@@ -6,7 +6,7 @@ use crate::document::{pdfium, AppState};
 use crate::error::{AppError, AppResult};
 
 /// 双击命中：在指定 PDF 点 (x, y) 找到字符后，扩展到相邻同类字符，
-/// 返回整段命中区域的矩形 + 命中原文。
+/// 返回整段命中区域的矩形 + 命中原文 + 原字体样式。
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextPickResult {
@@ -16,6 +16,16 @@ pub struct TextPickResult {
     pub top: f32,
     /// 命中字符所在词/短句的原文（用于回填到重写 modal 提示）。
     pub text: String,
+    /// 命中字符的字体名（pdfium 返回的 PostScript 基名，如 `ABCDEF+SimSun`）；读取失败为空串。
+    pub font_name: String,
+    /// 命中字符的字号（PDF 点）。
+    pub font_size: f32,
+    /// 命中字符的填充色 `#rrggbb`；读取失败为空串（前端应回退默认色）。
+    pub color: String,
+    /// 命中字符是否粗体。
+    pub font_bold: bool,
+    /// 命中字符是否斜体。
+    pub font_italic: bool,
 }
 
 /// 单页搜索结果：一页内所有命中及其矩形坐标。
@@ -272,6 +282,39 @@ pub fn search_page_text_logic(
     Ok(PageSearchResult { page_index, hits })
 }
 
+/// 去掉 PDF 子集字体的 `ABCDEF+` 前缀（6 个大写字母 + `+`）。
+pub fn strip_subset_prefix(name: &str) -> String {
+    match name.split_once('+') {
+        Some((prefix, rest))
+            if !rest.is_empty()
+                && prefix.len() == 6
+                && prefix.chars().all(|c| c.is_ascii_uppercase()) =>
+        {
+            rest.to_string()
+        }
+        _ => name.to_string(),
+    }
+}
+
+/// 从命中的字符读出原字体样式：`(字体名, 字号, 填充色, 粗体, 斜体)`。
+///
+/// 字体名与颜色在 pdfium 侧可能读取失败，此时降级为空串，由调用方回退默认样式。
+fn read_char_style(c: &PdfPageTextChar) -> (String, f32, String, bool, bool) {
+    let font_name = strip_subset_prefix(&c.font_name());
+    let font_size = c.unscaled_font_size().value;
+    let color = match c.fill_color() {
+        Ok(col) => format!("#{:02x}{:02x}{:02x}", col.red(), col.green(), col.blue()),
+        Err(_) => String::new(),
+    };
+    (
+        font_name,
+        font_size,
+        color,
+        c.font_is_bold_reenforced(),
+        c.font_is_italic(),
+    )
+}
+
 /// 给定 PDF 点 (x, y)，找到该位置的字符并扩展为相邻同类字符的连续片段，
 /// 返回片段外包围盒 + 原文。用于画布双击文字后自动选中词组。
 #[tauri::command]
@@ -336,6 +379,7 @@ pub fn pick_text_at_point_logic(
     let Some((l, b, r, t, hit_ch)) = read_char(&hit_char) else {
         return Ok(None);
     };
+    let (font_name, font_size, color, font_bold, font_italic) = read_char_style(&hit_char);
 
     // "词字符" = 非空白、非控制字符；空白处只返回单字符
 
@@ -346,6 +390,11 @@ pub fn pick_text_at_point_logic(
             right: r,
             top: t,
             text: hit_ch.to_string(),
+            font_name,
+            font_size,
+            color,
+            font_bold,
+            font_italic,
         }));
     }
 
@@ -393,6 +442,11 @@ pub fn pick_text_at_point_logic(
         right: mx_r,
         top: mx_t,
         text: word,
+        font_name,
+        font_size,
+        color,
+        font_bold,
+        font_italic,
     }))
 }
 

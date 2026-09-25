@@ -5,7 +5,10 @@
 //! - 新增文本/图片：用户给出坐标与内容 → 创建新对象
 //! - 扫描版检测：用 `page.text().all().trim().is_empty()` 粗判
 //!
-//! 字体缺失兜底：调用现有 `watermark::load_font_for_text` 自动回退到系统中文字体
+//! 字体策略：重写文字时优先按**原字体名**加载系统里最接近的字体
+//! （[`watermark::load_font_for_text_style`]）；原字体不可用时回退到通用选字逻辑，
+//! 并把「已近似替换」标记回传给前端提示用户。新增文本框仍走通用
+//! [`watermark::load_font_for_text`]。
 
 use std::path::Path;
 
@@ -16,7 +19,7 @@ use tauri::State;
 use crate::document::{pdfium as get_pdfium, push_snapshot, AppState, DocumentInfo};
 use crate::error::{AppError, AppResult};
 use crate::pages::{commit_and_return, load_doc, normalize_indices};
-use crate::watermark::load_font_for_text;
+use crate::watermark::{load_font_for_text, load_font_for_text_style};
 
 /// PDF 点坐标矩形（左下原点）。M4 复用了一个 Rect 类型，本模块独立以避免依赖耦合。
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -71,6 +74,8 @@ pub struct RewriteTextOpts {
     pub font_size: f32,
     /// 颜色（"#RRGGBB"）。
     pub color: String,
+    /// 原字体名（来自双击取字结果），用于尽量沿用原字体；缺失时按通用逻辑选字。
+    pub font_name: Option<String>,
 }
 
 /// 新增文本框选项。
@@ -89,13 +94,16 @@ pub struct AddTextBoxOpts {
 }
 
 /// 文字重写核心逻辑（纯函数版本）：输入 bytes，返回新 bytes。
+///
+/// 第二个返回值 `approximated` 为 `true` 表示原字体不可用、已用近似字体替代重绘，
+/// 调用方应提示用户。
 pub fn rewrite_text_logic(
     pdfium: &Pdfium,
     bytes: &[u8],
     page_index: u32,
     region: PtRect,
     opts: &RewriteTextOpts,
-) -> AppResult<Vec<u8>> {
+) -> AppResult<(Vec<u8>, bool)> {
     if !region.valid() {
         return Err(AppError::InvalidRect);
     }
@@ -107,7 +115,8 @@ pub fn rewrite_text_logic(
     if page_index >= page_count {
         return Err(AppError::PageOutOfRange);
     }
-    let font_token = load_font_for_text(&mut doc, &opts.new_text)?;
+    let (font_token, approximated) =
+        load_font_for_text_style(&mut doc, opts.font_name.as_deref(), &opts.new_text)?;
     let color = parse_hex_color(&opts.color);
     let font_size = opts.font_size.max(4.0);
 
@@ -179,7 +188,7 @@ pub fn rewrite_text_logic(
             obj.set_fill_color(color)?;
         }
     }
-    Ok(doc.save_to_bytes()?)
+    Ok((doc.save_to_bytes()?, approximated))
 }
 
 /// 新增文本框纯函数版本。
@@ -216,6 +225,15 @@ pub fn add_text_box_logic(
     Ok(doc.save_to_bytes()?)
 }
 
+/// 文字重写命令的返回：文档信息 + 是否用了近似字体。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RewriteTextResult {
+    pub info: DocumentInfo,
+    /// `true` 表示原字体不可用，已用近似字体替代重绘。
+    pub approximated: bool,
+}
+
 /// 文字重写 Tauri command。
 #[tauri::command]
 pub async fn rewrite_text(
@@ -224,7 +242,7 @@ pub async fn rewrite_text(
     page_index: u32,
     region: PtRect,
     opts: RewriteTextOpts,
-) -> AppResult<DocumentInfo> {
+) -> AppResult<RewriteTextResult> {
     if !region.valid() {
         return Err(AppError::InvalidRect);
     }
@@ -233,12 +251,13 @@ pub async fn rewrite_text(
     }
     push_snapshot(&state, doc_id);
     let pdfium = get_pdfium();
-    let new_bytes = {
+    let (new_bytes, approximated) = {
         let docs = state.docs.lock().unwrap();
         let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
         rewrite_text_logic(pdfium, &entry.bytes, page_index, region, &opts)?
     };
-    commit_and_return(&state, doc_id, new_bytes)
+    let info = commit_and_return(&state, doc_id, new_bytes)?;
+    Ok(RewriteTextResult { info, approximated })
 }
 
 #[tauri::command]

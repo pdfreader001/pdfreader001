@@ -114,6 +114,48 @@ const CJK_FONT_KEYWORDS: &[&str] = &[
 /// 扫描系统字体目录时最多尝试的文件数，避免极端环境下逐个读取上百个字体文件拖慢编辑。
 const FONT_SCAN_LIMIT: usize = 30;
 
+/// 「原字体名关键词 → 系统字体文件名候选」映射（键全部小写，按子串匹配，靠前者优先）。
+///
+/// 深度编辑重写文字时用它尽量沿用原字体；未命中或系统缺少对应文件时，
+/// 才回退到 [`load_font_for_text`] 的通用选字逻辑，并由调用方标记「近似替换」。
+/// `Helvetica`/`Times`/`Courier` 是 PDF 基准字体，Windows 上分别以
+/// Arial / Times New Roman / Courier New 渲染，属公认等效替换。
+const FONT_NAME_MAP: &[(&str, &[&str])] = &[
+    // ---------- 中文 ----------
+    ("microsoftyahei", &["msyh.ttc", "msyhbd.ttc"]),
+    ("yahei", &["msyh.ttc", "msyhbd.ttc"]),
+    ("msyh", &["msyh.ttc", "msyhbd.ttc"]),
+    ("simhei", &["simhei.ttf"]),
+    ("simsun", &["simsun.ttc", "simsunb.ttf"]),
+    ("nsimsun", &["simsun.ttc", "simsunb.ttf"]),
+    ("simkai", &["simkai.ttf"]),
+    ("kaiti", &["simkai.ttf"]),
+    ("simfang", &["simfang.ttf"]),
+    ("fangsong", &["simfang.ttf"]),
+    ("msjh", &["msjh.ttc", "msjhbd.ttc"]),
+    ("microsoftjhenghei", &["msjh.ttc", "msjhbd.ttc"]),
+    ("dengxian", &["deng.ttf", "dengb.ttf"]),
+    ("deng", &["deng.ttf", "dengb.ttf"]),
+    ("songti", &["simsun.ttc", "simsunb.ttf"]),
+    ("heiti", &["simhei.ttf"]),
+    ("notosanscjk", &["NotoSansCJK-Regular.ttc", "NotoSansSC-Regular.otf"]),
+    ("sourcehansans", &["SourceHanSansSC-Regular.otf"]),
+    // ---------- 西文 ----------
+    ("helvetica", &["arial.ttf", "arialbd.ttf"]),
+    ("arial", &["arial.ttf", "arialbd.ttf"]),
+    ("timesnewroman", &["times.ttf", "timesbd.ttf"]),
+    ("times", &["times.ttf", "timesbd.ttf"]),
+    ("couriernew", &["cour.ttf", "courbd.ttf"]),
+    ("courier", &["cour.ttf", "courbd.ttf"]),
+    ("calibri", &["calibri.ttf", "calibrib.ttf"]),
+    ("cambria", &["cambria.ttc", "cambriab.ttf"]),
+    ("georgia", &["georgia.ttf", "georgiab.ttf"]),
+    ("verdana", &["verdana.ttf", "verdanab.ttf"]),
+    ("tahoma", &["tahoma.ttf", "tahomabd.ttf"]),
+    ("segoe", &["segoeui.ttf", "segoeuib.ttf"]),
+    ("consolas", &["consola.ttf", "consolab.ttf"]),
+];
+
 /// 系统字体目录：优先取 `%WINDIR%\Fonts`，环境变量缺失时退回 Windows 默认路径。
 fn system_fonts_dir() -> PathBuf {
     std::env::var_os("WINDIR")
@@ -201,6 +243,50 @@ pub(crate) fn load_font_for_text(doc: &mut PdfDocument, text: &str) -> AppResult
     }
 
     Err(AppError::NoChineseFont)
+}
+
+/// 按原字体名加载最接近的系统字体，用于「沿用原字体样式重绘」。
+///
+/// 返回 `(字体 token, 是否近似替换)`：`approximated == false` 表示命中了原字体
+/// （或在 Windows 上属于公认等效替换），调用方无需提示；`true` 表示只能用替代字体，
+/// 应提示用户「原字体不可用，已用近似字体替换」。
+///
+/// 顺序：
+/// 1. 原字体名命中 [`FONT_NAME_MAP`] 且系统存在对应字体文件 → 直接用，记为精确；
+/// 2. 否则回退 [`load_font_for_text`]（按文本是否含中文选字），记为近似。
+pub(crate) fn load_font_for_text_style(
+    doc: &mut PdfDocument,
+    source_font_name: Option<&str>,
+    text: &str,
+) -> AppResult<(PdfFontToken, bool)> {
+    let source = source_font_name
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_ascii_lowercase);
+
+    if let Some(source) = source.as_deref() {
+        if let Some((_, files)) = FONT_NAME_MAP.iter().find(|(key, _)| source.contains(key)) {
+            // 含非 ASCII 的文本只能交给「看起来支持中文」的候选文件，
+            // 否则（如 Arial）会缺字形渲染成空白。
+            let usable: Vec<&str> = if text.chars().all(|c| c.is_ascii()) {
+                files.to_vec()
+            } else {
+                files
+                    .iter()
+                    .copied()
+                    .filter(|file| looks_like_cjk_font(file))
+                    .collect()
+            };
+            let fonts_dir = system_fonts_dir();
+            for file in usable {
+                if let Some(token) = try_load_font_file(doc, &fonts_dir.join(file)) {
+                    return Ok((token, false));
+                }
+            }
+        }
+    }
+
+    load_font_for_text(doc, text).map(|token| (token, true))
 }
 
 /// 平铺网格生成器：交错排列覆盖整页

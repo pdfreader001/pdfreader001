@@ -119,6 +119,14 @@ export interface TextPickResult {
   right: number;
   top: number;
   text: string;
+  /** 命中字符的字体名（已去子集前缀）；读取失败为空串。 */
+  fontName: string;
+  /** 命中字符的字号（pt）。 */
+  fontSize: number;
+  /** 命中字符的填充色 "#rrggbb"；读取失败为空串。 */
+  color: string;
+  fontBold: boolean;
+  fontItalic: boolean;
 }
 
 /** 给定 PDF 点 (x, y)，返回该位置的词/词组 bounds + 原文 */
@@ -283,6 +291,14 @@ export interface RewriteTextOpts {
   newText: string;
   fontSize: number;
   color: string;
+  /** 原字体名，用于尽量沿用原字体；缺失时后端按通用逻辑选字。 */
+  fontName?: string | null;
+}
+
+export interface RewriteTextResult {
+  info: DocumentInfo;
+  /** `true` 表示原字体不可用，已用近似字体替代重绘。 */
+  approximated: boolean;
 }
 
 export function rewriteText(
@@ -290,8 +306,8 @@ export function rewriteText(
   pageIndex: number,
   region: PtRect,
   opts: RewriteTextOpts,
-): Promise<DocumentInfo> {
-  return invoke<DocumentInfo>("rewrite_text", {
+): Promise<RewriteTextResult> {
+  return invoke<RewriteTextResult>("rewrite_text", {
     docId,
     pageIndex,
     region,
@@ -541,16 +557,24 @@ export interface SecurityStatus {
   canCreateNewFormFields: boolean;
 }
 
-export function getSecurityStatus(docId: number): Promise<SecurityStatus> {
-  return invoke<SecurityStatus>("get_security_status", { docId });
+export function getSecurityStatus(
+  docId: number,
+  password?: string | null,
+): Promise<SecurityStatus> {
+  return invoke<SecurityStatus>("get_security_status", { docId, password: password ?? null });
 }
 
-export function exportPlainCopy(docId: number, outputPath: string): Promise<string> {
-  return invoke<string>("export_plain_copy", { docId, outputPath });
+export function exportPlainCopy(
+  docId: number,
+  outputPath: string,
+  password?: string | null,
+): Promise<string> {
+  return invoke<string>("export_plain_copy", { docId, outputPath, password: password ?? null });
 }
 
-export function reloadPlain(docId: number): Promise<DocumentInfo> {
-  return invoke<DocumentInfo>("reload_plain", { docId });
+/** 把当前文档以明文 bytes 重新载入内存（移除加密）。加密文档必须提供原打开密码。 */
+export function reloadPlain(docId: number, password?: string | null): Promise<DocumentInfo> {
+  return invoke<DocumentInfo>("reload_plain", { docId, password: password ?? null });
 }
 
 /** 加密导出参数（P4 / M6）。打开密码与权限密码不能同时为空。 */

@@ -233,6 +233,34 @@ input:focus {
   background: rgba(0, 103, 192, 0.15);
   pointer-events: none;
 }
+/* 文字编辑态：双击命中区域的虚线框 + 闪烁光标 */
+.text-edit-region {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed var(--accent);
+  background: rgba(0, 103, 192, 0.08);
+  pointer-events: none;
+  z-index: 3;
+}
+.text-edit-caret {
+  position: absolute;
+  left: 1px;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--accent);
+  animation: text-edit-caret-blink 1s steps(1, end) infinite;
+}
+@keyframes text-edit-caret-blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
 .search-highlight {
   position: absolute;
   background: rgba(255, 215, 0, 0.4);

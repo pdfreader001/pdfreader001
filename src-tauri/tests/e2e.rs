@@ -177,7 +177,7 @@ fn e2e_rewrite_text_persists() {
         right: pw * 0.9,
         top: ph * 0.6,
     };
-    let new_bytes = rewrite_text_logic(
+    let (new_bytes, _approximated) = rewrite_text_logic(
         pdfium_inst,
         &initial,
         0,
@@ -186,6 +186,7 @@ fn e2e_rewrite_text_persists() {
             new_text: "E2E-REWRITTEN-2024".into(),
             font_size: 12.0,
             color: "#000000".into(),
+            font_name: None,
         },
     )
     .expect("rewrite text");

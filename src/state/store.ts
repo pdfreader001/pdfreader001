@@ -34,6 +34,33 @@ export interface CompletedSelection {
   mode: string;
 }
 
+/** PDF 点坐标矩形（左下原点） */
+export interface PdfRegion {
+  left: number;
+  bottom: number;
+  right: number;
+  top: number;
+}
+
+/** 双击文字命中：区域 + 原文 + 原字体样式（用于重写时预填/沿用）。 */
+export interface DblClickText {
+  region: PdfRegion;
+  pageIndex: number;
+  originalText: string;
+  /** 原字体名（已去子集前缀）；读取失败为空串。 */
+  fontName: string;
+  /** 原字号（pt）。 */
+  fontSize: number;
+  /** 原填充色 "#rrggbb"；读取失败为空串。 */
+  color: string;
+}
+
+/** 文字编辑态：双击命中的区域，画布上以虚线框 + 光标标记，关闭重写面板时清空。 */
+export interface TextEditTarget {
+  pageIndex: number;
+  region: PdfRegion;
+}
+
 export interface Toast {
   id: number;
   kind: "info" | "error";
@@ -108,7 +135,9 @@ interface AppState {
   /** 已完成的选区（CSS 像素坐标 + 当前页索引 + 缩放比例） */
   completedSelection: CompletedSelection | null;
   /** 双击文字命中：由 Canvas 写入，TaskPanel 监听后打开重写 modal */
-  dblClickText: { region: { left: number; bottom: number; right: number; top: number }; pageIndex: number; originalText: string } | null;
+  dblClickText: DblClickText | null;
+  /** 文字编辑态目标：画布上显示虚线框 + 光标；由重写面板关闭时清空 */
+  editTarget: TextEditTarget | null;
 
   toasts: Toast[];
   jumpTarget: { page: number; nonce: number };
@@ -134,7 +163,8 @@ interface AppState {
   setSelectingFor: (mode: string | null) => void;
   setLiveSelection: (rect: (CssRect & { pageIndex: number }) | null) => void;
   setCompletedSelection: (s: Omit<CompletedSelection, "mode"> & { mode?: string } | null) => void;
-  setDblClickText: (s: { region: { left: number; bottom: number; right: number; top: number }; pageIndex: number; originalText: string } | null) => void;
+  setDblClickText: (s: DblClickText | null) => void;
+  setEditTarget: (t: TextEditTarget | null) => void;
   setSearch: (query: string, hits: SearchHit[]) => void;
   setSearchActive: (i: number) => void;
   setSearching: (b: boolean) => void;
@@ -220,6 +250,7 @@ export const useApp = create<AppState>((set, get) => ({
   liveSelection: null,
   completedSelection: null,
   dblClickText: null,
+  editTarget: null,
   searchOpen: false,
   helpOpen: false,
 
@@ -303,6 +334,7 @@ export const useApp = create<AppState>((set, get) => ({
       canUndo: false,
       selectedPages: new Set(),
       dblClickText: null,
+      editTarget: null,
       annotations: {},
     }),
   setViewMode: (m) => set({ viewMode: m, fitMode: m === "single" ? "page" : "width" }),
@@ -341,6 +373,7 @@ export const useApp = create<AppState>((set, get) => ({
       };
     }),
   setDblClickText: (s) => set({ dblClickText: s }),
+  setEditTarget: (t) => set({ editTarget: t }),
   setSearch: (query, hits) => set({ searchQuery: query, searchHits: hits, searchActive: hits.length ? 0 : -1, searchHighlights: {}, loadingHighlights: new Set() }),
   setSearchActive: (i) => set({ searchActive: i }),
   setSearching: (b) => set({ searching: b }),
