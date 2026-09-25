@@ -4,8 +4,6 @@
 use std::fs;
 use std::path::PathBuf;
 
-use pdfium_render::prelude::*;
-
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
@@ -167,7 +165,7 @@ fn open_large_page_pdf_via_inmemory() {
     let mut doc = pdfium.create_new_pdf().unwrap();
     // 创建 100x100 英寸的页面（超大但合法）
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         let _ = pages
             .create_page_at_index(
                 PdfPagePaperSize::Custom(PdfPoints::new(7200.0), PdfPoints::new(7200.0)),

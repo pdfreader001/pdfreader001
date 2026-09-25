@@ -20,41 +20,51 @@
 ## 各阶段任务分解
 
 ### M0 · 环境与骨架
-- [ ] 安装 Rust stable-msvc 工具链（RsProxy 镜像加速）
-- [ ] `npm create tauri-app`：Vite + React + TypeScript 模板
-- [ ] 验证 `npm run tauri dev` 与 `npm run tauri build`
+- [x] 安装 Rust stable-msvc 工具链（RsProxy 镜像加速）
+      > 实证：`rustc 1.98.1` / host `x86_64-pc-windows-msvc`，`cargo check --all-targets` 可跑通。RsProxy 镜像属环境配置，仓库内无痕（无 `.cargo/config.toml`）。
+- [x] `npm create tauri-app`：Vite + React + TypeScript 模板
+- [x] 验证 `npm run tauri dev` 与 `npm run tauri build`
 - [ ] 接入 ESLint + Prettier + rustfmt 基础规范
+      > 未接入：无 `eslint.config.*` / `.prettierrc*` / `rustfmt.toml`，`package.json` 无 lint/format 脚本。
 
 ### M1 · 文档核心管线（Rust 优先）
-- [ ] 集成 pdfium-render + pdfium.dll（Windows x64）
-- [ ] `document` 模块：open（含密码/损坏识别）/save（原子写入）/另存/元数据
-- [ ] `render` 模块：page→位图（缩放比感知）+ 缩略图生成，Tauri 指令返回 ArrayBuffer
+- [x] 集成 pdfium-render + pdfium.dll（Windows x64）
+- [x] `document` 模块：open（含密码/损坏识别）/save（原子写入）/另存/元数据
+- [x] `render` 模块：page→位图（缩放比感知）+ 缩略图生成，Tauri 指令返回 ArrayBuffer
 - [ ] 撤销快照栈（上限 20，LRU 内存预算）
-- [ ] 统一错误类型 `AppError` → 前端可读消息
-- [ ] 黄金文件单测（样例 PDF 入 `src-tauri/tests/fixtures/`）
+      > 部分实现：上限 20 已有（`document.rs` `UNDO_LIMIT = 20`）；LRU 内存预算未实现，当前为按条数 FIFO（`Vec<Vec<u8>>`）。
+- [x] 统一错误类型 `AppError` → 前端可读消息
+- [x] 黄金文件单测（样例 PDF 入 `src-tauri/tests/fixtures/`）
 
 ### M2 · 阅读器 UI
-- [ ] 应用外壳：顶部工具条 + 活动栏 + 左面板（缩略图|书签）+ 右任务面板（按需展开）+ 状态栏
-- [ ] 跟随系统深浅主题（CSS 变量）
-- [ ] 画布：连续滚动/单页/双页、Ctrl+滚轮缩放、适应宽度/窗口、可视区渲染 + 相邻页预渲染
-- [ ] 位图 LRU 缓存（Zustand）
-- [ ] 缩略图虚拟滚动 + 多选（Ctrl/Shift）
-- [ ] 全文搜索（结果列表 + 高亮遍历 F3/Shift+F3）
-- [ ] 阅读位置记忆（localStorage，键为文件指纹）
+- [x] 应用外壳：顶部工具条 + 活动栏 + 左面板（缩略图|书签）+ 右任务面板（按需展开）+ 状态栏
+- [x] 跟随系统深浅主题（CSS 变量）
+- [x] 画布：连续滚动/单页/双页、Ctrl+滚轮缩放、适应宽度/窗口、可视区渲染 + 相邻页预渲染
+- [x] 位图 LRU 缓存（Zustand）
+- [x] 缩略图虚拟滚动 + 多选（Ctrl/Shift）
+- [x] 全文搜索（结果列表 + 高亮遍历 F3/Shift+F3）
+- [x] 阅读位置记忆（localStorage，键为文件指纹）
+      > 注：实际键为 `${fileName}:${pageCount}`，非内容指纹；同名同页数的不同文件会共用位置。
 
 ### M3 · 页面管理 + 合并拆分
-- [ ] 缩略图拖拽重排（插入位置指示线）+ 右键菜单
-- [ ] 旋转/删除/复制/插入空白页/提取
+- [x] 缩略图拖拽重排（插入位置指示线）+ 右键菜单
+- [x] 旋转/删除/复制/插入空白页/提取
 - [ ] 合并向导：多文件拖入排序、页码范围、合并预览
-- [ ] 拆分：每 N 页/自定义范围/按书签顶层/提取选中，多文件输出自动命名
-- [ ] 每项操作接入撤销栈
+      > 部分实现：现状为「文件对话框选文件 + 上/下移按钮排序 + 页码范围」；拖入排序与合并预览均未实现。
+- [x] 拆分：每 N 页/自定义范围/按书签顶层/提取选中，多文件输出自动命名
+- [x] 每项操作接入撤销栈
+      > 注：页面级操作（旋转/删除/复制/插入空白）已入栈；`extract/merge/split` 产物写到新文件、不改动当前文档，故按设计不入栈。
 
 ### M4 · 水印
 - [ ] 添加：文字/图片、字体/字号/颜色/透明度/旋转、九宫格/平铺/拖放、范围选择
+      > 部分实现：文字/图片、样式参数、九宫格/平铺、范围选择均已有；画布拖放定位未实现。
 - [ ] 当前页实时预览（叠加层）
+      > 未实现：`WatermarkPanel.tsx` 无预览叠加层。
 - [ ] 去除-自动：内容流分析（每页重复对象）→ 候选清单 → 勾选 → 预览 → redaction 移除
-- [ ] 去除-手动：框选区域删除
+      > 部分实现：跨页采样 + 指纹 + 候选清单 + 勾选已实现（`watermark_remove::detect_watermark_candidates`）；「预览」步骤缺失。
+- [x] 去除-手动：框选区域删除
 - [ ] 误删保护：强制预览确认 + 撤销兜底
+      > 部分实现：仅有撤销兜底；强制预览确认未实现。
 
 ### M5 · 深度编辑
 - [x] 扫描版检测（无文本层）→ 明确提示
@@ -65,7 +75,7 @@
 
 ### M6 · 安全 + 导出
 - [x] 设置打开密码/权限密码
-- [ ] 移除密码（需持有密码）
+- [x] 移除密码（需持有密码）
 - [x] 页面导出 PNG/JPG（含 DPI 选择）
 
 ### M7 · 打磨与上架
@@ -86,4 +96,22 @@
 
 - 提交规范：`feat|fix|docs|test|chore(scope): 描述`
 - 每个里程碑完成即打 tag（`v0.1.0-m1` 风格）
-- 主干开发 + 里程碑标签，暂不引入远程仓库（Store 上线前再建 GitHub 私有仓库）
+- 主干开发 + 里程碑标签
+- 远程仓库：`origin` = https://github.com/pdfreader001/pdfreader001.git（主干 `main`，已推送至 M5 收尾提交 `31fe8c8`）
+
+## 里程碑 tag 映射（补打于 2026-09-25）
+
+补打原因：M0–M6 完成时未按约定打 tag（此前仓库 0 个 tag）。下表为按「范围收尾」定位的结果。
+
+| tag | 指向提交 | 说明 |
+|-----|----------|------|
+| `v0.1.0-m0` | `c7ec8ff` | Tauri 2 + React 骨架 |
+| `v0.1.0-m1` | `bb6eeeb` | PDFium 文档核心管线 |
+| `v0.1.0-m2` | `d72541c` | 阅读器三栏布局与画布 |
+| `v0.1.0-m3` | `928ad07` | 页面管理 + 合并拆分（含合并输出/拆分目录修正） |
+| `v0.1.0-m4` | `1198655` | 水印添加（`47ac10b`）+ 去除（含自动检测） |
+| `v0.1.0-m5` | `31fe8c8` | 深度编辑收尾（画布编辑态浮动工具胶囊） |
+| `v0.1.0-m6` | `6a5eaad` | 安全与导出收尾（持原密码移除打开密码） |
+
+> 注：tag 指向的提交在时间线上并非严格递增——M6 的收尾提交（`6a5eaad`）早于 M5 收尾提交（`31fe8c8`），因两个里程碑的工作交替进行。
+> M7（打磨与上架）尚未完成，暂不打 tag。

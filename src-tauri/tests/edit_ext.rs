@@ -26,9 +26,9 @@ fn make_text_pdf(text: &str) -> Vec<u8> {
     doc.pages_mut().create_page_at_index(size, 0).unwrap();
     let token = doc.fonts_mut().helvetica();
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         let mut page = pages.get(0).unwrap();
-        let mut objects = page.objects_mut();
+        let objects = page.objects_mut();
         let _ = objects
             .create_text_object(
                 PdfPoints::new(72.0),

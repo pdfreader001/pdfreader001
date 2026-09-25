@@ -172,8 +172,6 @@ pub fn set_form_field_value_logic(
     bytes: &[u8],
     opts: &SetFormFieldOpts,
 ) -> AppResult<Vec<u8>> {
-    use pdfium_render::prelude::PdfFormFieldCommon;
-
     let pdfium_inst = get_pdfium();
     let mut doc = load_doc(pdfium_inst, bytes)?;
 
@@ -182,11 +180,11 @@ pub fn set_form_field_value_logic(
 
     // 第二步：mutable 路径 — 拿到 form_field_mut 后按字段类型分支
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         let mut page = pages.get(page_idx)?;
-        let mut annots = page.annotations_mut();
+        let annots = page.annotations_mut();
         let mut annot = annots.get(annot_idx as usize)?;
-        let mut widget = annot
+        let widget = annot
             .as_widget_annotation_mut()
             .ok_or(AppError::NotFound)?;
         let field = widget.form_field_mut().ok_or(AppError::NotFound)?;

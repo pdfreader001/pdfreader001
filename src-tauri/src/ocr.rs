@@ -15,7 +15,6 @@
 
 use pdfium_render::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 use tauri::State;
 
 use crate::document::{pdfium, AppState, DocumentInfo};
@@ -121,9 +120,9 @@ pub fn apply_text_overlay_logic(
         })?;
 
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         let mut page = pages.get(page_index as u16)?;
-        let mut objects = page.objects_mut();
+        let objects = page.objects_mut();
 
         for w in words {
             if w.confidence < 30.0 || w.text.trim().is_empty() {
@@ -152,7 +151,7 @@ pub fn apply_text_overlay_logic(
             // 用透明填充色使文字视觉上不可见，但 PDF 内部 text operator 正常存在，
             // 确保可搜索/可选择。pdfium-render 0.8.37 的 set_render_mode(Invisible)
             // 会破坏文本对象导致 garbage 输出，改用此方案。
-            if let Some(mut text_obj) = page_obj.as_text_object_mut() {
+            if let Some(text_obj) = page_obj.as_text_object_mut() {
                 let _ = text_obj.set_fill_color(PdfColor::new(0, 0, 0, 0));
             }
         }
@@ -288,6 +287,8 @@ fn parse_hocr_words(
     Ok(words)
 }
 
+// 仅在 ocr feature 开启时由 parse_hocr_words_core 调用；测试模块也会直接调用。
+#[cfg(any(test, feature = "ocr"))]
 fn strip_html_tags(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut in_tag = false;
@@ -306,6 +307,8 @@ fn strip_html_tags(s: &str) -> String {
 ///
 /// No PDF dependency, no tesseract dependency. Works purely on the hOCR string.
 /// Returns empty vec if no valid ocrx_word entries are found.
+// 仅在 ocr feature 开启时由 parse_hocr_words 调用；测试模块也会直接调用。
+#[cfg(any(test, feature = "ocr"))]
 fn parse_hocr_words_core(hocr: &str, dpi: u32) -> Vec<OcrWord> {
     let mut words = Vec::new();
     let mut idx = 0;

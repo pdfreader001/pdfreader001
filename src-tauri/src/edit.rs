@@ -154,10 +154,10 @@ pub fn list_annotations_logic(bytes: &[u8], page_index: Option<u32>) -> AppResul
                 index: i,
                 page_index: p_idx,
                 kind,
-                left: bounds.left.value as f32,
-                bottom: bounds.bottom.value as f32,
-                right: bounds.right.value as f32,
-                top: bounds.top.value as f32,
+                left: bounds.left().value as f32,
+                bottom: bounds.bottom().value as f32,
+                right: bounds.right().value as f32,
+                top: bounds.top().value as f32,
                 contents: annot.contents().unwrap_or_default(),
                 color: annotation_to_color(&annot),
             });
@@ -180,12 +180,12 @@ pub fn add_annotation_logic(
     }
     let color = parse_color_hex(&opts.color);
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         let mut page = pages.get(page_index as u16)?;
         let pw = page.width().value as f32;
         let ph = page.height().value as f32;
         let rect = make_rect(pw, ph, &opts.region);
-        let mut annots = page.annotations_mut();
+        let annots = page.annotations_mut();
         match opts.kind {
             AnnotationKind::Highlight => {
                 let mut annot = annots.create_highlight_annotation()?;
@@ -244,9 +244,9 @@ pub fn delete_annotation_logic(
         return Err(AppError::PageOutOfRange);
     }
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         let mut page = pages.get(page_index as u16)?;
-        let mut annots = page.annotations_mut();
+        let annots = page.annotations_mut();
         if annotation_index >= annots.len() as u32 {
             return Err(AppError::AnnotationOutOfRange);
         }
@@ -264,7 +264,7 @@ pub async fn list_annotations(
     doc_id: u64,
     page_index: Option<u32>,
 ) -> AppResult<Vec<AnnotationInfo>> {
-    let pdfium = get_pdfium();
+    let _pdfium = get_pdfium();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
     list_annotations_logic(&entry.bytes, page_index)
@@ -278,7 +278,7 @@ pub async fn add_annotation(
     opts: AddAnnotationOpts,
 ) -> AppResult<DocumentInfo> {
     push_snapshot(&state, doc_id);
-    let pdfium = get_pdfium();
+    let _pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
         let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
@@ -295,7 +295,7 @@ pub async fn delete_annotation(
     annotation_index: u32,
 ) -> AppResult<DocumentInfo> {
     push_snapshot(&state, doc_id);
-    let pdfium = get_pdfium();
+    let _pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
         let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
@@ -319,10 +319,10 @@ pub async fn clear_annotations(
         let total = doc.pages().len() as u32;
         let indices = normalize_indices(&pages, total)?;
         {
-            let mut pages_col = doc.pages_mut();
+            let pages_col = doc.pages_mut();
             for idx in indices.iter().rev() {
                 let mut page = pages_col.get(*idx)?;
-                let mut annots = page.annotations_mut();
+                let annots = page.annotations_mut();
                 let n = annots.len();
                 for _ in 0..n {
                     if let Ok(annot) = annots.get(0) {

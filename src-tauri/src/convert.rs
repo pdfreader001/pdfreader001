@@ -105,7 +105,7 @@ pub fn images_to_pdf_from_images(
     let pdfium = get_pdfium();
     let mut doc = pdfium.create_new_pdf()?;
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         for (idx, img) in images.iter().enumerate() {
             let (pw, ph) = page_size_pts[idx];
             let mut page = pages.create_page_at_index(
@@ -248,7 +248,7 @@ pub async fn images_to_pdf(
     let pdfium = get_pdfium();
     let mut doc = pdfium.create_new_pdf()?;
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         for (idx, img) in imgs.iter().enumerate() {
             let (pw, ph) = page_size_pts[idx];
             let mut page = pages.create_page_at_index(

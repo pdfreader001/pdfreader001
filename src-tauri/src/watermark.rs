@@ -317,7 +317,7 @@ fn tile_positions(
 }
 
 /// 图片水印透明度：像素级乘 alpha
-fn apply_image_opacity(mut img: image::DynamicImage, opacity: f32) -> image::DynamicImage {
+fn apply_image_opacity(img: image::DynamicImage, opacity: f32) -> image::DynamicImage {
     let factor = opacity.clamp(0.0, 100.0) / 100.0;
     if factor >= 0.999 {
         return img;

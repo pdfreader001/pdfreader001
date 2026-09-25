@@ -3,21 +3,11 @@
 //! 用法：在 Cargo workspace 用 `cargo test --test annotations` 即可
 //! 全部走纯函数路径（不依赖 Tauri State）。
 
-use std::fs;
-use std::path::PathBuf;
-
 use pdfium_render::prelude::*;
 use pdfe_lib::edit::{
     add_annotation_logic, delete_annotation_logic, list_annotations_logic, AddAnnotationOpts,
     AnnotationKind, RegionSpec,
 };
-
-fn fixture(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests")
-        .join("fixtures")
-        .join(name)
-}
 
 fn pdfium<'a>() -> &'a Pdfium {
     pdfe_lib::pdfium()
@@ -31,9 +21,9 @@ fn make_text_pdf(text: &str) -> Vec<u8> {
     doc.pages_mut().create_page_at_index(size, 0).unwrap();
     let token = doc.fonts_mut().helvetica();
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         let mut page = pages.get(0).unwrap();
-        let mut objects = page.objects_mut();
+        let objects = page.objects_mut();
         let _ = objects
             .create_text_object(
                 PdfPoints::new(72.0),

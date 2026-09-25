@@ -328,7 +328,7 @@ mod tests {
     //! Unit tests: error code() mapping + Display + Serialize shape.
 
     use super::*;
-    use serde_json::json;
+    
 
     /// Every AppError variant maps to a non-empty, snake_case error code.
     #[test]

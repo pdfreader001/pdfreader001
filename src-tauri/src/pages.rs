@@ -102,7 +102,7 @@ pub async fn rotate_pages(
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
         let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
-        let mut doc = load_doc(pdfium, &entry.bytes)?;
+        let doc = load_doc(pdfium, &entry.bytes)?;
         let total = doc.pages().len() as u32;
         let indices = normalize_indices(&pages, total)?;
         {
@@ -143,7 +143,7 @@ pub async fn delete_pages(
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
         let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
-        let mut doc = load_doc(pdfium, &entry.bytes)?;
+        let doc = load_doc(pdfium, &entry.bytes)?;
         let total = doc.pages().len() as u32;
         let indices = normalize_indices(&pages, total)?;
         if indices.is_empty() {

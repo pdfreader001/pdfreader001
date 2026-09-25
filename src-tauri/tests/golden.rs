@@ -74,7 +74,7 @@ fn rotate_page_persists() {
     use pdfium_render::prelude::PdfPageRenderRotation;
     let bytes = fs::read(fixture("sample.pdf")).unwrap();
     let pdfium = pdfe_lib::pdfium();
-    let mut doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
+    let doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
     {
         let mut page = doc.pages().get(0).unwrap();
         page.set_rotation(PdfPageRenderRotation::Degrees90);
@@ -95,7 +95,7 @@ fn rotate_page_persists() {
 fn delete_page_reduces_count() {
     let bytes = fs::read(fixture("sample.pdf")).unwrap();
     let pdfium = pdfe_lib::pdfium();
-    let mut doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
+    let doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
     assert_eq!(doc.pages().len(), 2);
     let page = doc.pages().get(1).unwrap();
     page.delete().unwrap();
@@ -172,7 +172,7 @@ fn text_watermark_extractable() {
     // 先取字体 token，避免与 pages_mut 借用冲突
     let token = doc.fonts_mut().helvetica();
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         let mut page = pages.get(0).unwrap();
         let mut obj = page
             .objects_mut()
@@ -208,7 +208,7 @@ fn image_watermark_persists() {
         image::Rgba([255, 0, 0, 128]),
     ));
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         let mut page = pages.get(0).unwrap();
         page.objects_mut()
             .create_image_object(
@@ -237,9 +237,9 @@ fn annotation_highlight_persists() {
     let size = PdfPagePaperSize::a4();
     doc.pages_mut().create_page_at_index(size, 0).unwrap();
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         let mut page = pages.get(0).unwrap();
-        let mut annots = page.annotations_mut();
+        let annots = page.annotations_mut();
         let mut hl = annots.create_highlight_annotation().unwrap();
         let q = PdfQuadPoints::new(
             PdfPoints::new(72.0),
@@ -273,9 +273,9 @@ fn annotation_delete_works() {
     let size = PdfPagePaperSize::a4();
     doc.pages_mut().create_page_at_index(size, 0).unwrap();
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         let mut page = pages.get(0).unwrap();
-        let mut annots = page.annotations_mut();
+        let annots = page.annotations_mut();
         let mut hl = annots.create_highlight_annotation().unwrap();
         let q = PdfQuadPoints::new(
             PdfPoints::new(72.0),
@@ -292,9 +292,9 @@ fn annotation_delete_works() {
             .unwrap();
     }
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         let mut page = pages.get(0).unwrap();
-        let mut annots = page.annotations_mut();
+        let annots = page.annotations_mut();
         let annot = annots.get(0).unwrap();
         annots.delete_annotation(annot).unwrap();
     }
@@ -318,7 +318,7 @@ fn convert_images_to_pdf_pages_match() {
     img2.save(&p2).unwrap();
     let mut doc = pdfium.create_new_pdf().unwrap();
     {
-        let mut pages = doc.pages_mut();
+        let pages = doc.pages_mut();
         pages
             .create_page_at_index(PdfPagePaperSize::a4(), 0)
             .unwrap();
@@ -365,7 +365,7 @@ fn undo_redo_rotation() {
         PdfPageRenderRotation::None
     );
 
-    let mut doc3 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
+    let doc3 = pdfium.load_pdf_from_byte_slice(&saved, None).unwrap();
     doc3.pages()
         .get(0)
         .unwrap()

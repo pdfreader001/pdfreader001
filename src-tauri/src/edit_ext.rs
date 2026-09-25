@@ -49,6 +49,8 @@ impl PtRect {
             && self.top > other.bottom
     }
     /// Returns true iff `point` (x, y) lies within this rect (inclusive on edges).
+    /// 仅单元测试使用，非测试构建下不编入，避免 dead_code 警告。
+    #[cfg(test)]
     pub(crate) fn contains(&self, x: f32, y: f32) -> bool {
         x >= self.left && x <= self.right && y >= self.bottom && y <= self.top
     }
@@ -163,7 +165,7 @@ pub fn rewrite_text_logic(
             PdfPoints::new(region.right),
         );
         {
-            let mut objects = page.objects_mut();
+            let objects = page.objects_mut();
             let _rect = objects.create_path_object_rect(
                 pdf_rect,
                 None, // 无描边
@@ -177,7 +179,7 @@ pub fn rewrite_text_logic(
         let text_x = region.left + pad_x;
         let text_y = region.bottom + region.height() * 0.15;
         {
-            let mut objects = page.objects_mut();
+            let objects = page.objects_mut();
             let mut obj = objects.create_text_object(
                 PdfPoints::new(text_x),
                 PdfPoints::new(text_y),
@@ -212,7 +214,7 @@ pub fn add_text_box_logic(
     {
         let pages_col = doc.pages_mut();
         let mut page = pages_col.get(page_index as u16)?;
-        let mut objects = page.objects_mut();
+        let objects = page.objects_mut();
         let mut obj = objects.create_text_object(
             PdfPoints::new(opts.x),
             PdfPoints::new(opts.y),
@@ -335,7 +337,7 @@ pub async fn replace_image(
                 .objects_mut()
                 .remove_object_at_index(object_index as usize);
             // 在原位置插入新图
-            let mut objects = page.objects_mut();
+            let objects = page.objects_mut();
             objects.create_image_object(
                 PdfPoints::new(l.min(r)),
                 PdfPoints::new(b.min(t)),
