@@ -4,7 +4,7 @@
 //! - 文字水印 → 填充色带 alpha（PdfColor 第四通道）
 //! - 图片水印 → 像素级预乘 alpha 后再嵌入
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use pdfium_render::prelude::*;
 use serde::Deserialize;
@@ -90,29 +90,116 @@ fn anchor(position: &str, page_w: f32, page_h: f32, obj_w: f32, obj_h: f32) -> (
     (x.max(0.0), y.max(0.0))
 }
 
-/// 按需加载字体：纯 ASCII 用内置 Helvetica；含中文则尝试系统中文字体（CID 加载）
+/// 常见中文字体文件名候选，按优先级排列（微软雅黑 → 黑体 → 宋体 → 微软正黑 → 等线 → 楷体 → 仿宋）。
+const CJK_FONT_CANDIDATES: &[&str] = &[
+    "msyh.ttc",
+    "msyhbd.ttc",
+    "simhei.ttf",
+    "simsun.ttc",
+    "simsunb.ttf",
+    "msjh.ttc",
+    "msjhbd.ttc",
+    "deng.ttf",
+    "dengb.ttf",
+    "simkai.ttf",
+    "simfang.ttf",
+];
+
+/// 扫描系统字体目录时的文件名关键词：命中者视为中文字体，扫描时优先尝试。
+const CJK_FONT_KEYWORDS: &[&str] = &[
+    "msyh", "msjh", "sim", "hei", "song", "kai", "fang", "deng", "ming", "yahei", "gothic",
+    "noto", "sourcehan", "arialuni",
+];
+
+/// 扫描系统字体目录时最多尝试的文件数，避免极端环境下逐个读取上百个字体文件拖慢编辑。
+const FONT_SCAN_LIMIT: usize = 30;
+
+/// 系统字体目录：优先取 `%WINDIR%\Fonts`，环境变量缺失时退回 Windows 默认路径。
+fn system_fonts_dir() -> PathBuf {
+    std::env::var_os("WINDIR")
+        .map(PathBuf::from)
+        .map(|dir| dir.join("Fonts"))
+        .unwrap_or_else(|| PathBuf::from(r"C:\Windows\Fonts"))
+}
+
+/// 文件名是否像中文字体（扫描兜底时用于排序，不用于排除）。
+fn looks_like_cjk_font(file_name: &str) -> bool {
+    let name = file_name.to_ascii_lowercase();
+    CJK_FONT_KEYWORDS.iter().any(|kw| name.contains(kw))
+}
+
+/// 尝试以 CID 键控、普通 TrueType 两种方式加载单个字体文件。
+fn try_load_font_file(doc: &mut PdfDocument, path: &Path) -> Option<PdfFontToken> {
+    if !path.is_file() {
+        return None;
+    }
+    // 先按 CID 键控（中日韩字体常见），失败再按普通 TrueType。
+    if let Ok(token) = doc.fonts_mut().load_true_type_from_file(path, true) {
+        return Some(token);
+    }
+    doc.fonts_mut().load_true_type_from_file(path, false).ok()
+}
+
+/// 扫描系统字体目录，返回按「中文字体优先」排序并截断到 [`FONT_SCAN_LIMIT`] 的候选文件。
+fn scan_font_files(fonts_dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(fonts_dir) else {
+        return Vec::new();
+    };
+    let mut files: Vec<PathBuf> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| matches!(ext.to_ascii_lowercase().as_str(), "ttf" | "ttc" | "otf"))
+                .unwrap_or(false)
+        })
+        .collect();
+    // 中文字体排前；组内按文件名排序，保证同一台机器上结果可复现。
+    files.sort_by_key(|path| {
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        (!looks_like_cjk_font(&name), name)
+    });
+    files.truncate(FONT_SCAN_LIMIT);
+    files
+}
+
+/// 按需加载字体：纯 ASCII 用内置 Helvetica；含中文则回退到系统中文字体（CID 加载）。
+///
+/// 回退顺序：
+/// 1. 常见中文字体候选（见 [`CJK_FONT_CANDIDATES`]）按优先级命中即用；
+/// 2. 仍未命中则扫描系统字体目录，取第一个可加载且非符号字体的字体；
+/// 3. 全部失败才返回 [`AppError::NoChineseFont`]。
 pub(crate) fn load_font_for_text(doc: &mut PdfDocument, text: &str) -> AppResult<PdfFontToken> {
     if text.chars().all(|c| c.is_ascii()) {
         return Ok(doc.fonts_mut().helvetica());
     }
-    const CANDIDATES: [&str; 4] = [
-        "C:\\Windows\\Fonts\\msyh.ttc",
-        "C:\\Windows\\Fonts\\simhei.ttf",
-        "C:\\Windows\\Fonts\\simsun.ttc",
-        "C:\\Windows\\Fonts\\msyhbd.ttc",
-    ];
-    for path in CANDIDATES {
-        if !Path::new(path).exists() {
-            continue;
-        }
-        // 先按 CID 键控（微软字体常见），失败再按普通 TrueType
-        if let Ok(token) = doc.fonts_mut().load_true_type_from_file(path, true) {
-            return Ok(token);
-        }
-        if let Ok(token) = doc.fonts_mut().load_true_type_from_file(path, false) {
+
+    let fonts_dir = system_fonts_dir();
+    for name in CJK_FONT_CANDIDATES {
+        if let Some(token) = try_load_font_file(doc, &fonts_dir.join(name)) {
             return Ok(token);
         }
     }
+
+    // 兜底：系统装的是列表中之外的字体，或字体目录不在默认位置时，扫描目录找可用字体。
+    // 符号字体（Wingdings 等）不含中文字形，跳过以免渲染成空白。
+    for path in scan_font_files(&fonts_dir) {
+        if let Some(token) = try_load_font_file(doc, &path) {
+            if !doc
+                .fonts()
+                .get(token)
+                .map(|font| font.is_symbolic())
+                .unwrap_or(false)
+            {
+                return Ok(token);
+            }
+        }
+    }
+
     Err(AppError::NoChineseFont)
 }
 
@@ -356,6 +443,24 @@ mod tests {
     #[test]
     fn estimate_text_width_empty() {
         assert_eq!(estimate_text_width("", 10.0), 0.0);
+    }
+
+    /// looks_like_cjk_font: 常见中文字体命中，拉丁字体不命中，大小写不敏感。
+    #[test]
+    fn looks_like_cjk_font_matches_chinese_names() {
+        assert!(looks_like_cjk_font("msyh.ttc"));
+        assert!(looks_like_cjk_font("MSYHBD.TTC"));
+        assert!(looks_like_cjk_font("simsun.ttc"));
+        assert!(looks_like_cjk_font("NotoSansSC-Regular.otf"));
+        assert!(!looks_like_cjk_font("arial.ttf"));
+        assert!(!looks_like_cjk_font("wingding.ttf"));
+    }
+
+    /// system_fonts_dir: 结构为 `<WINDIR>\Fonts`。
+    #[test]
+    fn system_fonts_dir_ends_with_fonts() {
+        let dir = system_fonts_dir();
+        assert_eq!(dir.file_name().and_then(|n| n.to_str()), Some("Fonts"));
     }
 
     /// anchor: each of 9 positions resolves as expected.
