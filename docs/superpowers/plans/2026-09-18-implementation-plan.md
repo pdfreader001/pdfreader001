@@ -33,8 +33,8 @@
 - [x] 集成 pdfium-render + pdfium.dll（Windows x64）
 - [x] `document` 模块：open（含密码/损坏识别）/save（原子写入）/另存/元数据
 - [x] `render` 模块：page→位图（缩放比感知）+ 缩略图生成，Tauri 指令返回 ArrayBuffer
-- [ ] 撤销快照栈（上限 20，LRU 内存预算）
-      > 部分实现：上限 20 已有（`document.rs` `UNDO_LIMIT = 20`）；LRU 内存预算未实现，当前为按条数 FIFO（`Vec<Vec<u8>>`）。
+- [x] 撤销快照栈（上限 20，LRU 内存预算）
+      > 已实现：`document.rs` 的 `UNDO_LIMIT = 20`（条数）+ `UNDO_BUDGET_BYTES = 256 MiB`（单文档内存），统一由 `push_bounded` 从栈底淘汰最旧的快照，且至少保留 1 条；undo / redo 两侧各自独立计算预算。单测覆盖条数淘汰、预算淘汰、单条超预算三条路径。
 - [x] 统一错误类型 `AppError` → 前端可读消息
 - [x] 黄金文件单测（样例 PDF 入 `src-tauri/tests/fixtures/`）
 

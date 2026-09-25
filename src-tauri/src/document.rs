@@ -9,8 +9,26 @@ use tauri::State;
 
 use crate::error::{AppError, AppResult};
 
-/// 撤销快照栈上限。
+/// 撤销快照栈条数上限。
 const UNDO_LIMIT: usize = 20;
+
+/// 单个文档的撤销 / 重做快照栈内存预算（字节，两侧各自独立计算）。
+///
+/// 只按条数封顶约束不住内存：20 个 50 MB 的快照就是 1 GB。超出预算时从栈底淘汰
+/// 最旧的快照 —— 快照只在栈尾写入与弹出，故栈底即 LRU 端。
+/// 取 256 MiB：常见 10 MB 量级 PDF 仍能吃满 20 步，大文件则改由内存封顶。
+const UNDO_BUDGET_BYTES: usize = 256 * 1024 * 1024;
+
+/// 压入快照，并按「条数上限 + 内存预算」从栈底淘汰最旧的快照。
+///
+/// 至少保留 1 条：单条快照自身就超预算时，也不该把撤销能力整个丢掉。
+fn push_bounded(stack: &mut Vec<Vec<u8>>, bytes: Vec<u8>, limit: usize, budget: usize) {
+    stack.push(bytes);
+    let mut total: usize = stack.iter().map(|s| s.len()).sum();
+    while stack.len() > 1 && (stack.len() > limit || total > budget) {
+        total -= stack.remove(0).len();
+    }
+}
 
 /// 全局 PDFium 实例。
 ///
@@ -263,20 +281,22 @@ pub fn push_snapshot(state: &AppState, doc_id: u64) {
 
 pub(crate) fn push_snapshot_inner(state: &AppState, doc_id: u64, bytes: Vec<u8>) {
     let mut undo = state.undo.lock().unwrap();
-    let stack = undo.entry(doc_id).or_default();
-    stack.push(bytes);
-    if stack.len() > UNDO_LIMIT {
-        stack.remove(0);
-    }
+    push_bounded(
+        undo.entry(doc_id).or_default(),
+        bytes,
+        UNDO_LIMIT,
+        UNDO_BUDGET_BYTES,
+    );
 }
 
 pub(crate) fn push_redo_snapshot(state: &AppState, doc_id: u64, bytes: Vec<u8>) {
     let mut redo = state.redo.lock().unwrap();
-    let stack = redo.entry(doc_id).or_default();
-    stack.push(bytes);
-    if stack.len() > UNDO_LIMIT {
-        stack.remove(0);
-    }
+    push_bounded(
+        redo.entry(doc_id).or_default(),
+        bytes,
+        UNDO_LIMIT,
+        UNDO_BUDGET_BYTES,
+    );
 }
 
 /// 撤销一步修改，返回新元数据。
@@ -422,5 +442,40 @@ mod tests {
         atomic_write(&target, b"").unwrap();
         assert!(target.exists());
         assert_eq!(std::fs::read(&target).unwrap(), b"".to_vec());
+    }
+
+    /// push_bounded: 条数超上限时从栈底淘汰最旧的快照。
+    #[test]
+    fn push_bounded_evicts_oldest_by_count() {
+        let mut stack: Vec<Vec<u8>> = Vec::new();
+        for i in 0..5u8 {
+            push_bounded(&mut stack, vec![i], 3, usize::MAX);
+        }
+        assert_eq!(stack.len(), 3);
+        assert_eq!(stack[0], vec![2u8], "最旧的 0 / 1 已被淘汰");
+        assert_eq!(stack[2], vec![4u8]);
+    }
+
+    /// push_bounded: 条数未超但总字节超预算时，同样从栈底淘汰。
+    #[test]
+    fn push_bounded_evicts_oldest_by_budget() {
+        let mut stack: Vec<Vec<u8>> = Vec::new();
+        push_bounded(&mut stack, vec![0u8; 100], 20, 250);
+        push_bounded(&mut stack, vec![1u8; 100], 20, 250);
+        assert_eq!(stack.len(), 2, "200 <= 250，无需淘汰");
+        push_bounded(&mut stack, vec![2u8; 100], 20, 250);
+        assert_eq!(stack.len(), 2, "300 > 250，淘汰最旧一条");
+        assert_eq!(stack[0][0], 1);
+        assert_eq!(stack[1][0], 2);
+    }
+
+    /// push_bounded: 单条快照自身即超预算时仍保留最后一条，撤销能力不被清空。
+    #[test]
+    fn push_bounded_keeps_at_least_one() {
+        let mut stack: Vec<Vec<u8>> = Vec::new();
+        push_bounded(&mut stack, vec![0u8; 10], 20, 1);
+        push_bounded(&mut stack, vec![1u8; 10], 20, 1);
+        assert_eq!(stack.len(), 1);
+        assert_eq!(stack[0][0], 1, "保留下来的必须是最新那条");
     }
 }
