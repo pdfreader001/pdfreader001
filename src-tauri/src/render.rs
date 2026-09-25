@@ -133,6 +133,7 @@ pub async fn render_page(
     page_index: u32,
     scale: f64,
 ) -> AppResult<tauri::ipc::Response> {
+    let _gate = crate::document::pdfium_gate();
     let pdfium = pdfium();
     let bytes = {
         let docs = state.docs.lock().unwrap();
@@ -151,6 +152,7 @@ pub async fn render_thumbnail(
     doc_id: u64,
     page_index: u32,
 ) -> AppResult<tauri::ipc::Response> {
+    let _gate = crate::document::pdfium_gate();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
     let pdfium = pdfium();
@@ -184,6 +186,7 @@ pub async fn get_page_text(
     doc_id: u64,
     page_index: u32,
 ) -> AppResult<String> {
+    let _gate = crate::document::pdfium_gate();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
     get_page_text_logic(&entry.bytes, page_index)
@@ -214,6 +217,7 @@ pub async fn search_page_text(
     query: String,
     max_hits: Option<u32>,
 ) -> AppResult<PageSearchResult> {
+    let _gate = crate::document::pdfium_gate();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
     search_page_text_logic(&entry.bytes, page_index, &query, max_hits)
@@ -325,6 +329,7 @@ pub async fn pick_text_at_point(
     x: f32,
     y: f32,
 ) -> AppResult<Option<TextPickResult>> {
+    let _gate = crate::document::pdfium_gate();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
     pick_text_at_point_logic(&entry.bytes, page_index, x, y)

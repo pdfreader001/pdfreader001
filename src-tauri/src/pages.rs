@@ -98,6 +98,7 @@ pub async fn rotate_pages(
     delta_deg: i32,
 ) -> AppResult<DocumentInfo> {
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
@@ -139,6 +140,7 @@ pub async fn delete_pages(
     pages: Vec<u32>,
 ) -> AppResult<DocumentInfo> {
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
@@ -169,6 +171,7 @@ pub async fn duplicate_pages(
     dest_index: u32,
 ) -> AppResult<DocumentInfo> {
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
@@ -204,6 +207,7 @@ pub async fn insert_blank_page(
     height: f64,
 ) -> AppResult<DocumentInfo> {
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
@@ -232,6 +236,7 @@ pub async fn reorder_pages(
     to_index: u32,
 ) -> AppResult<DocumentInfo> {
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
@@ -288,6 +293,7 @@ pub async fn extract_pages(
     pages: Vec<u32>,
     output_path: Option<String>,
 ) -> AppResult<DocumentInfo> {
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let (new_bytes, new_path) = {
         let docs = state.docs.lock().unwrap();
@@ -339,6 +345,7 @@ pub async fn merge_documents(
     if sources.is_empty() {
         return Err(AppError::NeedAtLeastOneFile);
     }
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let mut merged = pdfium.create_new_pdf()?;
     for src in &sources {
@@ -433,6 +440,7 @@ pub async fn split_document(
     mode: SplitMode,
     output_dir: String,
 ) -> AppResult<Vec<String>> {
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let (entry_bytes, total) = {
         let docs = state.docs.lock().unwrap();
@@ -562,6 +570,7 @@ pub async fn get_bookmarks(
     state: State<'_, AppState>,
     doc_id: u64,
 ) -> AppResult<Vec<BookmarkNode>> {
+    let _gate = crate::document::pdfium_gate();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
     let pdfium = get_pdfium();

@@ -132,6 +132,7 @@ pub async fn get_security_status(
     doc_id: u64,
     password: Option<String>,
 ) -> AppResult<SecurityStatus> {
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
@@ -150,6 +151,7 @@ pub async fn export_plain_copy(
     output_path: String,
     password: Option<String>,
 ) -> AppResult<String> {
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let bytes = {
         let docs = state.docs.lock().unwrap();
@@ -254,6 +256,7 @@ pub async fn export_encrypted_copy(
     output_path: String,
     options: EncryptOptions,
 ) -> AppResult<String> {
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let plain = {
         let docs = state.docs.lock().unwrap();
@@ -289,6 +292,7 @@ pub async fn reload_plain(
     doc_id: u64,
     password: Option<String>,
 ) -> AppResult<DocumentInfo> {
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();

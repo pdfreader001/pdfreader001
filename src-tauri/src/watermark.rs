@@ -343,6 +343,7 @@ pub async fn add_text_watermark(
         return Err(AppError::WatermarkTextEmpty);
     }
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
@@ -398,6 +399,7 @@ pub async fn add_image_watermark(
     opts: ImageWatermarkOpts,
 ) -> AppResult<DocumentInfo> {
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let img = image::open(&opts.image_path)
         .map_err(|_| AppError::ImageReadFailed { path: opts.image_path.clone() })?;
     let img = apply_image_opacity(img, opts.style.opacity);

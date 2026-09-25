@@ -386,6 +386,7 @@ pub async fn ocr_page(
     lang: Option<String>,
     dpi: Option<u32>,
 ) -> AppResult<OcrPageResult> {
+    let _gate = crate::document::pdfium_gate();
     let docs = _state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
     let config = OcrConfig {
@@ -404,6 +405,7 @@ pub async fn ocr_apply_text_overlay(
     page_index: u32,
     words: Vec<OcrWord>,
 ) -> AppResult<DocumentInfo> {
+    let _gate = crate::document::pdfium_gate();
     push_snapshot_bytes(&state, doc_id)?;
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;

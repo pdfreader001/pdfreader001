@@ -160,6 +160,7 @@ pub async fn export_pages_to_images(
     // 72 PDF 点 = 1 英寸；dpi → scale
     let scale = dpi as f32 / 72.0;
 
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
@@ -245,6 +246,7 @@ pub async fn images_to_pdf(
             .collect(), // fit
     };
 
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let mut doc = pdfium.create_new_pdf()?;
     {

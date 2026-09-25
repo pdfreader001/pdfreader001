@@ -221,6 +221,7 @@ pub async fn list_form_fields(
     state: tauri::State<'_, crate::document::AppState>,
     doc_id: u64,
 ) -> AppResult<Vec<FormFieldInfo>> {
+    let _gate = crate::document::pdfium_gate();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
     list_form_fields_logic(&entry.bytes)
@@ -232,6 +233,7 @@ pub async fn set_form_field_value(
     doc_id: u64,
     opts: SetFormFieldOpts,
 ) -> AppResult<DocumentInfo> {
+    let _gate = crate::document::pdfium_gate();
     push_snapshot(&state, doc_id);
     let new_bytes = {
         let docs = state.docs.lock().unwrap();

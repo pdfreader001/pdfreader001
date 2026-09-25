@@ -13,12 +13,43 @@ use crate::error::{AppError, AppResult};
 const UNDO_LIMIT: usize = 20;
 
 /// 全局 PDFium 实例。
-/// pdfium-render 的 thread_safe feature 内部用全局互斥锁串行化了所有 FPDF_* 调用，
-/// 因此跨线程共享 &Pdfium 是安全的；trait object 本身不声明 Send/Sync，故手动包装。
+///
+/// 注意：pdfium-render 的 `thread_safe` feature 只在 `FPDF_InitLibrary` /
+/// `FPDF_DestroyLibrary` 期间持有全局锁（用于保证同一时刻仅存在一个 `Pdfium` 实例），
+/// 其余 `FPDF_*` 调用一律直接转发、不加任何锁。因此跨线程共享 `&Pdfium` 本身并不安全，
+/// 进程内并发调用 pdfium 会触达其全局缓存/错误状态，导致偶发
+/// `PdfiumLibraryInternalError(Unknown)`、堆损坏甚至访问违例。
+///
+/// 单次调用层面的串行化由 `pdfium_gate()` 命令层闸门保证；trait object 不声明
+/// Send/Sync，故此处手动包装。
 struct PdfiumHolder(Pdfium);
-// SAFETY: 见上；所有访问都经由 ThreadSafePdfiumBindings 的全局锁。
+// SAFETY: 所有可达的 `#[tauri::command]` 都在入口获取 `pdfium_gate()`，
+// 保证同一时刻只有一个线程在调用 pdfium。详见 `pdfium_gate` 的文档。
 unsafe impl Sync for PdfiumHolder {}
 unsafe impl Send for PdfiumHolder {}
+
+/// pdfium 命令层闸门：串行化所有会调用 pdfium 的命令。
+///
+/// pdfium 是带大量进程级全局状态的 C 库，且有多个 `FPDF_*` 入口并不线程安全；
+/// `pdfium-render` 的 `thread_safe` 只覆盖库的 init/destroy，不覆盖单次调用。
+/// tauri 默认使用多线程 tokio 运行时，两个命令完全可能落在不同 worker 上并发执行，
+/// 故必须在命令边界串行化。
+///
+/// 用法（**仅限 `#[tauri::command]` 函数体内**）：
+/// ```ignore
+/// let _gate = crate::document::pdfium_gate();
+/// ```
+/// 必须绑定到具名变量（写成 `let _ = ...` 会立即析构，闸门失效）。
+///
+/// **严禁在任何 helper（`*_logic`、`inspect`、`commit_and_return`、`load_doc` 等）
+/// 内获取本闸门**：这些 helper 会被已持闸门的命令再次调用（如 `commit_and_return`
+/// 需要 `get_pdfium()`），而非可重入的 `Mutex` 在同一线程重入会立即死锁。
+///
+/// 中毒时取回内部值继续使用，避免一次 panic 永久砖化全部命令。
+pub fn pdfium_gate() -> std::sync::MutexGuard<'static, ()> {
+    static GATE: Mutex<()> = Mutex::new(());
+    GATE.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 pub fn pdfium() -> &'static Pdfium {
     static PDFIUM: OnceLock<PdfiumHolder> = OnceLock::new();
@@ -134,6 +165,7 @@ pub async fn open_document(
     path: String,
     password: Option<String>,
 ) -> AppResult<DocumentInfo> {
+    let _gate = pdfium_gate();
     let bytes = fs::read(&path)?;
     let (count, pages) = inspect(&bytes, password.as_deref())?;
     let doc_id = state.next_doc_id();
@@ -158,6 +190,7 @@ pub async fn close_document(state: State<'_, AppState>, doc_id: u64) -> AppResul
 /// 获取文档元数据（页数、页面尺寸）。
 #[tauri::command]
 pub async fn get_metadata(state: State<'_, AppState>, doc_id: u64) -> AppResult<DocumentInfo> {
+    let _gate = pdfium_gate();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
     let (count, pages) = inspect(&entry.bytes, None)?;
@@ -172,6 +205,7 @@ pub async fn save_document(
     doc_id: u64,
     path: Option<String>,
 ) -> AppResult<DocumentInfo> {
+    let _gate = pdfium_gate();
     let mut docs = state.docs.lock().unwrap();
     let entry = docs.get_mut(&doc_id).ok_or(AppError::NotFound)?;
 
@@ -246,6 +280,7 @@ pub(crate) fn push_redo_snapshot(state: &AppState, doc_id: u64, bytes: Vec<u8>) 
 /// 撤销一步修改，返回新元数据。
 #[tauri::command]
 pub async fn undo_document(state: State<'_, AppState>, doc_id: u64) -> AppResult<DocumentInfo> {
+    let _gate = pdfium_gate();
     // 在独立作用域内取快照，确保离开时已释放 undo 锁（锁序恒为 docs → {undo, redo}）
     let popped = {
         let mut undo = state.undo.lock().unwrap();
@@ -274,6 +309,7 @@ pub async fn undo_document(state: State<'_, AppState>, doc_id: u64) -> AppResult
 /// 重做一步（撤销的反向操作）
 #[tauri::command]
 pub async fn redo_document(state: State<'_, AppState>, doc_id: u64) -> AppResult<DocumentInfo> {
+    let _gate = pdfium_gate();
     let popped = {
         let mut redo = state.redo.lock().unwrap();
         redo.get_mut(&doc_id).and_then(|stack| stack.pop())

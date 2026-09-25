@@ -264,6 +264,7 @@ pub async fn list_annotations(
     doc_id: u64,
     page_index: Option<u32>,
 ) -> AppResult<Vec<AnnotationInfo>> {
+    let _gate = crate::document::pdfium_gate();
     let _pdfium = get_pdfium();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
@@ -277,6 +278,7 @@ pub async fn add_annotation(
     page_index: u32,
     opts: AddAnnotationOpts,
 ) -> AppResult<DocumentInfo> {
+    let _gate = crate::document::pdfium_gate();
     push_snapshot(&state, doc_id);
     let _pdfium = get_pdfium();
     let new_bytes = {
@@ -294,6 +296,7 @@ pub async fn delete_annotation(
     page_index: u32,
     annotation_index: u32,
 ) -> AppResult<DocumentInfo> {
+    let _gate = crate::document::pdfium_gate();
     push_snapshot(&state, doc_id);
     let _pdfium = get_pdfium();
     let new_bytes = {
@@ -310,6 +313,7 @@ pub async fn clear_annotations(
     doc_id: u64,
     pages: Vec<u32>,
 ) -> AppResult<DocumentInfo> {
+    let _gate = crate::document::pdfium_gate();
     push_snapshot(&state, doc_id);
     let pdfium = get_pdfium();
     let new_bytes = {

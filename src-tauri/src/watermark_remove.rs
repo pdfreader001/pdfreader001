@@ -163,6 +163,7 @@ pub async fn remove_objects_in_rect(
         return Err(AppError::InvalidRect);
     }
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let (new_bytes, removed_total) = {
         let docs = state.docs.lock().unwrap();
@@ -218,6 +219,7 @@ pub async fn detect_watermark_candidates(
     sample_pages: Option<u32>,
     threshold: Option<f32>,
 ) -> AppResult<DetectResult> {
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
@@ -311,6 +313,7 @@ pub async fn apply_watermark_removal(
         return Err(AppError::NoCandidates);
     }
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let (new_bytes, removed_total) = {
         let docs = state.docs.lock().unwrap();

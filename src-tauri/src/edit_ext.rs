@@ -252,6 +252,7 @@ pub async fn rewrite_text(
         return Err(AppError::TextEmpty);
     }
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let (new_bytes, approximated) = {
         let docs = state.docs.lock().unwrap();
@@ -273,6 +274,7 @@ pub async fn add_text_box(
         return Err(AppError::TextEmpty);
     }
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
@@ -292,6 +294,7 @@ pub async fn replace_image(
     new_image_path: String,
 ) -> AppResult<DocumentInfo> {
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
@@ -360,6 +363,7 @@ pub async fn delete_image_object(
     object_index: u32,
 ) -> AppResult<DocumentInfo> {
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
@@ -429,6 +433,7 @@ pub async fn list_image_objects(
     doc_id: u64,
     page_index: u32,
 ) -> AppResult<Vec<ImageObjectInfo>> {
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
@@ -479,6 +484,7 @@ pub async fn set_image_bounds(
     target: PtRect,
 ) -> AppResult<DocumentInfo> {
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
@@ -534,6 +540,7 @@ pub async fn is_scanned_page(
     doc_id: u64,
     page_index: u32,
 ) -> AppResult<bool> {
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
@@ -567,6 +574,7 @@ pub async fn clear_page_text(
         return Err(AppError::NoPagesToExport);
     }
     push_snapshot(&state, doc_id);
+    let _gate = crate::document::pdfium_gate();
     let pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
