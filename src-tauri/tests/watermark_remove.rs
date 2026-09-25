@@ -47,6 +47,7 @@ fn fingerprint_constructor_fields() {
         top: 60.0,
         occurrence: 5,
         total_sampled: 10,
+        key: None,
     };
     assert_eq!(fp.object_index, 7);
     assert_eq!(fp.kind, "text");
@@ -56,4 +57,5 @@ fn fingerprint_constructor_fields() {
     assert_eq!(fp.top, 60.0);
     assert_eq!(fp.occurrence, 5);
     assert_eq!(fp.total_sampled, 10);
+    assert_eq!(fp.key, None);
 }
