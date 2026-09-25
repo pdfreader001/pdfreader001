@@ -1042,6 +1042,9 @@ const errZh: Record<string, string> = {
   ocr_unavailable: "OCR 引擎不可用：当前构建未启用 ocr feature",
   tessdata_missing: "Tesseract tessdata 文件缺失：{path}，请安装对应语言包",
   ocr_failed: "OCR 识别失败：{detail}",
+  // ------ 加密导出（P4 / M6） ------
+  password_empty: "打开密码与权限密码不能同时为空",
+  pdf_encrypt_failed: "加密 PDF 失败：{detail}",
 };
 
 /** 开发期断言：errZh 字典必须与后端 AppError code 一一对应。
@@ -1064,6 +1067,7 @@ const KNOWN_ERROR_CODES = new Set([
   "tool_start_failed", "tool_failed", "cannot_determine_source_name",
   "no_pdf_generated",
   "ocr_unavailable", "tessdata_missing", "ocr_failed",
+  "password_empty", "pdf_encrypt_failed",
 ]);
 
 if (import.meta.env?.DEV) {

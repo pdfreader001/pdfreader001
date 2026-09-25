@@ -65,6 +65,7 @@ pub fn run() {
             edit_ext::clear_page_text,
             security::get_security_status,
             security::export_plain_copy,
+            security::export_encrypted_copy,
             security::reload_plain,
             convert::export_pages_to_images,
             convert::images_to_pdf,

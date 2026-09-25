@@ -27,6 +27,10 @@ image = "0.25"
 thiserror = "2"
 tauri-plugin-dialog = "2.7.3"
 
+# P4：pdfium-render 只能读取加密状态、不能写入加密（save_to_writer 里硬编码 flags = 0）。
+# 因此加密导出走：pdfium save_to_bytes（明文）→ lopdf 载入 → EncryptionState → 重序列化。
+lopdf = "0.45"
+
 # 可选 feature：启用后引入 Tesseract OCR 引擎。
 # 注意：构建时需要 cmake + 系统已安装 libtesseract-dev / tesseract-ocr-devel。
 # 默认关闭，普通用户 cargo build 不受影响。

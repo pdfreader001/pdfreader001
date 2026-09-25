@@ -33,7 +33,7 @@ export default function TaskPanel() {
     split: t("按固定页数、自定义范围或书签层级，将文档拆分为多个文件。"),
     watermark: t("为页面添加文字或图片水印，支持位置、透明度与平铺。"),
     edit: t("为当前页添加 PDF 注释：高亮、下划线、删除线、便签、自由文本框、矩形标注。"),
-    security: t("查看文档加密状态与权限矩阵；导出明文副本或在内存中去除加密后另存。"),
+    security: t("查看文档加密状态与权限矩阵；导出明文副本、在内存中去除加密，或设置打开密码与权限密码另存为加密副本。"),
     export: t("PDF 与图片互转：PDF → PNG/JPEG（按页可调 DPI）；PNG/JPG/JPEG/BMP/WebP → PDF（多图合并）。"),
     diagnose: t("查看文档关键统计：页数、文件大小、加密状态、注释总数、扫描版抽样。"),
     ocr: t("对扫描版 PDF 调用 Tesseract 识别文字，并把结果作为不可见文本层写回，生成可搜索 PDF。需要编译时启用 ocr feature。"),

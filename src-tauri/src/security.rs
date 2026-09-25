@@ -1,13 +1,24 @@
-//! M6：文档安全状态查看与明文副本导出
+//! M6：文档安全状态查看、明文副本导出与加密副本导出
 //!
-//! pdfium-render 不支持修改文档的加密设置，
-//! 因此本模块能力限于：
+//! pdfium-render 只能读取加密状态、不能写入加密（`save_to_writer` 内部把 flags 硬编码为 0），
+//! 因此本模块能力：
 //! - 读取并展示安全处理版本
 //! - 读取并展示 7 项权限
 //! - 另存为明文副本（解密后的等价物重新序列化 → 移除加密）
+//! - 另存为加密副本（pdfium 产出明文 → lopdf 载入 → EncryptionState → 重序列化）
+//!
+//! 注意：加密只作用于写盘的副本，内存中的 bytes 始终保持明文，
+//! 否则 get_metadata / save_document / 撤销重做 / 渲染都会因需要密码而失效。
 
+use std::collections::BTreeMap;
+use std::sync::Arc;
+
+use lopdf::encryption::{
+    crypt_filters::{Aes128CryptFilter, CryptFilter},
+    EncryptionState, EncryptionVersion, Permissions,
+};
 use pdfium_render::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::document::{pdfium as get_pdfium, AppState, DocumentInfo};
@@ -101,6 +112,111 @@ pub async fn export_plain_copy(
     Ok(output_path)
 }
 
+// ------ 加密副本导出（AES-128 / Revision 4） ------
+
+/// 加密导出参数（前端传入）。
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EncryptOptions {
+    /// 打开密码。为空则无需密码即可打开文档（权限限制仍然生效）。
+    pub user_password: String,
+    /// 权限密码。为空时回落到打开密码。
+    pub owner_password: String,
+    pub allow_print: bool,
+    pub allow_copy: bool,
+    pub allow_modify: bool,
+    pub allow_annotate: bool,
+}
+
+impl EncryptOptions {
+    fn effective_owner_password(&self) -> &str {
+        if self.owner_password.is_empty() {
+            &self.user_password
+        } else {
+            &self.owner_password
+        }
+    }
+}
+
+/// 由 4 个开关组装 PDF 权限位。
+fn build_permissions(opts: &EncryptOptions) -> Permissions {
+    let mut perms = Permissions::empty();
+    if opts.allow_print {
+        perms.insert(Permissions::PRINTABLE | Permissions::PRINTABLE_IN_HIGH_QUALITY);
+    }
+    if opts.allow_copy {
+        perms.insert(Permissions::COPYABLE | Permissions::COPYABLE_FOR_ACCESSIBILITY);
+    }
+    if opts.allow_modify {
+        perms.insert(Permissions::MODIFIABLE);
+    }
+    if opts.allow_annotate {
+        perms.insert(Permissions::ANNOTABLE);
+    }
+    perms
+}
+
+/// 纯函数：把明文 PDF 字节加密为 AES-128（V4 / Revision 4）加密 PDF。
+///
+/// 链路：lopdf 载入明文 → `EncryptionState`（V4）→ 加密所有字符串与流 → 重序列化。
+pub fn encrypt_pdf_bytes_logic(plain: &[u8], opts: &EncryptOptions) -> AppResult<Vec<u8>> {
+    let owner_password = opts.effective_owner_password();
+    if opts.user_password.is_empty() && owner_password.is_empty() {
+        return Err(AppError::PasswordEmpty);
+    }
+
+    let mut doc = lopdf::Document::load_mem(plain)
+        .map_err(|e| AppError::PdfEncryptFailed { detail: e.to_string() })?;
+
+    // Standard security handler 的加密过滤器，名字必须与 stream/string filter 一致。
+    let mut crypt_filters: BTreeMap<Vec<u8>, Arc<dyn CryptFilter>> = BTreeMap::new();
+    crypt_filters.insert(b"StdCF".to_vec(), Arc::new(Aes128CryptFilter));
+
+    let state = EncryptionState::try_from(EncryptionVersion::V4 {
+        document: &doc,
+        encrypt_metadata: true,
+        crypt_filters,
+        stream_filter: b"StdCF".to_vec(),
+        string_filter: b"StdCF".to_vec(),
+        owner_password,
+        user_password: &opts.user_password,
+        permissions: build_permissions(opts),
+    })
+    .map_err(|e| AppError::PdfEncryptFailed { detail: e.to_string() })?;
+
+    doc.encrypt(&state)
+        .map_err(|e| AppError::PdfEncryptFailed { detail: e.to_string() })?;
+
+    // 加密文档会跳过 object streams（流内容已加密、文件密钥已不可得），
+    // 每个对象单独序列化，xref 流不参与加密。
+    let mut out = Vec::new();
+    doc.save_to(&mut out)
+        .map_err(|e| AppError::PdfEncryptFailed { detail: e.to_string() })?;
+    Ok(out)
+}
+
+/// 把当前文档以「加密副本」形式保存到新路径。
+///
+/// 只写盘，不改内存 bytes（内存中始终为明文，供渲染/编辑/撤销重做使用）。
+#[tauri::command]
+pub async fn export_encrypted_copy(
+    state: State<'_, AppState>,
+    doc_id: u64,
+    output_path: String,
+    options: EncryptOptions,
+) -> AppResult<String> {
+    let pdfium = get_pdfium();
+    let plain = {
+        let docs = state.docs.lock().unwrap();
+        let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
+        let doc = pdfium.load_pdf_from_byte_slice(&entry.bytes, None)?;
+        doc.save_to_bytes()?
+    };
+    let encrypted = encrypt_pdf_bytes_logic(&plain, &options)?;
+    std::fs::write(&output_path, &encrypted).map_err(AppError::Io)?;
+    Ok(output_path)
+}
+
 /// 触发一次"另存为"：让用户选保存路径，返回该路径；调用方自行用 save_document 写入。
 #[allow(dead_code)]
 #[tauri::command]
@@ -170,5 +286,70 @@ mod tests {
         assert_eq!(v["canFillFormFields"], true);
         assert_eq!(v["canAssembleDocument"], false);
         assert_eq!(v["canCreateNewFormFields"], false);
+    }
+
+    fn opts(user: &str, owner: &str, all: bool) -> EncryptOptions {
+        EncryptOptions {
+            user_password: user.to_string(),
+            owner_password: owner.to_string(),
+            allow_print: all,
+            allow_copy: all,
+            allow_modify: all,
+            allow_annotate: all,
+        }
+    }
+
+    /// 权限密码为空时回落到打开密码。
+    #[test]
+    fn owner_password_falls_back_to_user_password() {
+        assert_eq!(opts("u", "", true).effective_owner_password(), "u");
+        assert_eq!(opts("u", "o", true).effective_owner_password(), "o");
+        assert_eq!(opts("", "o", true).effective_owner_password(), "o");
+    }
+
+    /// 4 个开关与权限位的映射。
+    #[test]
+    fn build_permissions_follows_toggles() {
+        assert_eq!(build_permissions(&opts("u", "", false)).bits(), 0);
+
+        let none = build_permissions(&opts("u", "", false));
+        assert!(!none.contains(Permissions::PRINTABLE));
+        assert!(!none.contains(Permissions::COPYABLE));
+        assert!(!none.contains(Permissions::MODIFIABLE));
+        assert!(!none.contains(Permissions::ANNOTABLE));
+
+        let all = build_permissions(&opts("u", "", true));
+        assert!(all.contains(Permissions::PRINTABLE));
+        assert!(all.contains(Permissions::PRINTABLE_IN_HIGH_QUALITY));
+        assert!(all.contains(Permissions::COPYABLE));
+        assert!(all.contains(Permissions::MODIFIABLE));
+        assert!(all.contains(Permissions::ANNOTABLE));
+
+        let print_only = build_permissions(&EncryptOptions {
+            user_password: "u".into(),
+            owner_password: String::new(),
+            allow_print: true,
+            allow_copy: false,
+            allow_modify: false,
+            allow_annotate: false,
+        });
+        assert!(print_only.contains(Permissions::PRINTABLE));
+        assert!(!print_only.contains(Permissions::MODIFIABLE));
+    }
+
+    /// 两个密码都为空时，在解析 PDF 之前就应报 password_empty。
+    #[test]
+    fn encrypt_rejects_empty_passwords() {
+        let err = encrypt_pdf_bytes_logic(b"%PDF-1.4", &opts("", "", true)).unwrap_err();
+        assert_eq!(err.code(), "password_empty");
+        assert!(serde_json::to_value(&err).unwrap().get("args").is_none());
+    }
+
+    /// 非法 PDF 内容 → pdf_encrypt_failed（带 detail）。
+    #[test]
+    fn encrypt_reports_parse_failure() {
+        let err = encrypt_pdf_bytes_logic(b"not a pdf at all", &opts("u", "", true)).unwrap_err();
+        assert_eq!(err.code(), "pdf_encrypt_failed");
+        assert!(serde_json::to_value(&err).unwrap()["args"]["detail"].is_string());
     }
 }

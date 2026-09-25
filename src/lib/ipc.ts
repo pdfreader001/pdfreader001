@@ -553,6 +553,27 @@ export function reloadPlain(docId: number): Promise<DocumentInfo> {
   return invoke<DocumentInfo>("reload_plain", { docId });
 }
 
+/** 加密导出参数（P4 / M6）。打开密码与权限密码不能同时为空。 */
+export interface EncryptOptions {
+  /** 打开密码。为空则无需密码即可打开文档（权限限制仍然生效）。 */
+  userPassword: string;
+  /** 权限密码。为空时回落到打开密码。 */
+  ownerPassword: string;
+  allowPrint: boolean;
+  allowCopy: boolean;
+  allowModify: boolean;
+  allowAnnotate: boolean;
+}
+
+/** 把当前文档以 AES-128 加密副本形式导出到新路径（不改动内存中的明文文档）。 */
+export function exportEncryptedCopy(
+  docId: number,
+  outputPath: string,
+  options: EncryptOptions,
+): Promise<string> {
+  return invoke<string>("export_encrypted_copy", { docId, outputPath, options });
+}
+
 // ========== OCR（可选 feature：cargo build --features ocr） ==========
 
 export interface OcrWord {

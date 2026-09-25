@@ -127,6 +127,12 @@ pub enum AppError {
     // ------ 表单（AcroForm） ------
     #[error("Setting values for form field type `{kind}` is not yet supported")]
     FormFieldWriteUnsupported { kind: String },
+
+    // ------ 安全 / 加密导出 ------
+    #[error("Open password and permission password cannot both be empty")]
+    PasswordEmpty,
+    #[error("Failed to encrypt PDF: {detail}")]
+    PdfEncryptFailed { detail: String },
 }
 
 impl From<pdfium_render::prelude::PdfiumError> for AppError {
@@ -205,6 +211,8 @@ impl AppError {
             AppError::TessdataMissing { .. } => "tessdata_missing",
             AppError::OcrFailed { .. } => "ocr_failed",
             AppError::FormFieldWriteUnsupported { .. } => "form_field_write_unsupported",
+            AppError::PasswordEmpty => "password_empty",
+            AppError::PdfEncryptFailed { .. } => "pdf_encrypt_failed",
         }
     }
 
@@ -252,6 +260,9 @@ impl AppError {
             AppError::OcrFailed { detail } => {
                 m.insert("detail".into(), detail.clone());
             }
+            AppError::PdfEncryptFailed { detail } => {
+                m.insert("detail".into(), detail.clone());
+            }
             _ => {}
         }
         m
@@ -297,6 +308,7 @@ impl Serialize for AppError {
                 | AppError::CannotDetermineSourceName
                 | AppError::NoPdfGenerated
                 | AppError::FormFieldWriteUnsupported { .. }
+                | AppError::PasswordEmpty
         );
         let fields = if has_args { 3 } else { 2 };
         let mut s = serializer.serialize_struct("AppError", fields)?;
@@ -369,6 +381,8 @@ mod tests {
             ("tessdata_missing", AppError::TessdataMissing { path: "x".into() }),
             ("ocr_failed", AppError::OcrFailed { detail: "x".into() }),
             ("form_field_write_unsupported", AppError::FormFieldWriteUnsupported { kind: "k".into() }),
+            ("password_empty", AppError::PasswordEmpty),
+            ("pdf_encrypt_failed", AppError::PdfEncryptFailed { detail: "d".into() }),
         ];
 
         // All codes must be non-empty.
