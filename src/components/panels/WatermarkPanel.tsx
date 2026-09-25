@@ -73,6 +73,8 @@ function WatermarkAddPanel() {
   const pages = useApp((s) => s.pages);
   const currentPage = useApp((s) => s.currentPage);
   const setWatermarkPreview = useApp((s) => s.setWatermarkPreview);
+  const watermarkCustomPos = useApp((s) => s.watermarkCustomPos);
+  const setWatermarkCustomPos = useApp((s) => s.setWatermarkCustomPos);
   const updatePages = useApp((s) => s.updatePages);
   const markDirty = useApp((s) => s.markDirty);
   const setUndoRedo = useApp((s) => s.setUndoRedo);
@@ -152,6 +154,7 @@ function WatermarkAddPanel() {
       position,
       tiled,
       tileSpacing,
+      custom: watermarkCustomPos,
     });
     setWatermarkPreview({
       pageIndex: currentPage,
@@ -168,6 +171,7 @@ function WatermarkAddPanel() {
       opacity,
       rotation,
       imageSrc: kind === "image" && imagePath !== null ? convertFileSrc(imagePath) : null,
+      tiled,
     });
   }, [
     docId,
@@ -187,11 +191,18 @@ function WatermarkAddPanel() {
     position,
     tiled,
     tileSpacing,
+    watermarkCustomPos,
     setWatermarkPreview,
   ]);
 
-  // 卸载（切换 add/remove 子模式、关闭任务）时移除叠加层
-  useEffect(() => () => setWatermarkPreview(null), [setWatermarkPreview]);
+  // 卸载（切换 add/remove 子模式、关闭任务）时移除叠加层与拖放位置
+  useEffect(
+    () => () => {
+      setWatermarkPreview(null);
+      setWatermarkCustomPos(null);
+    },
+    [setWatermarkPreview, setWatermarkCustomPos],
+  );
 
   const apply = async () => {
     if (docId === null) return;
@@ -203,7 +214,15 @@ function WatermarkAddPanel() {
       pushToast("info", t("没有可应用的页面"));
       return;
     }
-    const style: WatermarkStyle = { opacity, rotation, position, tiled, tileSpacing };
+    // 平铺时后端忽略 custom，这里同样置空，保持与预览一致
+    const style: WatermarkStyle = {
+      opacity,
+      rotation,
+      position,
+      tiled,
+      tileSpacing,
+      custom: tiled ? null : watermarkCustomPos,
+    };
     setBusy(true);
     try {
       const info =
@@ -337,13 +356,22 @@ function WatermarkAddPanel() {
           {POSITIONS.map((p) => (
             <button
               key={p.k}
-              className={position === p.k ? "active" : ""}
-              onClick={() => setPosition(p.k)}
+              className={watermarkCustomPos === null && position === p.k ? "active" : ""}
+              onClick={() => {
+                // 手动选九宫格即放弃画布拖放位置
+                setWatermarkCustomPos(null);
+                setPosition(p.k);
+              }}
             >
               {p.label}
             </button>
           ))}
         </div>
+        {watermarkCustomPos !== null && !tiled && (
+          <p className="placeholder" style={{ marginTop: 6, fontSize: 11 }}>
+            {t("已用画布拖动定位；点击上方九宫格可重置。")}
+          </p>
+        )}
       </div>
 
       <div className="form-row">

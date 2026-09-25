@@ -14,8 +14,16 @@ use crate::document::{pdfium as get_pdfium, push_snapshot, AppState, DocumentInf
 use crate::error::{AppError, AppResult};
 use crate::pages::{commit_and_return, load_doc, normalize_indices};
 
-/// 九宫格位置锚点标识（前端字符串原样传入）
+/// 九宫格/平铺共用的页边留白（pt）
 const MARGIN: f32 = 36.0;
+
+/// 画布拖放得到的自定义位置：归一化因子（0–1，左下原点，同九宫格 fx/fy）。
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomPosition {
+    pub x: f32,
+    pub y: f32,
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,6 +37,9 @@ pub struct WatermarkStyle {
     pub tiled: bool,
     /// 平铺间距（pt）
     pub tile_spacing: f32,
+    /// 画布拖放定位（归一化因子）；非空且未平铺时优先于 `position`
+    #[serde(default)]
+    pub custom: Option<CustomPosition>,
 }
 
 #[derive(Deserialize)]
@@ -72,9 +83,9 @@ fn estimate_text_width(text: &str, font_size: f32) -> f32 {
         * font_size
 }
 
-/// 九宫格锚点 → 对象左下角坐标
-fn anchor(position: &str, page_w: f32, page_h: f32, obj_w: f32, obj_h: f32) -> (f32, f32) {
-    let (fx, fy) = match position {
+/// 九宫格标识 → 归一化因子 `(fx, fy)`（左下原点，0–1）。
+fn position_factors(position: &str) -> (f32, f32) {
+    match position {
         "top-left" => (0.0, 1.0),
         "top-center" => (0.5, 1.0),
         "top-right" => (1.0, 1.0),
@@ -84,10 +95,43 @@ fn anchor(position: &str, page_w: f32, page_h: f32, obj_w: f32, obj_h: f32) -> (
         "bottom-center" => (0.5, 0.0),
         "bottom-right" => (1.0, 0.0),
         _ => (0.5, 0.5), // center
-    };
+    }
+}
+
+/// 归一化因子 → 对象左下角坐标（含页边留白，钳制为非负）。
+fn anchor_at(fx: f32, fy: f32, page_w: f32, page_h: f32, obj_w: f32, obj_h: f32) -> (f32, f32) {
     let x = MARGIN + fx * (page_w - 2.0 * MARGIN - obj_w);
     let y = MARGIN + fy * (page_h - 2.0 * MARGIN - obj_h);
     (x.max(0.0), y.max(0.0))
+}
+
+/// 九宫格锚点 → 对象左下角坐标
+fn anchor(position: &str, page_w: f32, page_h: f32, obj_w: f32, obj_h: f32) -> (f32, f32) {
+    let (fx, fy) = position_factors(position);
+    anchor_at(fx, fy, page_w, page_h, obj_w, obj_h)
+}
+
+/// 单点水印位置：画布拖放的 `custom`（归一化，钳制到 0–1）优先，否则回退九宫格。
+///
+/// 平铺模式不使用本函数（调用方直接走 `tile_positions`），与前端预览一致。
+fn anchor_for(
+    style: &WatermarkStyle,
+    page_w: f32,
+    page_h: f32,
+    obj_w: f32,
+    obj_h: f32,
+) -> (f32, f32) {
+    match &style.custom {
+        Some(c) => anchor_at(
+            c.x.clamp(0.0, 1.0),
+            c.y.clamp(0.0, 1.0),
+            page_w,
+            page_h,
+            obj_w,
+            obj_h,
+        ),
+        None => anchor(&style.position, page_w, page_h, obj_w, obj_h),
+    }
 }
 
 /// 常见中文字体文件名候选，按优先级排列（微软雅黑 → 黑体 → 宋体 → 微软正黑 → 等线 → 楷体 → 仿宋）。
@@ -383,7 +427,7 @@ pub async fn add_text_watermark(
                 let spots = if tiled {
                     tile_positions(pw, ph, text_w, font_size, spacing)
                 } else {
-                    vec![anchor(&opts.style.position, pw, ph, text_w, font_size)]
+                    vec![anchor_for(&opts.style, pw, ph, text_w, font_size)]
                 };
                 let objects = page.objects_mut();
                 for (x, y) in spots {
@@ -446,7 +490,7 @@ pub async fn add_image_watermark(
                 let spots = if tiled {
                     tile_positions(pw, ph, wm_w, wm_h, spacing)
                 } else {
-                    vec![anchor(&opts.style.position, pw, ph, wm_w, wm_h)]
+                    vec![anchor_for(&opts.style, pw, ph, wm_w, wm_h)]
                 };
                 let objects = page.objects_mut();
                 for (x, y) in spots {
@@ -602,6 +646,57 @@ mod tests {
         let (x, y) = anchor("center", 10.0, 10.0, 100.0, 100.0);
         assert!(x >= 0.0, "x clamped to >= 0");
         assert!(y >= 0.0, "y clamped to >= 0");
+    }
+
+    /// anchor_for: 自定义归一化位置优先于九宫格 position。
+    #[test]
+    fn anchor_for_custom_overrides_position() {
+        let style = WatermarkStyle {
+            opacity: 100.0,
+            rotation: 0.0,
+            position: "top-left".into(),
+            tiled: false,
+            tile_spacing: 120.0,
+            custom: Some(CustomPosition { x: 0.25, y: 0.75 }),
+        };
+        let (x, y) = anchor_for(&style, 612.0, 792.0, 100.0, 50.0);
+        let (ex, ey) = anchor_at(0.25, 0.75, 612.0, 792.0, 100.0, 50.0);
+        approx(x, ex);
+        approx(y, ey);
+    }
+
+    /// anchor_for: 越界的自定义因子被钳制到 0–1。
+    #[test]
+    fn anchor_for_custom_clamps_out_of_range() {
+        let style = WatermarkStyle {
+            opacity: 100.0,
+            rotation: 0.0,
+            position: "center".into(),
+            tiled: false,
+            tile_spacing: 120.0,
+            custom: Some(CustomPosition { x: 2.0, y: -1.0 }),
+        };
+        let (x, y) = anchor_for(&style, 612.0, 792.0, 100.0, 50.0);
+        let (ex, ey) = anchor_at(1.0, 0.0, 612.0, 792.0, 100.0, 50.0);
+        approx(x, ex);
+        approx(y, ey);
+    }
+
+    /// anchor_for: 无自定义位置时回退九宫格，与 anchor 结果一致。
+    #[test]
+    fn anchor_for_none_matches_nine_grid() {
+        let style = WatermarkStyle {
+            opacity: 100.0,
+            rotation: 0.0,
+            position: "bottom-right".into(),
+            tiled: false,
+            tile_spacing: 120.0,
+            custom: None,
+        };
+        let (x, y) = anchor_for(&style, 612.0, 792.0, 100.0, 50.0);
+        let (ex, ey) = anchor("bottom-right", 612.0, 792.0, 100.0, 50.0);
+        approx(x, ex);
+        approx(y, ey);
     }
 
     /// tile_positions: spacing below threshold gets coerced to 120.

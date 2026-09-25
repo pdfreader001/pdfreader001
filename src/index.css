@@ -323,6 +323,16 @@ input:focus {
   transform-origin: left bottom;
   z-index: 4;
 }
+/* 水印拖放手柄：透明覆盖在单点水印对象上，拖动即改位置。
+   置于预览层（z-index 4）之上，保证能接到指针事件。 */
+.wm-drag-handle {
+  position: absolute;
+  cursor: move;
+  touch-action: none;
+  border: 1px dashed rgba(0, 160, 255, 0.75);
+  background: transparent;
+  z-index: 6;
+}
 .search-highlight {
   position: absolute;
   background: rgba(255, 215, 0, 0.4);

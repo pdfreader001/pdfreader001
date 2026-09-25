@@ -3,8 +3,11 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_TILE_SPACING,
   WATERMARK_MARGIN,
+  anchorFromFactors,
   anchorPosition,
   estimateTextWidth,
+  factorsFromBox,
+  positionFactors,
   tilePositions,
   watermarkAnchors,
 } from "../../src/lib/watermarkLayout.ts";
@@ -122,4 +125,100 @@ test("watermarkAnchors：平铺返回多点且与 tilePositions 一致", () => {
   const viaHelper = watermarkAnchors(args[0], args[1], args[2], args[3], style);
   const viaTile = tilePositions(args[0], args[1], args[2], args[3], style.tileSpacing);
   assert.deepEqual(viaHelper, viaTile);
+});
+
+// ---------- positionFactors / anchorFromFactors ----------
+
+test("positionFactors：九宫格因子映射", () => {
+  assert.deepEqual(positionFactors("top-left"), { x: 0.0, y: 1.0 });
+  assert.deepEqual(positionFactors("middle-right"), { x: 1.0, y: 0.5 });
+  assert.deepEqual(positionFactors("bottom-center"), { x: 0.5, y: 0.0 });
+});
+
+test("positionFactors：center 与未知位置同因子", () => {
+  assert.deepEqual(positionFactors("center"), { x: 0.5, y: 0.5 });
+  assert.deepEqual(positionFactors("not-a-position"), positionFactors("center"));
+});
+
+test("anchorFromFactors：与 anchorPosition 等价", () => {
+  const args = [612.0, 792.0, 100.0, 50.0] as const;
+  for (const position of ["top-left", "center", "bottom-right", "middle-left"]) {
+    const f = positionFactors(position);
+    const viaFactors = anchorFromFactors(f.x, f.y, args[0], args[1], args[2], args[3]);
+    const viaPosition = anchorPosition(position, args[0], args[1], args[2], args[3]);
+    approx(viaFactors.x, viaPosition.x);
+    approx(viaFactors.y, viaPosition.y);
+  }
+});
+
+// ---------- watermarkAnchors：custom 定位 ----------
+
+test("watermarkAnchors：custom 优先于 position（非平铺）", () => {
+  const args = [612.0, 792.0, 100.0, 50.0] as const;
+  const custom = { x: 0.25, y: 0.75 };
+  const style = { position: "top-left", tiled: false, tileSpacing: 120.0, custom };
+  const spots = watermarkAnchors(args[0], args[1], args[2], args[3], style);
+  assert.equal(spots.length, 1);
+  const expected = anchorFromFactors(custom.x, custom.y, args[0], args[1], args[2], args[3]);
+  approx(spots[0].x, expected.x);
+  approx(spots[0].y, expected.y);
+});
+
+test("watermarkAnchors：平铺时忽略 custom", () => {
+  const args = [300.0, 300.0, 50.0, 50.0] as const;
+  const base = { position: "center", tiled: true, tileSpacing: 120.0 };
+  const withCustom = { ...base, custom: { x: 0.1, y: 0.9 } };
+  const a = watermarkAnchors(args[0], args[1], args[2], args[3], base);
+  const b = watermarkAnchors(args[0], args[1], args[2], args[3], withCustom);
+  assert.deepEqual(a, b);
+});
+
+test("watermarkAnchors：custom 越界钳制到 0–1", () => {
+  const args = [612.0, 792.0, 100.0, 50.0] as const;
+  const style = {
+    position: "center",
+    tiled: false,
+    tileSpacing: 120.0,
+    custom: { x: 2.0, y: -1.0 },
+  };
+  const spots = watermarkAnchors(args[0], args[1], args[2], args[3], style);
+  const expected = anchorFromFactors(1.0, 0.0, args[0], args[1], args[2], args[3]);
+  approx(spots[0].x, expected.x);
+  approx(spots[0].y, expected.y);
+});
+
+// ---------- factorsFromBox ----------
+
+test("factorsFromBox：与 anchorFromFactors 往返一致", () => {
+  const pageW = 612.0;
+  const pageH = 792.0;
+  const objW = 100.0;
+  const objH = 50.0;
+  const scale = 1.5;
+  const f = { x: 0.3, y: 0.7 };
+  const a = anchorFromFactors(f.x, f.y, pageW, pageH, objW, objH);
+  // PDF 左下原点 → CSS 左上原点：left = x * scale，bottom = (pageH - y) * scale
+  const back = factorsFromBox(a.x * scale, (pageH - a.y) * scale, scale, pageW, pageH, objW, objH);
+  approx(back.x, f.x);
+  approx(back.y, f.y);
+});
+
+test("factorsFromBox：极值钳制", () => {
+  const pageW = 612.0;
+  const pageH = 792.0;
+  const objW = 100.0;
+  const objH = 50.0;
+  const far = factorsFromBox(99999.0, -99999.0, 1.0, pageW, pageH, objW, objH);
+  assert.equal(far.x, 1.0);
+  assert.equal(far.y, 1.0);
+  const near = factorsFromBox(-99999.0, 99999.0, 1.0, pageW, pageH, objW, objH);
+  assert.equal(near.x, 0.0);
+  assert.equal(near.y, 0.0);
+});
+
+test("factorsFromBox：scale<=0 回退中心", () => {
+  assert.deepEqual(factorsFromBox(10.0, 10.0, 0.0, 612.0, 792.0, 100.0, 50.0), {
+    x: 0.5,
+    y: 0.5,
+  });
 });

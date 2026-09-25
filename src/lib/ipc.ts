@@ -245,6 +245,8 @@ export interface WatermarkStyle {
   tiled: boolean;
   /** 平铺间距（pt） */
   tileSpacing: number;
+  /** 画布拖放定位（归一化因子，左下原点，0–1）；非空且未平铺时优先于 position */
+  custom?: { x: number; y: number } | null;
 }
 
 export interface TextWatermarkOpts {

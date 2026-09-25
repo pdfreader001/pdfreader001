@@ -11,7 +11,8 @@ import {
 } from "../lib/ipc";
 import type { SearchHitRect } from "../lib/ipc";
 import { useT } from "../i18n";
-import type { DeepEditMode } from "../state/store";
+import { factorsFromBox } from "../lib/watermarkLayout";
+import type { DeepEditMode, PdfRegion } from "../state/store";
 
 const GAP = 16;
 
@@ -54,6 +55,8 @@ const PageView = React.memo(function PageView({
   );
   const holderRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
+  /** 水印拖放：记录抓取偏移与对象高度（CSS 像素），松手后清空 */
+  const wmDragRef = useRef<{ grabX: number; grabY: number; boxH: number } | null>(null);
 
   // 搜索高亮：读取当前页的 hits
   const searchQuery = useApp((s) => s.searchQuery);
@@ -72,6 +75,7 @@ const PageView = React.memo(function PageView({
   const removalPreview = useApp((s) => s.removalPreview);
   // 水印添加预览：只叠加在当前页（由 WatermarkAddPanel 写入）
   const watermarkPreview = useApp((s) => s.watermarkPreview);
+  const setWatermarkCustomPos = useApp((s) => s.setWatermarkCustomPos);
   const updatePages = useApp((s) => s.updatePages);
   const markDirty = useApp((s) => s.markDirty);
   const setUndoRedo = useApp((s) => s.setUndoRedo);
@@ -221,6 +225,51 @@ const PageView = React.memo(function PageView({
       rect,
       scale,
     });
+  };
+
+  // 水印拖放：抓取对象并反解为归一化位置写回 store（与后端 custom 语义一致）
+  const onWmHandleDown = (e: React.PointerEvent, r: PdfRegion) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = holderRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const left = r.left * scale;
+    const top = (page.height - r.top) * scale;
+    wmDragRef.current = {
+      grabX: e.clientX - rect.left - left,
+      grabY: e.clientY - rect.top - top,
+      boxH: (r.top - r.bottom) * scale,
+    };
+    setCurrentPage(pageIndex);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onWmHandleMove = (e: React.PointerEvent, r: PdfRegion) => {
+    const drag = wmDragRef.current;
+    const rect = holderRef.current?.getBoundingClientRect();
+    if (!drag || !rect) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const newLeft = e.clientX - rect.left - drag.grabX;
+    const newTop = e.clientY - rect.top - drag.grabY;
+    // 反解为归一化因子；factorsFromBox 内部钳制，天然把对象限制在页面内
+    setWatermarkCustomPos(
+      factorsFromBox(
+        newLeft,
+        newTop + drag.boxH,
+        scale,
+        page.width,
+        page.height,
+        r.right - r.left,
+        r.top - r.bottom,
+      ),
+    );
+  };
+  const onWmHandleUp = (e: React.PointerEvent) => {
+    if (!wmDragRef.current) return;
+    wmDragRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
   };
 
   // 双击文字：调用后端定位到词/词组 → 打开重写 modal
@@ -446,6 +495,30 @@ const PageView = React.memo(function PageView({
             />
           );
         })}
+      {/* 水印拖放手柄：单点（非平铺）时覆盖在对象上，拖动即改位置（写 watermarkCustomPos） */}
+      {watermarkPreview &&
+        watermarkPreview.pageIndex === pageIndex &&
+        !watermarkPreview.tiled &&
+        watermarkPreview.regions.length === 1 &&
+        (() => {
+          const r = watermarkPreview.regions[0];
+          const left = r.left * scale;
+          const top = (page.height - r.top) * scale;
+          const width = (r.right - r.left) * scale;
+          const height = (r.top - r.bottom) * scale;
+          if (width <= 0 || height <= 0) return null;
+          return (
+            <div
+              className="wm-drag-handle"
+              style={{ left, top, width, height }}
+              title={t("拖动调整位置")}
+              onPointerDown={(e) => onWmHandleDown(e, r)}
+              onPointerMove={(e) => onWmHandleMove(e, r)}
+              onPointerUp={onWmHandleUp}
+              onPointerCancel={onWmHandleUp}
+            />
+          );
+        })()}
       {/* 注释右键菜单 */}
       {contextMenu && (
         <div

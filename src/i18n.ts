@@ -150,6 +150,9 @@ const en: Record<string, string> = {
   "仅应用到选中的 {n} 页": "Apply only to {n} selected pages",
   "添加中…": "Adding…",
   添加水印: "Add Watermark",
+  拖动调整位置: "Drag to reposition",
+  "已用画布拖动定位；点击上方九宫格可重置。":
+    "Positioned by canvas drag; click the grid above to reset.",
   去除水印: "Remove Watermark",
   水印去除: "Watermark Removal",
   手动框选: "Manual Selection",
@@ -642,6 +645,9 @@ const ja: Record<string, string> = {
   "仅应用到选中的 {n} 页": "選択した{n}ページのみ適用",
   "添加中…": "追加中…",
   添加水印: "ウォーターマーク追加",
+  拖动调整位置: "ドラッグで位置を調整",
+  "已用画布拖动定位；点击上方九宫格可重置。":
+    "キャンバスのドラッグで配置中。上のグリッドを押すとリセットされます。",
   去除水印: "ウォーターマーク除去",
   水印去除: "ウォーターマーク除去",
   手动框选: "手動矩形選択",

@@ -58,8 +58,8 @@
       > 注：页面级操作（旋转/删除/复制/插入空白）已入栈；`extract/merge/split` 产物写到新文件、不改动当前文档，故按设计不入栈。
 
 ### M4 · 水印
-- [ ] 添加：文字/图片、字体/字号/颜色/透明度/旋转、九宫格/平铺/拖放、范围选择
-      > 部分实现：文字/图片、样式参数、九宫格/平铺、范围选择均已有；画布拖放定位未实现。
+- [x] 添加：文字/图片、字体/字号/颜色/透明度/旋转、九宫格/平铺/拖放、范围选择
+      > 拖放定位：`Canvas.tsx` 在单点（非平铺）水印上叠加 `.wm-drag-handle` 拖放手柄，指针事件用 `setPointerCapture` 捕获、拖动时经 `watermarkLayout::factorsFromBox`（`anchor_at` 的数学逆）反解出归一化因子写入 store `watermarkCustomPos`；该因子随请求以 `WatermarkStyle.custom` 下发，后端 `anchor_for` 在非平铺时优先采用（`add_text_watermark` / `add_image_watermark` 统一入口），平铺路径不经过它，与前端 `watermarkAnchors` 忽略 custom 的行为严格对齐。点击九宫格或面板卸载即清空 `custom` 回退九宫格。
 - [x] 当前页实时预览（叠加层）
       > 由 `WatermarkAddPanel` 在任一参数变化时用 `src/lib/watermarkLayout.ts` 重算放置框（该模块逐行镜像后端 `watermark.rs` 的 `estimate_text_width` / `anchor` / `tile_positions`，并由 `tests/lib/watermarkLayout.test.ts` 与 Rust 单测双向锁定），写入 store `watermarkPreview`；`Canvas.tsx` 在当前页叠加 `.wm-preview-text` / `.wm-preview-image`，带字号/颜色/透明度/旋转（`transform-origin: left bottom` 对齐 PDFium 绕对象左下角顺时针旋转）与平铺多点。图片用 asset 协议（`convertFileSrc`）回显，宽高比取自 `Image.naturalWidth/Height`，与后端 `wm_h = wm_w * ih / iw` 一致。
 - [x] 去除-自动：内容流分析（每页重复对象）→ 候选清单 → 勾选 → 预览 → redaction 移除

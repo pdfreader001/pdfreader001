@@ -89,6 +89,8 @@ export interface WatermarkPreview {
   rotation: number;
   /** kind === "image" 时的本地图片 URL（asset 协议，由 convertFileSrc 生成） */
   imageSrc: string | null;
+  /** 是否平铺；平铺时画布不提供拖放手柄（与后端一致，忽略 custom） */
+  tiled: boolean;
 }
 
 /** 双击文字命中：区域 + 原文 + 原字体样式（用于重写时预填/沿用）。 */
@@ -196,6 +198,8 @@ interface AppState {
   removalPreview: RemovalPreview | null;
   /** 水印「添加」的实时预览（见 WatermarkPreview）。非空时叠加显示在当前页。 */
   watermarkPreview: WatermarkPreview | null;
+  /** 水印添加的画布拖放位置（归一化因子，左下原点）；null 表示用九宫格 position */
+  watermarkCustomPos: { x: number; y: number } | null;
 
   toasts: Toast[];
   jumpTarget: { page: number; nonce: number };
@@ -230,6 +234,8 @@ interface AppState {
   setRemovalPreview: (preview: RemovalPreview | null) => void;
   /** 设置 / 清空水印添加预览（null 表示关闭预览） */
   setWatermarkPreview: (preview: WatermarkPreview | null) => void;
+  /** 设置 / 清空水印拖放位置（null 表示回退九宫格 position） */
+  setWatermarkCustomPos: (pos: { x: number; y: number } | null) => void;
   setSearch: (query: string, hits: SearchHit[]) => void;
   setSearchActive: (i: number) => void;
   setSearching: (b: boolean) => void;
@@ -330,6 +336,7 @@ export const useApp = create<AppState>((set, get) => ({
   editTarget: null,
   removalPreview: null,
   watermarkPreview: null,
+  watermarkCustomPos: null,
   searchOpen: false,
   helpOpen: false,
 
@@ -405,6 +412,7 @@ export const useApp = create<AppState>((set, get) => ({
       loadingHighlights: new Set(),
       removalPreview: null,
       watermarkPreview: null,
+      watermarkCustomPos: null,
     });
   },
   clearDoc: () =>
@@ -423,6 +431,7 @@ export const useApp = create<AppState>((set, get) => ({
       annotations: {},
       removalPreview: null,
       watermarkPreview: null,
+      watermarkCustomPos: null,
       ...exitEditState(),
     }),
   setViewMode: (m) => set({ viewMode: m, fitMode: m === "single" ? "page" : "width" }),
@@ -439,10 +448,17 @@ export const useApp = create<AppState>((set, get) => ({
       searchOpen: false,
       removalPreview: null,
       watermarkPreview: null,
+      watermarkCustomPos: null,
       ...exitEditState(),
     }),
   closeTask: () =>
-    set({ task: null, removalPreview: null, watermarkPreview: null, ...exitEditState() }),
+    set({
+      task: null,
+      removalPreview: null,
+      watermarkPreview: null,
+      watermarkCustomPos: null,
+      ...exitEditState(),
+    }),
   setEditTab: (t) => set({ editTab: t }),
   setEditMode: (m) =>
     set({
@@ -480,6 +496,7 @@ export const useApp = create<AppState>((set, get) => ({
   setEditTarget: (t) => set({ editTarget: t }),
   setRemovalPreview: (preview) => set({ removalPreview: preview }),
   setWatermarkPreview: (preview) => set({ watermarkPreview: preview }),
+  setWatermarkCustomPos: (pos) => set({ watermarkCustomPos: pos }),
   setSearch: (query, hits) =>
     set({
       searchQuery: query,
