@@ -255,4 +255,6 @@ System requirements: Windows 10 version 1809 or later (x64).
 - [ ] 说明 / 简短说明 / 产品功能 中英双份文案落库
 - [ ] 短标题、排序标题、系统要求填写
 - [ ] 清单 Identity 替换 + 微软重签后重新走 `Add-AppxPackage` 侧载自测
+      打包链路已于 2026-09-26 以 `-Sign None` 复验通过：`npm run build` → `cargo build --release` → 暂存布局 → `makeappx pack` 全程 exit 0；解包后包内 payload 与 `target\release\pdfe.exe`、`pdfium\pdfium.dll` 的 SHA256 逐一比对一致，清单占位符（`__PUBLISHER__` / `__VERSION__` / `__EXE__`）均已正确替换。未签名包本身无法安装，故安装自测仍待签名后进行。
 - [ ] Windows App 认证工具包（WACK）本地预检通过
+      `appcert.exe` 已装在本机：`C:\Program Files (x86)\Windows Kits\10\App Certification Kit\`。**需管理员提权**（非提权会话直接报「requested operation requires elevation」），且需针对已签名并安装的包运行；未签名包无法预检。
