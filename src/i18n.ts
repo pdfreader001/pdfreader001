@@ -1069,6 +1069,8 @@ const errZh: Record<string, string> = {
   // ------ 加密导出（P4 / M6） ------
   password_empty: "打开密码与权限密码不能同时为空",
   pdf_encrypt_failed: "加密 PDF 失败：{detail}",
+  // ------ 表单字段（M6） ------
+  form_field_write_unsupported: "设置 {kind} 类型的字段值暂不支持：pdfium-render 0.8.37 没有公开 API 可修改此类字段。",
 };
 
 /** 开发期断言：errZh 字典必须与后端 AppError code 一一对应。
@@ -1092,6 +1094,7 @@ const KNOWN_ERROR_CODES = new Set([
   "no_pdf_generated",
   "ocr_unavailable", "tessdata_missing", "ocr_failed",
   "password_empty", "pdf_encrypt_failed",
+  "form_field_write_unsupported",
 ]);
 
 if (import.meta.env?.DEV) {

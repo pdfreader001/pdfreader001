@@ -22,7 +22,7 @@ import SearchPanel from "./components/SearchPanel";
 import TaskPanel from "./components/TaskPanel";
 import StatusBar from "./components/StatusBar";
 import HelpPanel from "./components/HelpPanel";
-import { useT } from "./i18n";
+import { useT, translateError } from "./i18n";
 import { useShortcuts } from "./hooks/useShortcuts";
 import "./index.css";
 
@@ -136,6 +136,7 @@ function PasswordDialog({
   const [err, setErr] = useState("");
   const setDoc = useApp((s) => s.setDoc);
   const pushToast = useApp((s) => s.pushToast);
+  const locale = useApp((s) => s.locale);
   const t = useT();
 
   const submit = async () => {
@@ -149,7 +150,13 @@ function PasswordDialog({
       pushToast("info", t("已打开 {name}（{n} 页）", { name: info.fileName, n: info.pageCount }));
       onDone();
     } catch (e) {
-      setErr(isApiError(e) ? (e.code === "password" ? t("密码错误，请重试") : e.message) : String(e));
+      setErr(
+        isApiError(e)
+          ? e.code === "password"
+            ? t("密码错误，请重试")
+            : translateError(locale, e.code, e.args, e.message)
+          : String(e),
+      );
     } finally {
       setBusy(false);
     }

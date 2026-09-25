@@ -263,6 +263,9 @@ impl AppError {
             AppError::PdfEncryptFailed { detail } => {
                 m.insert("detail".into(), detail.clone());
             }
+            AppError::FormFieldWriteUnsupported { kind } => {
+                m.insert("kind".into(), kind.clone());
+            }
             _ => {}
         }
         m
@@ -272,50 +275,14 @@ impl AppError {
 impl Serialize for AppError {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;
-        let has_args = !matches!(
-            self,
-            AppError::Password
-                | AppError::Damaged
-                | AppError::NotFound
-                | AppError::PageOutOfRange
-                | AppError::Security
-                | AppError::NothingToUndo
-                | AppError::NothingToRedo
-                | AppError::NoSavePath
-                | AppError::NoPagesToDelete
-                | AppError::CannotDeleteAllPages
-                | AppError::NoPagesToDuplicate
-                | AppError::NoPagesToMove
-                | AppError::NoPagesToExtract
-                | AppError::NeedAtLeastOneFile
-                | AppError::MergeResultEmpty
-                | AppError::PagesPerFileZero
-                | AppError::NothingToSplit
-                | AppError::WatermarkTextEmpty
-                | AppError::InvalidImageSize
-                | AppError::NoPagesForWatermark
-                | AppError::NoChineseFont
-                | AppError::AnnotationOutOfRange
-                | AppError::TextEmpty
-                | AppError::NoPagesToExport
-                | AppError::ImageConstructFailed
-                | AppError::NoImagesProvided
-                | AppError::PdfWriteFailed
-                | AppError::InvalidRect
-                | AppError::NoCandidates
-                | AppError::ObjectNotImage
-                | AppError::SearchFailed
-                | AppError::CannotDetermineSourceName
-                | AppError::NoPdfGenerated
-                | AppError::FormFieldWriteUnsupported { .. }
-                | AppError::PasswordEmpty
-        );
-        let fields = if has_args { 3 } else { 2 };
+        // 是否带 args 直接由 args() 推导，避免与 args() 平行维护第二份名单。
+        let args = self.args();
+        let fields = if args.is_empty() { 2 } else { 3 };
         let mut s = serializer.serialize_struct("AppError", fields)?;
         s.serialize_field("code", self.code())?;
         s.serialize_field("message", &self.to_string())?;
-        if has_args {
-            s.serialize_field("args", &self.args())?;
+        if !args.is_empty() {
+            s.serialize_field("args", &args)?;
         }
         s.end()
     }
