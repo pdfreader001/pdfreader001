@@ -44,6 +44,7 @@ pub fn run() {
             pages::reorder_pages,
             pages::extract_pages,
             pages::merge_documents,
+            pages::inspect_merge_sources,
             pages::split_document,
             pages::get_bookmarks,
             watermark::add_text_watermark,

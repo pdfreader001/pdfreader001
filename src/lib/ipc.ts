@@ -156,6 +156,13 @@ export interface MergeSource {
   ranges?: string | null;
 }
 
+/** 单个合并源的预览信息（inspect_merge_sources 返回） */
+export interface MergeSourceInfo {
+  totalPages: number;
+  selectedPages: number;
+  error?: ApiError | null;
+}
+
 export type SplitMode =
   | { mode: "every_n"; payload: { n: number } }
   | { mode: "ranges"; payload: { ranges: string } }
@@ -219,6 +226,11 @@ export function mergeDocuments(
     sources,
     outputPath: outputPath ?? null,
   });
+}
+
+/** 合并向导预览：逐源返回总页数 / 选用页数 / 错误 */
+export function inspectMergeSources(sources: MergeSource[]): Promise<MergeSourceInfo[]> {
+  return invoke<MergeSourceInfo[]>("inspect_merge_sources", { sources });
 }
 
 export function splitDocument(

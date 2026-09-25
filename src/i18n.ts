@@ -104,7 +104,14 @@ const en: Record<string, string> = {
   "PDF 与图片互转：PDF → PNG/JPEG（按页可调 DPI）；PNG/JPG/JPEG/BMP/WebP → PDF（多图合并）。":
     "Convert between PDF and images: PDF → PNG/JPEG (adjustable DPI); PNG/JPG/JPEG/BMP/WebP → PDF (multi-image merge).",
   "➕ 添加文件": "➕ Add Files",
-  "点击上方按钮添加要合并的 PDF 文件": "Click the button above to add PDF files to merge",
+  "点击上方按钮添加要合并的 PDF 文件，或把文件拖到这里":
+    "Click the button above, or drop PDF files here, to add files to merge",
+  拖动可调整顺序: "Drag to reorder",
+  "共 {n} 页 · 选用 {k} 页": "{n} pages · {k} selected",
+  "读取中…": "Reading…",
+  "合并顺序：{order}": "Merge order: {order}",
+  "合并后共 {n} 页": "{n} pages after merge",
+  "请先修正标红的页码范围，或删除该文件": "Fix the highlighted page ranges, or remove that file",
   "页码范围，如 1,3,5-7（留空为全部页）": "Page range, e.g. 1,3,5-7 (blank = all pages)",
   输出: "Output",
   "未选择（结果仅打开到查看器）": "Not selected (result opens in viewer only)",
@@ -600,7 +607,15 @@ const ja: Record<string, string> = {
   "PDF 与图片互转：PDF → PNG/JPEG（按页可调 DPI）；PNG/JPG/JPEG/BMP/WebP → PDF（多图合并）。":
     "PDF↔画像変換：PDF→PNG/JPEG（DPI可変）；画像→PDF（複数結合）。",
   "➕ 添加文件": "➕ ファイル追加",
-  "点击上方按钮添加要合并的 PDF 文件": "上のボタンから結合するPDFを追加してください",
+  "点击上方按钮添加要合并的 PDF 文件，或把文件拖到这里":
+    "上のボタンから、またはPDFをここにドロップして追加してください",
+  拖动可调整顺序: "ドラッグで並び替え",
+  "共 {n} 页 · 选用 {k} 页": "全{n}ページ · {k}ページ選択",
+  "读取中…": "読み込み中…",
+  "合并顺序：{order}": "結合順：{order}",
+  "合并后共 {n} 页": "結合後は全{n}ページ",
+  "请先修正标红的页码范围，或删除该文件":
+    "赤いページ範囲を修正するか、そのファイルを削除してください",
   "页码范围，如 1,3,5-7（留空为全部页）": "ページ範囲 例:1,3,5-7（空欄=全ページ）",
   输出: "出力",
   "未选择（结果仅打开到查看器）": "未選択（結果はビューアで開くだけ）",

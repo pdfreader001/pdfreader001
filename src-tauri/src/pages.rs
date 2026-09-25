@@ -17,6 +17,18 @@ pub struct MergeSource {
     pub ranges: Option<String>,
 }
 
+/// 单个合并源的预览信息。合并向导用它显示「共 N 页 · 选用 K 页」。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MergeSourceInfo {
+    /// 源文件总页数（读取失败时为 0）。
+    pub total_pages: u32,
+    /// 按 ranges 生效后实际贡献的页数。
+    pub selected_pages: u32,
+    /// 读取/解析该源时的错误；前端按 code 走 translateError。
+    pub error: Option<AppError>,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BookmarkNode {
@@ -395,6 +407,49 @@ pub async fn merge_documents(
     Ok(info)
 }
 
+/// 按 ranges 计算单个源实际贡献的页数（纯逻辑，与 `merge_documents` 语义一致）：
+/// ranges 为 None 或空白 → 全部页；否则按 `parse_ranges` 解析后求和。
+pub(crate) fn selected_page_count(ranges: Option<&str>, total: u32) -> AppResult<u32> {
+    match ranges {
+        Some(r) if !r.trim().is_empty() => {
+            let parsed = parse_ranges(r, total)?;
+            Ok(parsed.iter().map(|(a, b)| b - a + 1).sum())
+        }
+        _ => Ok(total),
+    }
+}
+
+fn inspect_one_source(pdfium: &Pdfium, src: &MergeSource) -> AppResult<MergeSourceInfo> {
+    let bytes = fs::read(&src.path)?;
+    let doc = load_doc(pdfium, &bytes)?;
+    let total_pages = doc.pages().len() as u32;
+    let selected_pages = selected_page_count(src.ranges.as_deref(), total_pages)?;
+    Ok(MergeSourceInfo {
+        total_pages,
+        selected_pages,
+        error: None,
+    })
+}
+
+/// 合并向导预览：逐源返回页数信息，单个源失败不影响其它源（错误随源返回）。
+#[tauri::command]
+pub async fn inspect_merge_sources(sources: Vec<MergeSource>) -> AppResult<Vec<MergeSourceInfo>> {
+    let _gate = crate::document::pdfium_gate();
+    let pdfium = get_pdfium();
+    let mut out = Vec::with_capacity(sources.len());
+    for src in &sources {
+        out.push(match inspect_one_source(pdfium, src) {
+            Ok(info) => info,
+            Err(error) => MergeSourceInfo {
+                total_pages: 0,
+                selected_pages: 0,
+                error: Some(error),
+            },
+        });
+    }
+    Ok(out)
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case", tag = "mode", content = "payload")]
 pub enum SplitMode {
@@ -735,5 +790,33 @@ mod tests {
     fn normalize_indices_empty() {
         let v = normalize_indices(&[], 10).unwrap();
         assert!(v.is_empty());
+    }
+
+    /// selected_page_count: no ranges means the whole document
+    #[test]
+    fn selected_page_count_none_selects_all() {
+        assert_eq!(selected_page_count(None, 10).unwrap(), 10);
+    }
+
+    /// selected_page_count: blank ranges also mean the whole document
+    #[test]
+    fn selected_page_count_blank_selects_all() {
+        assert_eq!(selected_page_count(Some(""), 10).unwrap(), 10);
+        assert_eq!(selected_page_count(Some("   "), 10).unwrap(), 10);
+    }
+
+    /// selected_page_count: sums every segment
+    #[test]
+    fn selected_page_count_sums_segments() {
+        assert_eq!(selected_page_count(Some("1-2,5,7-9"), 10).unwrap(), 6);
+        assert_eq!(selected_page_count(Some("3"), 10).unwrap(), 1);
+    }
+
+    /// selected_page_count: propagates range validation errors
+    #[test]
+    fn selected_page_count_rejects_bad_ranges() {
+        assert!(selected_page_count(Some("11"), 10).is_err());
+        assert!(selected_page_count(Some("0"), 10).is_err());
+        assert!(selected_page_count(Some("5-3"), 10).is_err());
     }
 }
