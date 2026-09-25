@@ -4,11 +4,12 @@
 //! 因此本模块能力：
 //! - 读取并展示安全处理版本
 //! - 读取并展示 7 项权限
-//! - 另存为明文副本（解密后的等价物重新序列化 → 移除加密）
+//! - 另存为明文副本（持有原密码时解密后重新序列化 → 移除加密）
 //! - 另存为加密副本（pdfium 产出明文 → lopdf 载入 → EncryptionState → 重序列化）
 //!
-//! 注意：加密只作用于写盘的副本，内存中的 bytes 始终保持明文，
-//! 否则 get_metadata / save_document / 撤销重做 / 渲染都会因需要密码而失效。
+//! 注意：外部加密文档以原始（加密）字节驻留内存，因此凡是需要读取其内容的命令
+//! （get_security_status / export_plain_copy / reload_plain）都必须接受 password 参数；
+//! 用正确密码执行一次 `reload_plain` 后内存字节才变为明文，后续读取与保存不再需要密码。
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -79,33 +80,81 @@ pub fn get_security_status_logic(doc: &PdfDocument) -> SecurityStatus {
     }
 }
 
+/// lopdf 错误映射：密码不对统一为 `password`，其余按文档损坏处理。
+fn map_decrypt_error(e: lopdf::Error) -> AppError {
+    match e {
+        lopdf::Error::InvalidPassword => AppError::Password,
+        _ => AppError::Damaged,
+    }
+}
+
+/// 纯函数：用密码把（可能已加密的）PDF 字节解码为明文字节。
+///
+/// 未加密文档：pdfium 重新序列化即可（产物本就是明文）。
+/// 加密文档：pdfium 保存时会**保留原加密字典**（实测如此），因此必须改用 lopdf
+/// 解密后重新序列化，才能真正移除密码。
+///
+/// 密码缺失或错误由 pdfium 先行报 `PasswordError` → [`AppError::Password`]（code `"password"`）。
+pub fn decrypt_pdf_bytes_logic(
+    pdfium: &Pdfium,
+    bytes: &[u8],
+    password: Option<&str>,
+) -> AppResult<Vec<u8>> {
+    // 先用 pdfium 校验密码：它能打开就说明密码正确，且这一步给出统一的 password 错误。
+    let doc = pdfium.load_pdf_from_byte_slice(bytes, password)?;
+    let protected = matches!(
+        doc.permissions().security_handler_revision(),
+        Ok(PdfSecurityHandlerRevision::Revision2)
+            | Ok(PdfSecurityHandlerRevision::Revision3)
+            | Ok(PdfSecurityHandlerRevision::Revision4)
+    );
+    if !protected {
+        return Ok(doc.save_to_bytes()?);
+    }
+    drop(doc);
+
+    // 走 lopdf：load 时带密码解开对象流，decrypt 去掉 /Encrypt 并还原各对象明文。
+    let pwd = password.unwrap_or("");
+    let mut ldoc =
+        lopdf::Document::load_mem_with_options(bytes, lopdf::LoadOptions::with_password(pwd))
+            .map_err(map_decrypt_error)?;
+    if ldoc.is_encrypted() {
+        ldoc.decrypt(pwd).map_err(map_decrypt_error)?;
+    }
+    let mut out = Vec::new();
+    ldoc.save_to(&mut out)?;
+    Ok(out)
+}
+
 #[tauri::command]
 pub async fn get_security_status(
     state: State<'_, AppState>,
     doc_id: u64,
+    password: Option<String>,
 ) -> AppResult<SecurityStatus> {
     let pdfium = get_pdfium();
     let docs = state.docs.lock().unwrap();
     let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
-    let doc = pdfium.load_pdf_from_byte_slice(&entry.bytes, None)?;
+    let doc = pdfium.load_pdf_from_byte_slice(&entry.bytes, password.as_deref())?;
     Ok(get_security_status_logic(&doc))
 }
 
 /// 将当前文档以"明文副本"形式保存到新路径。
 /// 实际行为：通过 pdfium 重新序列化为 bytes（无密码、无加密字典），
 /// 再用 Rust 标准库写入目标文件。
+/// `password` 为原文档的打开密码；对加密文档必须提供，否则报 `password`。
 #[tauri::command]
 pub async fn export_plain_copy(
     state: State<'_, AppState>,
     doc_id: u64,
     output_path: String,
+    password: Option<String>,
 ) -> AppResult<String> {
     let pdfium = get_pdfium();
     let bytes = {
         let docs = state.docs.lock().unwrap();
         let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
-        let doc = pdfium.load_pdf_from_byte_slice(&entry.bytes, None)?;
-        doc.save_to_bytes()?
+        decrypt_pdf_bytes_logic(pdfium, &entry.bytes, password.as_deref())?
     };
     std::fs::write(&output_path, &bytes)
         .map_err(|e| AppError::Io(e))?;
@@ -231,18 +280,20 @@ pub async fn touch_save_marker(state: State<'_, AppState>, doc_id: u64) -> AppRe
 }
 
 /// 把当前文档以明文 bytes 重新载入内存（去掉原密码/加密字典）。
+///
+/// `password` 为原文档的打开密码；对加密文档必须提供，否则报 `password`。
+/// 成功后内存字节变为明文，后续 get_metadata / save_document / 渲染不再需要密码。
 #[tauri::command]
 pub async fn reload_plain(
     state: State<'_, AppState>,
     doc_id: u64,
+    password: Option<String>,
 ) -> AppResult<DocumentInfo> {
-    // 把当前 entry 的 bytes 重写为明文（去掉密码/加密字典）
     let pdfium = get_pdfium();
     let new_bytes = {
         let docs = state.docs.lock().unwrap();
         let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
-        let doc = pdfium.load_pdf_from_byte_slice(&entry.bytes, None)?;
-        doc.save_to_bytes()?
+        decrypt_pdf_bytes_logic(pdfium, &entry.bytes, password.as_deref())?
     };
     commit_and_return(&state, doc_id, new_bytes)
 }

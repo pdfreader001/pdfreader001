@@ -6,6 +6,7 @@ import {
   exportEncryptedCopy,
   exportPlainCopy,
   getSecurityStatus,
+  isApiError,
   refreshUndoRedo,
   reloadPlain,
 } from "../../lib/ipc";
@@ -48,6 +49,10 @@ export default function SecurityPanel() {
   const [status, setStatus] = useState<SecurityStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  // 现有文档的打开密码：加密文档必须以它读取加密状态、导出明文副本、去除加密。
+  const [openPw, setOpenPw] = useState("");
+  // 无密码读取加密状态时被拒绝 → 说明文档已加密，需要用户补上现有密码。
+  const [needOpenPw, setNeedOpenPw] = useState(false);
   const [userPw, setUserPw] = useState("");
   const [ownerPw, setOwnerPw] = useState("");
   const [permFlags, setPermFlags] = useState<Record<PermKey, boolean>>({
@@ -61,10 +66,17 @@ export default function SecurityPanel() {
     if (docId === null) return;
     setLoading(true);
     try {
-      const s = await getSecurityStatus(docId);
+      const s = await getSecurityStatus(docId, openPw);
       setStatus(s);
+      setNeedOpenPw(false);
     } catch (e) {
-      errorToast(e);
+      // 加密文档缺密码时属预期情况：不弹错误，改为提示用户填入现有密码。
+      if (isApiError(e) && e.code === "password") {
+        setStatus(null);
+        setNeedOpenPw(true);
+      } else {
+        errorToast(e);
+      }
     } finally {
       setLoading(false);
     }
@@ -72,6 +84,8 @@ export default function SecurityPanel() {
 
   useEffect(() => {
     setStatus(null);
+    setOpenPw("");
+    setNeedOpenPw(false);
     setUserPw("");
     setOwnerPw("");
     reload();
@@ -79,9 +93,10 @@ export default function SecurityPanel() {
   }, [docId]);
 
   const isProtected =
-    status !== null &&
-    status.handlerRevision !== "Unprotected" &&
-    status.handlerRevision !== "Unknown";
+    needOpenPw ||
+    (status !== null &&
+      status.handlerRevision !== "Unprotected" &&
+      status.handlerRevision !== "Unknown");
 
   // 两个密码至少填一个：全空时 PDF 既无打开限制也无权限限制，加密无意义。
   const canEncrypt = docId !== null && (userPw.length > 0 || ownerPw.length > 0);
@@ -96,9 +111,9 @@ export default function SecurityPanel() {
     if (!p) return;
     setBusy(true);
     try {
-      await exportPlainCopy(docId, p);
+      await exportPlainCopy(docId, p, openPw);
       // 同时把内存里的 doc 也去掉加密
-      const info = await reloadPlain(docId);
+      const info = await reloadPlain(docId, openPw);
       updatePages(info);
       markDirty(true);
       setUndoRedo(await refreshUndoRedo(docId));
@@ -116,7 +131,7 @@ export default function SecurityPanel() {
     if (!confirm(t("去除当前文档的密码/加密？文件需另存到磁盘生效。"))) return;
     setBusy(true);
     try {
-      const info = await reloadPlain(docId);
+      const info = await reloadPlain(docId, openPw);
       updatePages(info);
       markDirty(true);
       setUndoRedo(await refreshUndoRedo(docId));
@@ -198,6 +213,31 @@ export default function SecurityPanel() {
 
       {docId !== null && (
         <>
+          <div className="field">
+            <label htmlFor="sec-open-pw">
+              {t("现有打开密码（读取加密状态与去除密码时需要）")}
+            </label>
+            <input
+              id="sec-open-pw"
+              type="password"
+              autoComplete="current-password"
+              value={openPw}
+              onChange={(e) => setOpenPw(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button onClick={reload} disabled={busy || loading}>
+              {t("读取加密状态")}
+            </button>
+          </div>
+
+          {needOpenPw && (
+            <p className="placeholder">
+              {t("该文档已加密，请填写现有打开密码后重试")}
+            </p>
+          )}
+
           <div className="field">
             <label htmlFor="sec-user-pw">
               {t("打开密码（打开文档时需输入，可留空）")}

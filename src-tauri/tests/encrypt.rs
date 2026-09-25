@@ -1,14 +1,17 @@
-//! 加密副本导出（M6 安全补强）集成测试。
+//! 加密副本导出 / 解密移除密码（M6 安全补强）集成测试。
 //!
-//! 这些测试直接调用命令背后的 pub 纯函数 `encrypt_pdf_bytes_logic`，
+//! 这些测试直接调用命令背后的 pub 纯函数 `encrypt_pdf_bytes_logic` / `decrypt_pdf_bytes_logic`，
 //! 在真实 pdfium 运行路径下验证：
 //! - 加密产物能被 pdfium 用正确打开密码重新打开
 //! - 错误密码 / 缺省密码无法打开
 //! - 权限开关映射为 pdfium 可读出的权限矩阵
 //! - 仅设权限密码（打开密码留空）时无需密码即可打开，但权限仍受限
+//! - 解密（移除密码）需要持有正确密码，产物为无加密的明文档
 
 use pdfium_render::prelude::*;
-use pdfe_lib::security::{encrypt_pdf_bytes_logic, EncryptOptions};
+use pdfe_lib::security::{
+    decrypt_pdf_bytes_logic, encrypt_pdf_bytes_logic, get_security_status_logic, EncryptOptions,
+};
 
 fn pdfium<'a>() -> &'a Pdfium {
     pdfe_lib::pdfium()
@@ -119,4 +122,62 @@ fn encrypt_with_owner_password_only() {
     assert!(pdfium
         .load_pdf_from_byte_slice(&encrypted, Some("owner"))
         .is_ok());
+}
+
+// ---------- decrypt_pdf_bytes_logic（移除密码，需持有密码） ----------
+
+/// 正确密码：解密产物无加密、权限恢复不受限，且无需密码即可打开。
+#[test]
+fn decrypt_with_correct_password_removes_encryption() {
+    let encrypted = encrypt_pdf_bytes_logic(&make_pdf(), &options("secret", "owner")).unwrap();
+    let pdfium = pdfium();
+
+    // 前提：加密件在 pdfium 侧确实受权限限制。
+    let restricted = pdfium
+        .load_pdf_from_byte_slice(&encrypted, Some("secret"))
+        .unwrap();
+    assert_eq!(
+        restricted
+            .permissions()
+            .can_extract_text_and_graphics()
+            .unwrap(),
+        false
+    );
+
+    let plain = decrypt_pdf_bytes_logic(pdfium, &encrypted, Some("secret")).unwrap();
+    let doc = pdfium
+        .load_pdf_from_byte_slice(&plain, None)
+        .expect("decrypted bytes must open without a password");
+    assert_eq!(doc.pages().len(), 1);
+
+    let status = get_security_status_logic(&doc);
+    assert_eq!(status.handler_revision, "Unprotected");
+    assert!(status.can_extract_text_and_graphics);
+}
+
+/// 密码错误 / 缺省密码：都报 `password`，且不产出任何字节。
+#[test]
+fn decrypt_requires_correct_password() {
+    let encrypted = encrypt_pdf_bytes_logic(&make_pdf(), &options("secret", "owner")).unwrap();
+    let pdfium = pdfium();
+
+    for pw in [None, Some("nope"), Some("")] {
+        let err = decrypt_pdf_bytes_logic(pdfium, &encrypted, pw)
+            .err()
+            .unwrap_or_else(|| panic!("password {pw:?} must not decrypt"));
+        assert_eq!(err.code(), "password");
+    }
+}
+
+/// 未加密文档：解密是幂等的，传 `None` 即可重新序列化成功。
+#[test]
+fn decrypt_plain_document_is_idempotent() {
+    let pdfium = pdfium();
+    let plain = decrypt_pdf_bytes_logic(pdfium, &make_pdf(), None).unwrap();
+    let doc = pdfium.load_pdf_from_byte_slice(&plain, None).unwrap();
+    assert_eq!(doc.pages().len(), 1);
+    assert_eq!(
+        get_security_status_logic(&doc).handler_revision,
+        "Unprotected"
+    );
 }
