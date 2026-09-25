@@ -370,10 +370,7 @@ export interface ImageObjectInfo {
   top: number;
 }
 
-export function listImageObjects(
-  docId: number,
-  pageIndex: number,
-): Promise<ImageObjectInfo[]> {
+export function listImageObjects(docId: number, pageIndex: number): Promise<ImageObjectInfo[]> {
   return invoke<ImageObjectInfo[]>("list_image_objects", { docId, pageIndex });
 }
 
@@ -392,17 +389,11 @@ export function setImageBounds(
   });
 }
 
-export function isScannedPage(
-  docId: number,
-  pageIndex: number,
-): Promise<boolean> {
+export function isScannedPage(docId: number, pageIndex: number): Promise<boolean> {
   return invoke<boolean>("is_scanned_page", { docId, pageIndex });
 }
 
-export function clearPageText(
-  docId: number,
-  pages: number[],
-): Promise<DocumentInfo> {
+export function clearPageText(docId: number, pages: number[]): Promise<DocumentInfo> {
   return invoke<DocumentInfo>("clear_page_text", { docId, pages });
 }
 
@@ -479,12 +470,7 @@ export function applyWatermarkRemoval(
 // ---------- 注释（M5） ----------
 
 export type AnnotationKind =
-  | "highlight"
-  | "underline"
-  | "strikeout"
-  | "stickyNote"
-  | "freeText"
-  | "square";
+  "highlight" | "underline" | "strikeout" | "stickyNote" | "freeText" | "square";
 
 export interface AnnotationInfo {
   index: number;
@@ -536,10 +522,7 @@ export function deleteAnnotation(
   return invoke<DocumentInfo>("delete_annotation", { docId, pageIndex, annotationIndex });
 }
 
-export function clearAnnotations(
-  docId: number,
-  pages: number[],
-): Promise<DocumentInfo> {
+export function clearAnnotations(docId: number, pages: number[]): Promise<DocumentInfo> {
   return invoke<DocumentInfo>("clear_annotations", { docId, pages });
 }
 
@@ -707,10 +690,7 @@ export function detectEbookTools(): Promise<EbookToolProbe> {
   return invoke<EbookToolProbe>("detect_ebook_tools");
 }
 
-export function convertEbookToPdf(
-  toolPath: string,
-  opts: ConvertEbookOpts,
-): Promise<string> {
+export function convertEbookToPdf(toolPath: string, opts: ConvertEbookOpts): Promise<string> {
   return invoke<string>("convert_ebook_to_pdf", { toolPath, opts });
 }
 
@@ -741,10 +721,7 @@ export function listFormFields(docId: number): Promise<FormFieldInfo[]> {
   return invoke<FormFieldInfo[]>("list_form_fields", { docId });
 }
 
-export function setFormFieldValue(
-  docId: number,
-  opts: SetFormFieldOpts,
-): Promise<DocumentInfo> {
+export function setFormFieldValue(docId: number, opts: SetFormFieldOpts): Promise<DocumentInfo> {
   return invoke<DocumentInfo>("set_form_field_value", { docId, opts });
 }
 

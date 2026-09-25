@@ -73,7 +73,11 @@ fn color_to_hex(c: PdfColor) -> String {
 }
 
 /// 归一化区域 → PDF 坐标 (left, bottom, right, top)
-fn region_to_pdf_rect(page_w: f32, page_h: f32, r: &RegionSpec) -> (PdfPoints, PdfPoints, PdfPoints, PdfPoints) {
+fn region_to_pdf_rect(
+    page_w: f32,
+    page_h: f32,
+    r: &RegionSpec,
+) -> (PdfPoints, PdfPoints, PdfPoints, PdfPoints) {
     let l = (r.left.clamp(0.0, 1.0) * page_w).max(0.0);
     let r_x = ((r.left + r.width).clamp(0.0, 1.0) * page_w).max(0.0);
     // CSS top → PDF：y 从顶向下，PDF y 从底向上
@@ -123,7 +127,10 @@ fn map_kind(kind: PdfPageAnnotationType) -> Option<AnnotationKind> {
 
 /// 列出页面注释（纯函数版本）。
 /// page_index = None 表示所有页。
-pub fn list_annotations_logic(bytes: &[u8], page_index: Option<u32>) -> AppResult<Vec<AnnotationInfo>> {
+pub fn list_annotations_logic(
+    bytes: &[u8],
+    page_index: Option<u32>,
+) -> AppResult<Vec<AnnotationInfo>> {
     let pdfium = get_pdfium();
     let doc = load_doc(pdfium, bytes)?;
     let total = doc.pages().len() as u32;
@@ -190,7 +197,9 @@ pub fn add_annotation_logic(
             AnnotationKind::Highlight => {
                 let mut annot = annots.create_highlight_annotation()?;
                 let q = make_quad(pw, ph, &opts.region);
-                annot.attachment_points_mut().create_attachment_point_at_end(q)?;
+                annot
+                    .attachment_points_mut()
+                    .create_attachment_point_at_end(q)?;
                 annot.set_contents(&opts.contents)?;
                 let _ = annot.set_fill_color(color);
                 let _ = annot.set_bounds(rect);
@@ -198,14 +207,18 @@ pub fn add_annotation_logic(
             AnnotationKind::Underline => {
                 let mut annot = annots.create_underline_annotation()?;
                 let q = make_quad(pw, ph, &opts.region);
-                annot.attachment_points_mut().create_attachment_point_at_end(q)?;
+                annot
+                    .attachment_points_mut()
+                    .create_attachment_point_at_end(q)?;
                 annot.set_contents(&opts.contents)?;
                 let _ = annot.set_stroke_color(color);
             }
             AnnotationKind::Strikeout => {
                 let mut annot = annots.create_strikeout_annotation()?;
                 let q = make_quad(pw, ph, &opts.region);
-                annot.attachment_points_mut().create_attachment_point_at_end(q)?;
+                annot
+                    .attachment_points_mut()
+                    .create_attachment_point_at_end(q)?;
                 annot.set_contents(&opts.contents)?;
                 let _ = annot.set_stroke_color(color);
             }
@@ -396,7 +409,12 @@ mod tests {
     #[test]
     fn region_to_pdf_rect_interior() {
         // Page 100x100 pt, region left=0.1 top=0.2 width=0.5 height=0.3
-        let r = RegionSpec { left: 0.1, top: 0.2, width: 0.5, height: 0.3 };
+        let r = RegionSpec {
+            left: 0.1,
+            top: 0.2,
+            width: 0.5,
+            height: 0.3,
+        };
         let (left, bottom, right, top) = region_to_pdf_rect(100.0, 100.0, &r);
         // x: 0.1 -> 10, right = 0.1+0.5 = 0.6 -> 60
         approx(left.value, 10.0);
@@ -409,7 +427,12 @@ mod tests {
     /// region_to_pdf_rect clamps inputs to [0, 1].
     #[test]
     fn region_to_pdf_rect_clamps() {
-        let r = RegionSpec { left: -0.5, top: 1.5, width: 2.0, height: 0.5 };
+        let r = RegionSpec {
+            left: -0.5,
+            top: 1.5,
+            width: 2.0,
+            height: 0.5,
+        };
         let (left, bottom, right, top) = region_to_pdf_rect(100.0, 100.0, &r);
         // left clamped to 0, right clamped to 1 (1.0 * 100 = 100)
         assert_eq!(left.value, 0.0);
@@ -424,7 +447,12 @@ mod tests {
     #[test]
     fn region_to_pdf_rect_invariant() {
         // Pathological: left > right (width=0 should still work)
-        let r = RegionSpec { left: 0.5, top: 0.5, width: 0.0, height: 0.0 };
+        let r = RegionSpec {
+            left: 0.5,
+            top: 0.5,
+            width: 0.0,
+            height: 0.0,
+        };
         let (left, bottom, right, top) = region_to_pdf_rect(100.0, 100.0, &r);
         assert!(left.value <= right.value);
         assert!(bottom.value <= top.value);
@@ -433,12 +461,30 @@ mod tests {
     /// map_kind covers all supported annotation kinds.
     #[test]
     fn map_kind_supported() {
-        assert_eq!(map_kind(PdfPageAnnotationType::Highlight), Some(AnnotationKind::Highlight));
-        assert_eq!(map_kind(PdfPageAnnotationType::Underline), Some(AnnotationKind::Underline));
-        assert_eq!(map_kind(PdfPageAnnotationType::Strikeout), Some(AnnotationKind::Strikeout));
-        assert_eq!(map_kind(PdfPageAnnotationType::Text), Some(AnnotationKind::StickyNote));
-        assert_eq!(map_kind(PdfPageAnnotationType::FreeText), Some(AnnotationKind::FreeText));
-        assert_eq!(map_kind(PdfPageAnnotationType::Square), Some(AnnotationKind::Square));
+        assert_eq!(
+            map_kind(PdfPageAnnotationType::Highlight),
+            Some(AnnotationKind::Highlight)
+        );
+        assert_eq!(
+            map_kind(PdfPageAnnotationType::Underline),
+            Some(AnnotationKind::Underline)
+        );
+        assert_eq!(
+            map_kind(PdfPageAnnotationType::Strikeout),
+            Some(AnnotationKind::Strikeout)
+        );
+        assert_eq!(
+            map_kind(PdfPageAnnotationType::Text),
+            Some(AnnotationKind::StickyNote)
+        );
+        assert_eq!(
+            map_kind(PdfPageAnnotationType::FreeText),
+            Some(AnnotationKind::FreeText)
+        );
+        assert_eq!(
+            map_kind(PdfPageAnnotationType::Square),
+            Some(AnnotationKind::Square)
+        );
     }
 
     /// map_kind returns None for unsupported kinds.

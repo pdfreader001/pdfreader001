@@ -81,7 +81,9 @@ fn e2e_annotate_reopen_persists() {
     let initial = fs::read(fixture("sample.pdf")).expect("fixture missing");
 
     let pdfium_inst = pdfium();
-    let doc = pdfium_inst.load_pdf_from_byte_slice(&initial, None).unwrap();
+    let doc = pdfium_inst
+        .load_pdf_from_byte_slice(&initial, None)
+        .unwrap();
     let page = doc.pages().get(0).unwrap();
     let pw = page.width().value as f32;
     let ph = page.height().value as f32;
@@ -146,8 +148,7 @@ fn e2e_annotate_reopen_persists() {
         },
     )
     .expect("add sticky");
-    let after_sticky_list =
-        list_annotations_logic(&after_sticky, Some(0)).expect("list after st");
+    let after_sticky_list = list_annotations_logic(&after_sticky, Some(0)).expect("list after st");
     assert_eq!(after_sticky_list.len(), 3, "3 annotations");
 
     // 5) 模拟"另存为磁盘"→"重新打开"：用磁盘写读模拟
@@ -182,7 +183,9 @@ fn e2e_rewrite_text_persists() {
 
     // 2) 重写：覆盖 page 0 一个区域
     let pdfium_inst = pdfium();
-    let doc = pdfium_inst.load_pdf_from_byte_slice(&initial, None).unwrap();
+    let doc = pdfium_inst
+        .load_pdf_from_byte_slice(&initial, None)
+        .unwrap();
     let page = doc.pages().get(0).unwrap();
     let pw = page.width().value as f32;
     let ph = page.height().value as f32;
@@ -308,10 +311,7 @@ fn e2e_search_hit_count_matches_text_count() {
     let full = get_page_text_logic(&bytes, 0).expect("full text");
 
     // 找全文中至少 3 字符的单词
-    let probe_words: Vec<&str> = full
-        .split_whitespace()
-        .filter(|w| w.len() >= 3)
-        .collect();
+    let probe_words: Vec<&str> = full.split_whitespace().filter(|w| w.len() >= 3).collect();
     if probe_words.is_empty() {
         return; // 没有可用单词，跳过
     }
@@ -346,7 +346,9 @@ fn e2e_bytes_immutability_across_steps() {
         .fold(0u32, |h, &b| h.wrapping_mul(31).wrapping_add(b as u32));
 
     let pdfium_inst = pdfium();
-    let doc = pdfium_inst.load_pdf_from_byte_slice(&initial, None).unwrap();
+    let doc = pdfium_inst
+        .load_pdf_from_byte_slice(&initial, None)
+        .unwrap();
     let page = doc.pages().get(0).unwrap();
     let pw = page.width().value as f32;
     let ph = page.height().value as f32;
@@ -385,7 +387,7 @@ fn e2e_bytes_immutability_across_steps() {
 
 /// E2E 场景 8：安全加密文档诊断（用有密码的 fixture）
 /// 验证：get_security_status 对加密文档返回非 "Unprotected"。
-/// 
+///
 /// 跳过条件：项目 fixtures/ 中无加密 PDF。此处使用 sample.pdf 作 baseline，
 /// 场景的真正价值在 security.rs 单测中已覆盖。
 #[test]
@@ -399,8 +401,5 @@ fn e2e_diagnose_unprotected_baseline() {
     // baseline：sample.pdf 未加密 → Unprotected + 全权限
     assert_eq!(sec.handler_revision, "Unprotected");
     assert!(sec.can_modify_document, "baseline allows modify");
-    assert!(
-        sec.can_extract_text_and_graphics,
-        "baseline allows extract"
-    );
+    assert!(sec.can_extract_text_and_graphics, "baseline allows extract");
 }

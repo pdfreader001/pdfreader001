@@ -17,11 +17,7 @@ import {
   deleteAnnotation,
   clearAnnotations,
 } from "../../lib/ipc";
-import type {
-  AnnotationInfo,
-  AnnotationKind,
-  ImageObjectInfo,
-} from "../../lib/ipc";
+import type { AnnotationInfo, AnnotationKind, ImageObjectInfo } from "../../lib/ipc";
 
 const ANNOT_KINDS: { k: AnnotationKind; labelKey: string; icon: string }[] = [
   { k: "highlight", labelKey: "高亮", icon: "🖍" },
@@ -85,9 +81,7 @@ function AnnotationEditor() {
   const errorToast = useApp((s) => s.errorToast);
   const t = useT();
 
-  const list: AnnotationInfo[] = useApp(
-    (s) => s.annotations[currentPage] ?? [],
-  );
+  const list: AnnotationInfo[] = useApp((s) => s.annotations[currentPage] ?? []);
 
   const [kind, setKind] = useState<AnnotationKind>("highlight");
   const [color, setColor] = useState("#ffeb3b");
@@ -124,8 +118,7 @@ function AnnotationEditor() {
       updatePages(info);
       markDirty(true);
       setUndoRedo(await refreshUndoRedo(docId));
-      const kindLabel =
-        ANNOT_KINDS.find((x) => x.k === kind)?.labelKey ?? "";
+      const kindLabel = ANNOT_KINDS.find((x) => x.k === kind)?.labelKey ?? "";
       pushToast("info", t("已添加 {kind}", { kind: t(kindLabel) }));
       setContents("");
       await reloadPageAnnotations();
@@ -173,10 +166,10 @@ function AnnotationEditor() {
   return (
     <div className="task-body">
       <p className="placeholder">
-        {t(
-          "第 {n} / {total} 页。点击下方按钮即可在页面顶部插入所选类型的注释。",
-          { n: currentPage + 1, total: pageCount || "?" },
-        )}
+        {t("第 {n} / {total} 页。点击下方按钮即可在页面顶部插入所选类型的注释。", {
+          n: currentPage + 1,
+          total: pageCount || "?",
+        })}
       </p>
       <div className="annot-kinds">
         {ANNOT_KINDS.map((a) => (
@@ -217,11 +210,7 @@ function AnnotationEditor() {
         />
       </div>
       <div className="task-footer">
-        <button
-          className="btn-primary"
-          onClick={add}
-          disabled={busy || docId === null}
-        >
+        <button className="btn-primary" onClick={add} disabled={busy || docId === null}>
           {busy ? t("添加中…") : t("添加到当前页")}
         </button>
       </div>
@@ -229,19 +218,13 @@ function AnnotationEditor() {
       <div className="annot-list-head">
         <span>{t("本页注释（{n}）", { n: list.length })}</span>
         {list.length > 0 && (
-          <button
-            onClick={clearAll}
-            disabled={busy}
-            style={{ color: "var(--danger)" }}
-          >
+          <button onClick={clearAll} disabled={busy} style={{ color: "var(--danger)" }}>
             {t("清空本页")}
           </button>
         )}
       </div>
       <div className="annot-list">
-        {list.length === 0 && (
-          <p className="placeholder">{t("本页还没有注释")}</p>
-        )}
+        {list.length === 0 && <p className="placeholder">{t("本页还没有注释")}</p>}
         {list.map((a) => (
           <div key={a.index} className="annot-item">
             <span className="annot-swatch" style={{ background: a.color }} />
@@ -324,9 +307,7 @@ function DeepEditor() {
   const [imgW, setImgW] = useState(0);
   const [imgH, setImgH] = useState(0);
 
-  const [scanState, setScanState] = useState<"unknown" | "scanned" | "not">(
-    "unknown",
-  );
+  const [scanState, setScanState] = useState<"unknown" | "scanned" | "not">("unknown");
   const [detecting, setDetecting] = useState(false);
   const [docScanResult, setDocScanResult] = useState<{
     sampled: number;
@@ -463,10 +444,7 @@ function DeepEditor() {
       updatePages(result.info);
       markDirty(true);
       setUndoRedo(await refreshUndoRedo(id));
-      pushToast(
-        "info",
-        t("已重写第 {n} 页文字", { n: opts.pageIndex + 1 }),
-      );
+      pushToast("info", t("已重写第 {n} 页文字", { n: opts.pageIndex + 1 }));
       if (result.approximated) {
         pushToast("info", t("原字体不可用，已用近似字体替换"));
       }
@@ -601,11 +579,7 @@ function DeepEditor() {
   const onClearPageText = async () => {
     const id = requireDoc();
     if (!id) return;
-    if (
-      !confirm(
-        t("清空第 {n} 页所有文字对象？图片和其他对象保留。", { n: currentPage + 1 }),
-      )
-    ) {
+    if (!confirm(t("清空第 {n} 页所有文字对象？图片和其他对象保留。", { n: currentPage + 1 }))) {
       return;
     }
     setBusy(true);
@@ -741,7 +715,9 @@ function DeepEditor() {
 
       {mode === "select" && (
         <p className="placeholder" style={{ fontSize: 11 }}>
-          {t("选择态：双击画布上的文字即可编辑；要框选重写或放置文本，请点「编辑」「文字」，或使用画布底部工具条。")}
+          {t(
+            "选择态：双击画布上的文字即可编辑；要框选重写或放置文本，请点「编辑」「文字」，或使用画布底部工具条。",
+          )}
         </p>
       )}
 
@@ -772,9 +748,7 @@ function DeepEditor() {
               padding: 8,
             }}
           >
-            {t(
-              "操作说明：在画布上用鼠标拖拽矩形选中要重写的文字区域 → 松开后弹出输入框。",
-            )}
+            {t("操作说明：在画布上用鼠标拖拽矩形选中要重写的文字区域 → 松开后弹出输入框。")}
           </p>
           <p className="placeholder" style={{ fontSize: 11 }}>
             {t(
@@ -789,18 +763,14 @@ function DeepEditor() {
             <input
               type="number"
               value={region.left}
-              onChange={(e) =>
-                (e.target as unknown as { value: number })
-              }
+              onChange={(e) => e.target as unknown as { value: number }}
               style={{ width: 70 }}
             />
             <label>{t("下")}</label>
             <input
               type="number"
               value={region.bottom}
-              onChange={(e) =>
-                (e.target as unknown as { value: number })
-              }
+              onChange={(e) => e.target as unknown as { value: number }}
               style={{ width: 70 }}
             />
           </div>
@@ -809,18 +779,14 @@ function DeepEditor() {
             <input
               type="number"
               value={region.right}
-              onChange={(e) =>
-                (e.target as unknown as { value: number })
-              }
+              onChange={(e) => e.target as unknown as { value: number }}
               style={{ width: 70 }}
             />
             <label>{t("上")}</label>
             <input
               type="number"
               value={region.top}
-              onChange={(e) =>
-                (e.target as unknown as { value: number })
-              }
+              onChange={(e) => e.target as unknown as { value: number }}
               style={{ width: 70 }}
             />
           </div>
@@ -866,9 +832,7 @@ function DeepEditor() {
               max={200}
               value={tbFontSize}
               onChange={(e) =>
-                setTbFontSize(
-                  Math.min(200, Math.max(8, parseInt(e.target.value) || 24)),
-                )
+                setTbFontSize(Math.min(200, Math.max(8, parseInt(e.target.value) || 24)))
               }
               style={{ width: 64 }}
             />
@@ -989,9 +953,7 @@ function DeepEditor() {
               type="number"
               min={0}
               value={objIndex}
-              onChange={(e) =>
-                setObjIndex(Math.max(0, parseInt(e.target.value) || 0))
-              }
+              onChange={(e) => setObjIndex(Math.max(0, parseInt(e.target.value) || 0))}
               style={{ width: 80 }}
             />
           </div>
@@ -999,10 +961,7 @@ function DeepEditor() {
             <button onClick={pickImage} disabled={busy}>
               {t("替换为新图片…")}
             </button>
-            <span
-              className="merge-output-path"
-              title={imgPath ?? undefined}
-            >
+            <span className="merge-output-path" title={imgPath ?? undefined}>
               {imgName || t("未选择")}
             </span>
             {imgPath && (
@@ -1048,10 +1007,7 @@ function DeepEditor() {
           <p className="placeholder" style={{ fontSize: 11 }}>
             {t("扫描版检测：判断页面是否几乎没有可识别文本（无文本层）。")}
           </p>
-          <div
-            className="task-footer"
-            style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
-          >
+          <div className="task-footer" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
               className="btn-primary"
               onClick={onDetect}
@@ -1059,10 +1015,7 @@ function DeepEditor() {
             >
               {detecting ? t("正在检测…") : t("已扫描检测")}
             </button>
-            <button
-              onClick={onDetectDocument}
-              disabled={docScanning || docId === null}
-            >
+            <button onClick={onDetectDocument} disabled={docScanning || docId === null}>
               {docScanning ? t("正在检测…") : t("全文档抽样检测")}
             </button>
           </div>
@@ -1135,12 +1088,7 @@ function RewriteModal({
   fontSize?: number;
   color?: string;
   onCancel: () => void;
-  onSubmit: (opts: {
-    newText: string;
-    fontSize: number;
-    color: string;
-    fontName?: string;
-  }) => void;
+  onSubmit: (opts: { newText: string; fontSize: number; color: string; fontName?: string }) => void;
   busy: boolean;
 }) {
   const t = useT();
@@ -1153,9 +1101,7 @@ function RewriteModal({
   const height = region.top - region.bottom;
   return (
     <div className="task-body">
-      <h3 style={{ margin: "0 0 12px 0" }}>
-        {t("已选区 · 第 {n} 页", { n: pageIndex + 1 })}
-      </h3>
+      <h3 style={{ margin: "0 0 12px 0" }}>{t("已选区 · 第 {n} 页", { n: pageIndex + 1 })}</h3>
       <p className="placeholder" style={{ fontSize: 12 }}>
         {t("矩形")}：{region.left.toFixed(1)}, {region.bottom.toFixed(1)} –{" "}
         {region.right.toFixed(1)}, {region.top.toFixed(1)}
@@ -1200,9 +1146,7 @@ function RewriteModal({
           min={8}
           max={200}
           value={fontSize}
-          onChange={(e) =>
-            setFontSize(Math.min(200, Math.max(8, parseInt(e.target.value) || 24)))
-          }
+          onChange={(e) => setFontSize(Math.min(200, Math.max(8, parseInt(e.target.value) || 24)))}
           style={{ width: 64 }}
         />
         <label>{t("颜色")}</label>
@@ -1221,11 +1165,7 @@ function RewriteModal({
         >
           {busy ? t("处理中…") : t("确认重写")}
         </button>
-        <button
-          onClick={onCancel}
-          disabled={busy}
-          style={{ marginLeft: 6 }}
-        >
+        <button onClick={onCancel} disabled={busy} style={{ marginLeft: 6 }}>
           {t("取消")}
         </button>
       </div>

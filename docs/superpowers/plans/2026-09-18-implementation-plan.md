@@ -24,8 +24,10 @@
       > 实证：`rustc 1.98.1` / host `x86_64-pc-windows-msvc`，`cargo check --all-targets` 可跑通。RsProxy 镜像属环境配置，仓库内无痕（无 `.cargo/config.toml`）。
 - [x] `npm create tauri-app`：Vite + React + TypeScript 模板
 - [x] 验证 `npm run tauri dev` 与 `npm run tauri build`
-- [ ] 接入 ESLint + Prettier + rustfmt 基础规范
-      > 未接入：无 `eslint.config.*` / `.prettierrc*` / `rustfmt.toml`，`package.json` 无 lint/format 脚本。
+- [x] 接入 ESLint + Prettier + rustfmt 基础规范
+      > 已接入：`eslint.config.js`（flat config，TS + React）、`.prettierrc.json`（`printWidth: 100`）/ `.prettierignore`、`rustfmt.toml`（`max_width = 100`）；`package.json` 增 `lint` / `lint:fix` / `format` / `format:check` / `format:rust` / `format:rust:check`。
+      > 门禁：`npm run lint` 0 error（仅 1 条既有 `exhaustive-deps` warning）；`format:check` / `format:rust:check` 全绿。
+      > 说明：`eslint-plugin-react-hooks` v7 新增的 `set-state-in-effect` / `immutability` 会命中既有写法，本次显式关闭并注释，待重构且有 UI 测试后启用。
 
 ### M1 · 文档核心管线（Rust 优先）
 - [x] 集成 pdfium-render + pdfium.dll（Windows x64）

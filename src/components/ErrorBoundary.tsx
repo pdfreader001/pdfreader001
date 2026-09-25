@@ -29,10 +29,7 @@ export class ErrorBoundary extends Component<Props, State> {
   public componentDidCatch(error: Error, _info: ErrorInfo): void {
     // 通知用户（通过 Zustand 静态调用，不依赖 hook）
     try {
-      useApp.getState().pushToast(
-        "error",
-        `组件错误：${error.message || String(error)}`,
-      );
+      useApp.getState().pushToast("error", `组件错误：${error.message || String(error)}`);
     } catch {
       // store 本身也挂了 → 只能 console
       console.error("[ErrorBoundary]", error);
@@ -72,10 +69,7 @@ export class ErrorBoundary extends Component<Props, State> {
           </p>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={this.handleRetry}>重试</button>
-            <button
-              onClick={() => location.reload()}
-              className="btn-primary"
-            >
+            <button onClick={() => location.reload()} className="btn-primary">
               刷新页面
             </button>
           </div>

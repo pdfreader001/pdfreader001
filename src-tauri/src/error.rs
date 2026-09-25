@@ -295,7 +295,6 @@ mod tests {
     //! Unit tests: error code() mapping + Display + Serialize shape.
 
     use super::*;
-    
 
     /// Every AppError variant maps to a non-empty, snake_case error code.
     #[test]
@@ -316,7 +315,10 @@ mod tests {
             ("no_pages_to_duplicate", AppError::NoPagesToDuplicate),
             ("no_pages_to_move", AppError::NoPagesToMove),
             ("no_pages_to_extract", AppError::NoPagesToExtract),
-            ("invalid_page_range", AppError::InvalidPageRange { range: "1".into() }),
+            (
+                "invalid_page_range",
+                AppError::InvalidPageRange { range: "1".into() },
+            ),
             ("need_at_least_one_file", AppError::NeedAtLeastOneFile),
             ("merge_result_empty", AppError::MergeResultEmpty),
             ("pages_per_file_zero", AppError::PagesPerFileZero),
@@ -328,28 +330,71 @@ mod tests {
             ("annotation_out_of_range", AppError::AnnotationOutOfRange),
             ("text_empty", AppError::TextEmpty),
             ("no_pages_to_export", AppError::NoPagesToExport),
-            ("dpi_out_of_range", AppError::DpiOutOfRange { dpi: 50, min: 36, max: 600 }),
+            (
+                "dpi_out_of_range",
+                AppError::DpiOutOfRange {
+                    dpi: 50,
+                    min: 36,
+                    max: 600,
+                },
+            ),
             ("image_construct_failed", AppError::ImageConstructFailed),
             ("no_images_provided", AppError::NoImagesProvided),
-            ("image_read_failed", AppError::ImageReadFailed { path: "p".into() }),
+            (
+                "image_read_failed",
+                AppError::ImageReadFailed { path: "p".into() },
+            ),
             ("pdf_write_failed", AppError::PdfWriteFailed),
             ("invalid_rect", AppError::InvalidRect),
             ("no_candidates", AppError::NoCandidates),
             ("object_not_image", AppError::ObjectNotImage),
             ("search_failed", AppError::SearchFailed),
-            ("tool_not_found", AppError::ToolNotFound { tool: "x".into() }),
-            ("unsupported_format", AppError::UnsupportedFormat { format: "f".into() }),
-            ("source_not_found", AppError::SourceNotFound { path: "p".into() }),
-            ("tool_start_failed", AppError::ToolStartFailed { tool: "t".into(), detail: "d".into() }),
-            ("tool_failed", AppError::ToolFailed { tool: "t".into(), code: 1 }),
-            ("cannot_determine_source_name", AppError::CannotDetermineSourceName),
+            (
+                "tool_not_found",
+                AppError::ToolNotFound { tool: "x".into() },
+            ),
+            (
+                "unsupported_format",
+                AppError::UnsupportedFormat { format: "f".into() },
+            ),
+            (
+                "source_not_found",
+                AppError::SourceNotFound { path: "p".into() },
+            ),
+            (
+                "tool_start_failed",
+                AppError::ToolStartFailed {
+                    tool: "t".into(),
+                    detail: "d".into(),
+                },
+            ),
+            (
+                "tool_failed",
+                AppError::ToolFailed {
+                    tool: "t".into(),
+                    code: 1,
+                },
+            ),
+            (
+                "cannot_determine_source_name",
+                AppError::CannotDetermineSourceName,
+            ),
             ("no_pdf_generated", AppError::NoPdfGenerated),
             ("ocr_unavailable", AppError::OcrUnavailable),
-            ("tessdata_missing", AppError::TessdataMissing { path: "x".into() }),
+            (
+                "tessdata_missing",
+                AppError::TessdataMissing { path: "x".into() },
+            ),
             ("ocr_failed", AppError::OcrFailed { detail: "x".into() }),
-            ("form_field_write_unsupported", AppError::FormFieldWriteUnsupported { kind: "k".into() }),
+            (
+                "form_field_write_unsupported",
+                AppError::FormFieldWriteUnsupported { kind: "k".into() },
+            ),
             ("password_empty", AppError::PasswordEmpty),
-            ("pdf_encrypt_failed", AppError::PdfEncryptFailed { detail: "d".into() }),
+            (
+                "pdf_encrypt_failed",
+                AppError::PdfEncryptFailed { detail: "d".into() },
+            ),
         ];
 
         // All codes must be non-empty.
@@ -370,14 +415,26 @@ mod tests {
     /// Display strings contain key information for parameterized variants.
     #[test]
     fn display_strings_use_args() {
-        let e = AppError::InvalidPageRange { range: "1-99".into() };
+        let e = AppError::InvalidPageRange {
+            range: "1-99".into(),
+        };
         assert!(e.to_string().contains("1-99"), "Display should embed range");
 
-        let e = AppError::DpiOutOfRange { dpi: 50, min: 36, max: 600 };
+        let e = AppError::DpiOutOfRange {
+            dpi: 50,
+            min: 36,
+            max: 600,
+        };
         let s = e.to_string();
-        assert!(s.contains("50") && s.contains("36") && s.contains("600"), "Display should embed dpi/min/max");
+        assert!(
+            s.contains("50") && s.contains("36") && s.contains("600"),
+            "Display should embed dpi/min/max"
+        );
 
-        let e = AppError::ToolFailed { tool: "soffice".into(), code: 7 };
+        let e = AppError::ToolFailed {
+            tool: "soffice".into(),
+            code: 7,
+        };
         assert!(e.to_string().contains("soffice"));
         assert!(e.to_string().contains("7"));
     }
@@ -385,17 +442,26 @@ mod tests {
     /// args() exposes interpolatable variables for the frontend.
     #[test]
     fn args_exposes_variables() {
-        let e = AppError::InvalidPageRange { range: "abc".into() };
+        let e = AppError::InvalidPageRange {
+            range: "abc".into(),
+        };
         let args = e.args();
         assert_eq!(args.get("range").map(|s| s.as_str()), Some("abc"));
 
-        let e = AppError::DpiOutOfRange { dpi: 50, min: 36, max: 600 };
+        let e = AppError::DpiOutOfRange {
+            dpi: 50,
+            min: 36,
+            max: 600,
+        };
         let args = e.args();
         assert_eq!(args.get("dpi").map(|s| s.as_str()), Some("50"));
         assert_eq!(args.get("min").map(|s| s.as_str()), Some("36"));
         assert_eq!(args.get("max").map(|s| s.as_str()), Some("600"));
 
-        let e = AppError::ToolFailed { tool: "x".into(), code: 1 };
+        let e = AppError::ToolFailed {
+            tool: "x".into(),
+            code: 1,
+        };
         let args = e.args();
         assert_eq!(args.get("tool").map(|s| s.as_str()), Some("x"));
         assert_eq!(args.get("code").map(|s| s.as_str()), Some("1"));
@@ -418,7 +484,11 @@ mod tests {
         assert_eq!(v["code"], "invalid_page_range");
         assert_eq!(v["args"]["range"], "x");
 
-        let e = AppError::DpiOutOfRange { dpi: 50, min: 36, max: 600 };
+        let e = AppError::DpiOutOfRange {
+            dpi: 50,
+            min: 36,
+            max: 600,
+        };
         let v = serde_json::to_value(&e).unwrap();
         assert_eq!(v["code"], "dpi_out_of_range");
         // args() exposes values as strings (frontend substitutes them into i18n templates)

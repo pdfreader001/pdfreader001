@@ -8,10 +8,8 @@
 use std::fs;
 use std::path::PathBuf;
 
+use pdfe_lib::convert::{export_page_to_image_bytes, images_to_pdf_from_images, ImageToPdfOptions};
 use pdfium_render::prelude::*;
-use pdfe_lib::convert::{
-    export_page_to_image_bytes, images_to_pdf_from_images, ImageToPdfOptions,
-};
 
 fn fixture(name: &str) -> PathBuf {
     let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -43,7 +41,10 @@ fn export_png_first_page() {
     let png_bytes = export_page_to_image_bytes(&page, 150.0, "png").unwrap();
     assert!(png_bytes.len() > 100, "PNG should have reasonable size");
     // PNG 签名
-    assert_eq!(&png_bytes[..8], &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    assert_eq!(
+        &png_bytes[..8],
+        &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+    );
 
     // 验证尺寸：A4 约 595×842 pt，150 DPI = 150/72 ≈ 2.08x
     let img = image::load_from_memory_with_format(&png_bytes, image::ImageFormat::Png).unwrap();
@@ -117,7 +118,10 @@ fn unknown_format_falls_back_to_png() {
     // 我们验证不返回错误，且输出是 PNG
     assert!(result.is_ok());
     let bytes_out = result.unwrap();
-    assert_eq!(&bytes_out[..8], &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+    assert_eq!(
+        &bytes_out[..8],
+        &[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+    );
 }
 
 /// DPI 低于下限会被 clamp 到 36。
@@ -131,7 +135,8 @@ fn dpi_clamped_to_minimum() {
     let clamped = export_page_to_image_bytes(&page, 10.0, "png").unwrap();
     let min_dpi = export_page_to_image_bytes(&page, 36.0, "png").unwrap();
 
-    let img_clamped = image::load_from_memory_with_format(&clamped, image::ImageFormat::Png).unwrap();
+    let img_clamped =
+        image::load_from_memory_with_format(&clamped, image::ImageFormat::Png).unwrap();
     let img_min = image::load_from_memory_with_format(&min_dpi, image::ImageFormat::Png).unwrap();
 
     assert_eq!(img_clamped.width(), img_min.width());
@@ -148,7 +153,8 @@ fn dpi_clamped_to_maximum() {
     let clamped = export_page_to_image_bytes(&page, 2000.0, "png").unwrap();
     let max_dpi = export_page_to_image_bytes(&page, 600.0, "png").unwrap();
 
-    let img_clamped = image::load_from_memory_with_format(&clamped, image::ImageFormat::Png).unwrap();
+    let img_clamped =
+        image::load_from_memory_with_format(&clamped, image::ImageFormat::Png).unwrap();
     let img_max = image::load_from_memory_with_format(&max_dpi, image::ImageFormat::Png).unwrap();
 
     assert_eq!(img_clamped.width(), img_max.width());
@@ -196,9 +202,7 @@ fn export_multiple_pages() {
 #[test]
 fn single_image_to_pdf() {
     // 生成一张测试图片
-    let img = image::RgbaImage::from_fn(200, 150, |x, y| {
-        image::Rgba([x as u8, y as u8, 128, 255])
-    });
+    let img = image::RgbaImage::from_fn(200, 150, |x, y| image::Rgba([x as u8, y as u8, 128, 255]));
     let dyn_img = image::DynamicImage::ImageRgba8(img);
 
     let opts = ImageToPdfOptions {
@@ -241,7 +245,9 @@ fn multiple_images_to_pdf() {
 #[test]
 fn image_to_pdf_a4_size() {
     let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
-        100, 100, image::Rgba([255, 0, 0, 255]),
+        100,
+        100,
+        image::Rgba([255, 0, 0, 255]),
     ));
     let opts = ImageToPdfOptions {
         page_size: "a4".into(),
@@ -251,14 +257,19 @@ fn image_to_pdf_a4_size() {
     let doc = pdfium().load_pdf_from_byte_slice(&bytes, None).unwrap();
     let page = doc.pages().get(0).unwrap();
     assert!((page.width().value - 595.0).abs() < 1.0, "width ~= 595 pt");
-    assert!((page.height().value - 842.0).abs() < 1.0, "height ~= 842 pt");
+    assert!(
+        (page.height().value - 842.0).abs() < 1.0,
+        "height ~= 842 pt"
+    );
 }
 
 /// layout = fill：图片拉伸铺满页面。
 #[test]
 fn image_to_pdf_fill_layout() {
     let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
-        200, 100, image::Rgba([0, 255, 0, 255]),
+        200,
+        100,
+        image::Rgba([0, 255, 0, 255]),
     ));
     let opts = ImageToPdfOptions {
         page_size: "fit".into(),

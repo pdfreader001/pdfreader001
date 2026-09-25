@@ -61,9 +61,7 @@ export default function MergePanel() {
   };
 
   const updateRanges = (idx: number, ranges: string) => {
-    setItems((prev) =>
-      prev.map((it, i) => (i === idx ? { ...it, ranges } : it)),
-    );
+    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ranges } : it)));
   };
 
   const doMerge = async () => {
@@ -113,16 +111,10 @@ export default function MergePanel() {
                 <button onClick={() => move(idx, -1)} disabled={idx === 0}>
                   ↑
                 </button>
-                <button
-                  onClick={() => move(idx, 1)}
-                  disabled={idx === items.length - 1}
-                >
+                <button onClick={() => move(idx, 1)} disabled={idx === items.length - 1}>
                   ↓
                 </button>
-                <button
-                  onClick={() => remove(idx)}
-                  style={{ color: "var(--danger)" }}
-                >
+                <button onClick={() => remove(idx)} style={{ color: "var(--danger)" }}>
                   ✕
                 </button>
               </div>
@@ -150,21 +142,13 @@ export default function MergePanel() {
           {t("选择…")}
         </button>
         {outputPath && (
-          <button
-            title={t("清除")}
-            onClick={() => setOutputPath(null)}
-            disabled={busy}
-          >
+          <button title={t("清除")} onClick={() => setOutputPath(null)} disabled={busy}>
             ✕
           </button>
         )}
       </div>
       <div className="task-footer">
-        <button
-          className="btn-primary"
-          onClick={doMerge}
-          disabled={busy || items.length === 0}
-        >
+        <button className="btn-primary" onClick={doMerge} disabled={busy || items.length === 0}>
           {busy ? t("合并中…") : t("开始合并")}
         </button>
       </div>

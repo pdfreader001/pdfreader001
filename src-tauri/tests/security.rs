@@ -8,8 +8,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use pdfium_render::prelude::*;
 use pdfe_lib::security::get_security_status_logic;
+use pdfium_render::prelude::*;
 
 fn fixture(name: &str) -> PathBuf {
     let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -114,30 +114,23 @@ fn plain_copy_reserialization_is_valid() {
     let bytes = fs::read(fixture("sample.pdf")).unwrap();
     let doc = pdfium().load_pdf_from_byte_slice(&bytes, None).unwrap();
     let page_count_before = doc.pages().len();
-    let first_page_text_before = doc
-        .pages()
-        .get(0)
-        .unwrap()
-        .text()
-        .unwrap()
-        .all();
+    let first_page_text_before = doc.pages().get(0).unwrap().text().unwrap().all();
 
     // 重新序列化（去掉任何加密字典）
     let plain_bytes = doc.save_to_bytes().unwrap();
-    assert!(!plain_bytes.is_empty(), "reserialized bytes should not be empty");
+    assert!(
+        !plain_bytes.is_empty(),
+        "reserialized bytes should not be empty"
+    );
 
     // 重新加载验证
-    let doc2 = pdfium().load_pdf_from_byte_slice(&plain_bytes, None).unwrap();
+    let doc2 = pdfium()
+        .load_pdf_from_byte_slice(&plain_bytes, None)
+        .unwrap();
     assert_eq!(doc2.pages().len(), page_count_before);
 
     // 文本内容应该一致
-    let first_page_text_after = doc2
-        .pages()
-        .get(0)
-        .unwrap()
-        .text()
-        .unwrap()
-        .all();
+    let first_page_text_after = doc2.pages().get(0).unwrap().text().unwrap().all();
     assert_eq!(first_page_text_before, first_page_text_after);
 }
 
@@ -147,7 +140,9 @@ fn plain_copy_security_status_is_unprotected() {
     let bytes = fs::read(fixture("sample.pdf")).unwrap();
     let doc = pdfium().load_pdf_from_byte_slice(&bytes, None).unwrap();
     let plain_bytes = doc.save_to_bytes().unwrap();
-    let doc2 = pdfium().load_pdf_from_byte_slice(&plain_bytes, None).unwrap();
+    let doc2 = pdfium()
+        .load_pdf_from_byte_slice(&plain_bytes, None)
+        .unwrap();
     let status = get_security_status_logic(&doc2);
     assert_eq!(status.handler_revision, "Unprotected");
 }
@@ -166,7 +161,10 @@ fn security_status_serializes_camel_case() {
     let v: Value = serde_json::from_str(&json).unwrap();
 
     assert!(v.get("handlerRevision").is_some(), "handlerRevision");
-    assert!(v.get("canPrintHighQuality").is_some(), "canPrintHighQuality");
+    assert!(
+        v.get("canPrintHighQuality").is_some(),
+        "canPrintHighQuality"
+    );
     assert!(v.get("canPrintLowQuality").is_some(), "canPrintLowQuality");
     assert!(v.get("canModifyDocument").is_some(), "canModifyDocument");
     assert!(
@@ -175,7 +173,10 @@ fn security_status_serializes_camel_case() {
     );
     assert!(v.get("canAddAnnotations").is_some(), "canAddAnnotations");
     assert!(v.get("canFillFormFields").is_some(), "canFillFormFields");
-    assert!(v.get("canAssembleDocument").is_some(), "canAssembleDocument");
+    assert!(
+        v.get("canAssembleDocument").is_some(),
+        "canAssembleDocument"
+    );
     assert!(
         v.get("canCreateNewFormFields").is_some(),
         "canCreateNewFormFields"

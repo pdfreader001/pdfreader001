@@ -8,7 +8,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use pdfe_lib::forms::{list_form_fields_logic, set_form_field_value_logic, FormFieldKind, SetFormFieldOpts};
+use pdfe_lib::forms::{
+    list_form_fields_logic, set_form_field_value_logic, FormFieldKind, SetFormFieldOpts,
+};
 
 fn fixtures_dir() -> PathBuf {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -43,7 +45,10 @@ fn build_form_pdf_bytes() -> Vec<u8> {
     out.extend_from_slice(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
 
     obj!(1, "<< /Type /Pages /Kids [2 0 R] /Count 1 >>");
-    obj!(2, "<< /Type /Page /Parent 1 0 R /MediaBox [0 0 792 612] /Annots [5 0 R 6 0 R] >>");
+    obj!(
+        2,
+        "<< /Type /Page /Parent 1 0 R /MediaBox [0 0 792 612] /Annots [5 0 R 6 0 R] >>"
+    );
     obj!(3, "<< /Fields [5 0 R 6 0 R] >>");
     obj!(4, "<< /Type /Catalog /Pages 1 0 R /AcroForm 3 0 R >>");
     obj!(5, "<< /Type /Annot /Subtype /Widget /Rect [100 500 400 530] /P 2 0 R /FT /Tx /T (FullName) /V (John Doe) >>");
@@ -201,7 +206,10 @@ fn set_checkbox_field_value_roundtrip() {
     .expect("set_checkbox should succeed");
 
     let fields = list_form_fields_logic(&new_bytes).expect("list after check");
-    let agree = fields.iter().find(|f| f.name == "AgreeTerms").expect("found");
+    let agree = fields
+        .iter()
+        .find(|f| f.name == "AgreeTerms")
+        .expect("found");
     // pdfium 对 Checkbox 的 /V 一般表示为 "Yes"/"Off"
     // 我们这里主要确保值变了（不再是原始的 "false"/"Off"）
     let val_lc = agree.value.to_ascii_lowercase();
@@ -222,10 +230,17 @@ fn set_checkbox_field_value_roundtrip() {
     .expect("set_checkbox false should succeed");
 
     let fields2 = list_form_fields_logic(&new_bytes2).expect("list after uncheck");
-    let agree2 = fields2.iter().find(|f| f.name == "AgreeTerms").expect("found");
+    let agree2 = fields2
+        .iter()
+        .find(|f| f.name == "AgreeTerms")
+        .expect("found");
     let val_lc2 = agree2.value.to_ascii_lowercase();
     assert!(
-        val_lc2 == "off" || val_lc2 == "false" || val_lc2 == "no" || val_lc2 == "unchecked" || val_lc2 == "0",
+        val_lc2 == "off"
+            || val_lc2 == "false"
+            || val_lc2 == "no"
+            || val_lc2 == "unchecked"
+            || val_lc2 == "0",
         "Checkbox should be unchecked, got {:?}",
         agree2.value
     );
@@ -273,7 +288,10 @@ fn build_combo_pdf_bytes() -> Vec<u8> {
     }
     out.extend_from_slice(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
     obj!(1, "<< /Type /Pages /Kids [2 0 R] /Count 1 >>");
-    obj!(2, "<< /Type /Page /Parent 1 0 R /MediaBox [0 0 792 612] /Annots [5 0 R] >>");
+    obj!(
+        2,
+        "<< /Type /Page /Parent 1 0 R /MediaBox [0 0 792 612] /Annots [5 0 R] >>"
+    );
     obj!(3, "<< /Fields [5 0 R] >>");
     obj!(4, "<< /Type /Catalog /Pages 1 0 R /AcroForm 3 0 R >>");
     obj!(5, "<< /Type /Annot /Subtype /Widget /Rect [100 500 300 530] /P 2 0 R /FT /Ch /T (Country) /V (USA) /Opt [(USA) (UK) (JP)] >>");

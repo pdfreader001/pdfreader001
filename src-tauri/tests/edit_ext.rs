@@ -8,11 +8,11 @@
 //! - scanning detection returns true for an image-only page and false for a
 //!   page with text content
 
-use pdfium_render::prelude::*;
 use pdfe_lib::edit_ext::{
-    add_text_box_logic, is_scanned_page_logic, AddTextBoxOpts, PtRect, RewriteTextOpts,
-    rewrite_text_logic,
+    add_text_box_logic, is_scanned_page_logic, rewrite_text_logic, AddTextBoxOpts, PtRect,
+    RewriteTextOpts,
 };
+use pdfium_render::prelude::*;
 
 fn pdfium<'a>() -> &'a Pdfium {
     pdfe_lib::pdfium()
@@ -46,9 +46,19 @@ fn make_text_pdf(text: &str) -> Vec<u8> {
 
 #[test]
 fn pt_rect_validation() {
-    let valid = PtRect { left: 0.0, bottom: 0.0, right: 100.0, top: 100.0 };
+    let valid = PtRect {
+        left: 0.0,
+        bottom: 0.0,
+        right: 100.0,
+        top: 100.0,
+    };
     assert!(valid.right > valid.left && valid.top > valid.bottom);
-    let zero_w = PtRect { left: 50.0, bottom: 0.0, right: 50.0, top: 100.0 };
+    let zero_w = PtRect {
+        left: 50.0,
+        bottom: 0.0,
+        right: 50.0,
+        top: 100.0,
+    };
     assert!(zero_w.right <= zero_w.left);
 }
 
@@ -110,7 +120,12 @@ fn rewrite_text_insert_only_produces_valid_pdf() {
 fn rewrite_text_empty_string_errors() {
     let pdfium = pdfium();
     let bytes = make_text_pdf("Hello");
-    let region = PtRect { left: 0.0, bottom: 0.0, right: 100.0, top: 100.0 };
+    let region = PtRect {
+        left: 0.0,
+        bottom: 0.0,
+        right: 100.0,
+        top: 100.0,
+    };
     let opts = RewriteTextOpts {
         new_text: "".into(),
         font_size: 12.0,
@@ -128,7 +143,12 @@ fn rewrite_text_invalid_rect_errors() {
     let pdfium = pdfium();
     let bytes = make_text_pdf("Hello");
     // right <= left  →  invalid
-    let region = PtRect { left: 100.0, bottom: 0.0, right: 50.0, top: 100.0 };
+    let region = PtRect {
+        left: 100.0,
+        bottom: 0.0,
+        right: 50.0,
+        top: 100.0,
+    };
     let opts = RewriteTextOpts {
         new_text: "test".into(),
         font_size: 12.0,
@@ -145,7 +165,12 @@ fn rewrite_text_invalid_rect_errors() {
 fn rewrite_text_page_out_of_range() {
     let pdfium = pdfium();
     let bytes = make_text_pdf("Hello");
-    let region = PtRect { left: 0.0, bottom: 0.0, right: 100.0, top: 100.0 };
+    let region = PtRect {
+        left: 0.0,
+        bottom: 0.0,
+        right: 100.0,
+        top: 100.0,
+    };
     let opts = RewriteTextOpts {
         new_text: "test".into(),
         font_size: 12.0,
@@ -180,8 +205,14 @@ fn rewrite_text_outside_region_still_inserts() {
     let doc_after = pdfium.load_pdf_from_byte_slice(&new_bytes, None).unwrap();
     let text_after = doc_after.pages().get(0).unwrap().text().unwrap().all();
     // 原文保留（因为 region 没命中）+ 新文字插入
-    assert!(text_after.contains("KeepMe"), "original text outside region should remain");
-    assert!(text_after.contains("NewText"), "new text should be inserted at region");
+    assert!(
+        text_after.contains("KeepMe"),
+        "original text outside region should remain"
+    );
+    assert!(
+        text_after.contains("NewText"),
+        "new text should be inserted at region"
+    );
 }
 
 /// 文字重写：原字体名无法映射到系统字体 → 标记为「近似替换」。
@@ -204,7 +235,10 @@ fn rewrite_text_with_unknown_font_marks_approximated() {
     };
     let (new_bytes, approximated) = rewrite_text_logic(pdfium, &bytes, 0, region, &opts).unwrap();
     assert!(!new_bytes.is_empty());
-    assert!(approximated, "unknown source font should be flagged as approximated");
+    assert!(
+        approximated,
+        "unknown source font should be flagged as approximated"
+    );
 }
 
 // ---------- add_text_box ----------
@@ -225,7 +259,10 @@ fn add_text_box_inserts_text() {
     let new_bytes = add_text_box_logic(pdfium, &bytes, 0, &opts).unwrap();
     let doc_after = pdfium.load_pdf_from_byte_slice(&new_bytes, None).unwrap();
     let text_after = doc_after.pages().get(0).unwrap().text().unwrap().all();
-    assert!(text_after.contains("Original"), "original text should remain");
+    assert!(
+        text_after.contains("Original"),
+        "original text should remain"
+    );
     assert!(text_after.contains("AddedText"), "new text should appear");
 }
 

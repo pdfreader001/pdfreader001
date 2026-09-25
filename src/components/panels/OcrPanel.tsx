@@ -1,11 +1,7 @@
 import { useState } from "react";
 import { useApp } from "../../state/store";
 import { useT } from "../../i18n";
-import {
-  ocrPage,
-  ocrApplyTextOverlay,
-  refreshUndoRedo,
-} from "../../lib/ipc";
+import { ocrPage, ocrApplyTextOverlay, refreshUndoRedo } from "../../lib/ipc";
 import type { OcrWord } from "../../lib/ipc";
 
 export default function OcrPanel() {
@@ -43,10 +39,7 @@ export default function OcrPanel() {
     try {
       const result = await ocrPage(id, currentPage, lang, dpi);
       setLastResult({ words: result.words, page: currentPage });
-      pushToast(
-        "info",
-        t("OCR 识别完成，共 {n} 个词", { n: result.words.length }),
-      );
+      pushToast("info", t("OCR 识别完成，共 {n} 个词", { n: result.words.length }));
     } catch (e) {
       errorToast(e);
     } finally {
@@ -62,11 +55,7 @@ export default function OcrPanel() {
     }
     setBusy(true);
     try {
-      const info = await ocrApplyTextOverlay(
-        id,
-        currentPage,
-        lastResult.words,
-      );
+      const info = await ocrApplyTextOverlay(id, currentPage, lastResult.words);
       updatePages(info);
       markDirty(true);
       setUndoRedo(await refreshUndoRedo(id));
@@ -111,25 +100,13 @@ export default function OcrPanel() {
           onChange={(e) => setDpi(parseInt(e.target.value) || 300)}
         />
       </div>
-      <div
-        className="task-footer"
-        style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
-      >
-        <button
-          className="btn-primary"
-          onClick={onRecognize}
-          disabled={busy || docId === null}
-        >
+      <div className="task-footer" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button className="btn-primary" onClick={onRecognize} disabled={busy || docId === null}>
           {busy ? t("识别中…") : t("运行 OCR")}
         </button>
         <button
           onClick={onApply}
-          disabled={
-            busy ||
-            docId === null ||
-            !lastResult ||
-            lastResult.page !== currentPage
-          }
+          disabled={busy || docId === null || !lastResult || lastResult.page !== currentPage}
         >
           {t("应用为可搜索文本层")}
         </button>

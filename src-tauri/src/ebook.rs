@@ -109,15 +109,16 @@ pub async fn detect_ebook_tools(_state: State<'_, AppState>) -> AppResult<EbookT
 /// 调用 Calibre ebook-convert 把任意电子书格式转 PDF。
 /// 返回写入的 PDF 路径。
 #[tauri::command]
-pub async fn convert_ebook_to_pdf(
-    tool_path: String,
-    opts: ConvertEbookOpts,
-) -> AppResult<String> {
+pub async fn convert_ebook_to_pdf(tool_path: String, opts: ConvertEbookOpts) -> AppResult<String> {
     if !Path::new(&tool_path).is_file() {
-        return Err(AppError::ToolNotFound { tool: "Calibre".into() });
+        return Err(AppError::ToolNotFound {
+            tool: "Calibre".into(),
+        });
     }
     if !Path::new(&opts.source).is_file() {
-        return Err(AppError::SourceNotFound { path: opts.source.clone() });
+        return Err(AppError::SourceNotFound {
+            path: opts.source.clone(),
+        });
     }
     let out_path = Path::new(&opts.output);
     if let Some(parent) = out_path.parent() {
@@ -139,11 +140,15 @@ pub async fn convert_ebook_to_pdf(
     }
     // 让 Calibre 不要弹 GUI
     cmd.env("CALIBRE_USE_SYSTEM_THUMBNAILERS", "1");
-    let status = cmd
-        .status()
-        .map_err(|e| AppError::ToolStartFailed { tool: "ebook-convert".into(), detail: e.to_string() })?;
+    let status = cmd.status().map_err(|e| AppError::ToolStartFailed {
+        tool: "ebook-convert".into(),
+        detail: e.to_string(),
+    })?;
     if !status.success() {
-        return Err(AppError::ToolFailed { tool: "ebook-convert".into(), code: status.code().unwrap_or(-1) });
+        return Err(AppError::ToolFailed {
+            tool: "ebook-convert".into(),
+            code: status.code().unwrap_or(-1),
+        });
     }
     if !out_path.is_file() {
         return Err(AppError::NoPdfGenerated);

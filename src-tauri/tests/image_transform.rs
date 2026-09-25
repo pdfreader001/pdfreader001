@@ -6,8 +6,8 @@
 //! - `set_image_bounds` 能把图片包围盒精确映射到目标矩形（移动 + 缩放）
 //! - 非图片对象、非法矩形、越界索引都返回稳定的错误码
 
-use pdfium_render::prelude::*;
 use pdfe_lib::edit_ext::{list_image_objects_logic, set_image_bounds_logic, PtRect};
+use pdfium_render::prelude::*;
 
 fn pdfium<'a>() -> &'a Pdfium {
     pdfe_lib::pdfium()
@@ -97,7 +97,10 @@ fn list_returns_the_single_image() {
 fn list_ignores_text_objects() {
     let bytes = make_text_pdf();
     let list = list_image_objects_logic(pdfium(), &bytes, 0).unwrap();
-    assert!(list.is_empty(), "text-only page should expose no image objects");
+    assert!(
+        list.is_empty(),
+        "text-only page should expose no image objects"
+    );
 }
 
 // ---------- set bounds ----------
@@ -105,7 +108,12 @@ fn list_ignores_text_objects() {
 #[test]
 fn set_bounds_moves_and_scales_the_image() {
     let bytes = make_image_pdf();
-    let target = PtRect { left: 150.0, bottom: 250.0, right: 350.0, top: 450.0 };
+    let target = PtRect {
+        left: 150.0,
+        bottom: 250.0,
+        right: 350.0,
+        top: 450.0,
+    };
 
     let out = set_image_bounds_logic(pdfium(), &bytes, 0, 0, target).unwrap();
     let (l, b, r, t) = first_image_bounds(&out);
@@ -120,7 +128,12 @@ fn set_bounds_moves_and_scales_the_image() {
 fn set_bounds_pure_translation_keeps_size() {
     let bytes = make_image_pdf();
     // 平移 (25, -100)，尺寸不变。
-    let target = PtRect { left: 125.0, bottom: 300.0, right: 225.0, top: 380.0 };
+    let target = PtRect {
+        left: 125.0,
+        bottom: 300.0,
+        right: 225.0,
+        top: 380.0,
+    };
 
     let out = set_image_bounds_logic(pdfium(), &bytes, 0, 0, target).unwrap();
     let (l, b, r, t) = first_image_bounds(&out);
@@ -136,7 +149,12 @@ fn set_bounds_pure_translation_keeps_size() {
 #[test]
 fn set_bounds_rejects_non_image_object() {
     let bytes = make_text_pdf();
-    let target = PtRect { left: 0.0, bottom: 0.0, right: 100.0, top: 100.0 };
+    let target = PtRect {
+        left: 0.0,
+        bottom: 0.0,
+        right: 100.0,
+        top: 100.0,
+    };
     let err = set_image_bounds_logic(pdfium(), &bytes, 0, 0, target).unwrap_err();
     assert_eq!(err.code(), "object_not_image");
 }
@@ -144,7 +162,12 @@ fn set_bounds_rejects_non_image_object() {
 #[test]
 fn set_bounds_rejects_invalid_rect() {
     let bytes = make_image_pdf();
-    let target = PtRect { left: 100.0, bottom: 100.0, right: 100.0, top: 200.0 };
+    let target = PtRect {
+        left: 100.0,
+        bottom: 100.0,
+        right: 100.0,
+        top: 200.0,
+    };
     let err = set_image_bounds_logic(pdfium(), &bytes, 0, 0, target).unwrap_err();
     assert_eq!(err.code(), "invalid_rect");
 }
@@ -152,7 +175,12 @@ fn set_bounds_rejects_invalid_rect() {
 #[test]
 fn set_bounds_rejects_out_of_range_index() {
     let bytes = make_image_pdf();
-    let target = PtRect { left: 0.0, bottom: 0.0, right: 100.0, top: 100.0 };
+    let target = PtRect {
+        left: 0.0,
+        bottom: 0.0,
+        right: 100.0,
+        top: 100.0,
+    };
     let err = set_image_bounds_logic(pdfium(), &bytes, 0, 99, target).unwrap_err();
     assert_eq!(err.code(), "page_out_of_range");
 }
@@ -160,7 +188,12 @@ fn set_bounds_rejects_out_of_range_index() {
 #[test]
 fn set_bounds_rejects_out_of_range_page() {
     let bytes = make_image_pdf();
-    let target = PtRect { left: 0.0, bottom: 0.0, right: 100.0, top: 100.0 };
+    let target = PtRect {
+        left: 0.0,
+        bottom: 0.0,
+        right: 100.0,
+        top: 100.0,
+    };
     let err = set_image_bounds_logic(pdfium(), &bytes, 5, 0, target).unwrap_err();
     assert_eq!(err.code(), "page_out_of_range");
 }

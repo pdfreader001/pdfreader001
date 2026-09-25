@@ -94,9 +94,7 @@ function WatermarkAddPanel() {
   const pickImage = async () => {
     const picked = await open({
       multiple: false,
-      filters: [
-        { name: t("图片"), extensions: ["png", "jpg", "jpeg", "webp", "bmp"] },
-      ],
+      filters: [{ name: t("图片"), extensions: ["png", "jpg", "jpeg", "webp", "bmp"] }],
     });
     if (typeof picked === "string") {
       setImagePath(picked);
@@ -209,9 +207,7 @@ function WatermarkAddPanel() {
               min={5}
               max={100}
               value={scale}
-              onChange={(e) =>
-                setScale(Math.min(100, Math.max(5, parseInt(e.target.value) || 30)))
-              }
+              onChange={(e) => setScale(Math.min(100, Math.max(5, parseInt(e.target.value) || 30)))}
               style={{ width: 64 }}
             />
             <label>%</label>
@@ -229,9 +225,7 @@ function WatermarkAddPanel() {
           onChange={(e) => setOpacity(parseInt(e.target.value))}
           style={{ flex: 1 }}
         />
-        <span style={{ width: 34, textAlign: "right", color: "var(--fg-dim)" }}>
-          {opacity}%
-        </span>
+        <span style={{ width: 34, textAlign: "right", color: "var(--fg-dim)" }}>{opacity}%</span>
       </div>
       <div className="form-row">
         <label>{t("旋转角度")}</label>
@@ -263,11 +257,7 @@ function WatermarkAddPanel() {
 
       <div className="form-row">
         <label className="chk">
-          <input
-            type="checkbox"
-            checked={tiled}
-            onChange={(e) => setTiled(e.target.checked)}
-          />
+          <input type="checkbox" checked={tiled} onChange={(e) => setTiled(e.target.checked)} />
           {t("平铺整页")}
         </label>
         {tiled && (
@@ -278,9 +268,7 @@ function WatermarkAddPanel() {
               min={20}
               max={600}
               value={tileSpacing}
-              onChange={(e) =>
-                setTileSpacing(Math.max(20, parseInt(e.target.value) || 120))
-              }
+              onChange={(e) => setTileSpacing(Math.max(20, parseInt(e.target.value) || 120))}
               style={{ width: 64 }}
             />
             <label>pt</label>
@@ -300,11 +288,7 @@ function WatermarkAddPanel() {
       )}
 
       <div className="task-footer">
-        <button
-          className="btn-primary"
-          onClick={apply}
-          disabled={busy || docId === null || !valid}
-        >
+        <button className="btn-primary" onClick={apply} disabled={busy || docId === null || !valid}>
           {busy ? t("添加中…") : t("添加水印")}
         </button>
       </div>
@@ -354,11 +338,7 @@ function WatermarkRemovePanel() {
   };
 
   useEffect(() => {
-    if (
-      !completedSelection ||
-      completedSelection.mode !== "watermarkRemove" ||
-      !pages.length
-    )
+    if (!completedSelection || completedSelection.mode !== "watermarkRemove" || !pages.length)
       return;
     const sel = completedSelection;
     const pageInfo = pages[sel.pageIndex];
@@ -390,9 +370,7 @@ function WatermarkRemovePanel() {
       pushToast("info", t("请检查矩形坐标"));
       return;
     }
-    const pages = onlyCurrent
-      ? [currentPage]
-      : Array.from({ length: pageCount }, (_, i) => i);
+    const pages = onlyCurrent ? [currentPage] : Array.from({ length: pageCount }, (_, i) => i);
     setBusy(true);
     try {
       const res = await removeObjectsInRect(id, pages, rect);
@@ -415,9 +393,7 @@ function WatermarkRemovePanel() {
     try {
       const res = await detectWatermarkCandidates(id, samplePages, threshold);
       setDetectResult(res);
-      setSelectedFp(
-        new Set(res.candidates.map((c) => c.key ?? `idx:${c.objectIndex}`)),
-      );
+      setSelectedFp(new Set(res.candidates.map((c) => c.key ?? `idx:${c.objectIndex}`)));
     } catch (e) {
       errorToast(e);
     } finally {
@@ -458,9 +434,7 @@ function WatermarkRemovePanel() {
 
   return (
     <div className="task-body">
-      <p className="placeholder">
-        {t("在当前页用鼠标框选区域，或自动检测重复水印对象")}
-      </p>
+      <p className="placeholder">{t("在当前页用鼠标框选区域，或自动检测重复水印对象")}</p>
       <div className="split-modes">
         <label className={`split-mode${subMode === "manual" ? " active" : ""}`}>
           <input
@@ -497,9 +471,7 @@ function WatermarkRemovePanel() {
               disabled={docId === null}
               style={{ width: "100%" }}
             >
-              {selectingFor === "watermarkRemove"
-                ? t("取消框选")
-                : t("🎯 在画布上框选水印区域")}
+              {selectingFor === "watermarkRemove" ? t("取消框选") : t("🎯 在画布上框选水印区域")}
             </button>
           </div>
           <div className="field">
@@ -661,7 +633,8 @@ function WatermarkCandidateRow({
         {fp.kind === "text" ? "T" : fp.kind === "image" ? "🖼" : "▭"}
       </span>
       <span className="wm-candidate-info">
-        {t("类型")}: {fp.kind} · {t("位置")}: ({fp.left.toFixed(0)}, {fp.bottom.toFixed(0)}) – ({fp.right.toFixed(0)}, {fp.top.toFixed(0)}) · {t("出现")}: {fp.occurrence}/{totalSampled}
+        {t("类型")}: {fp.kind} · {t("位置")}: ({fp.left.toFixed(0)}, {fp.bottom.toFixed(0)}) – (
+        {fp.right.toFixed(0)}, {fp.top.toFixed(0)}) · {t("出现")}: {fp.occurrence}/{totalSampled}
       </span>
     </label>
   );

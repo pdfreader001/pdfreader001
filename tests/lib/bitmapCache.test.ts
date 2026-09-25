@@ -18,8 +18,8 @@ test("LruCache 触碰更新 LRU 顺序", () => {
   c.set("a", 30);
   c.set("b", 30);
   c.set("c", 30); // 30+30+30=90 ≤ 100, 都在
-  c.get("a");      // 触碰 a → 移到末尾，淘汰顺序：b → c → a
-  c.set("d", 30);  // 90+30=120 > 100 → 淘汰 b（最老的）
+  c.get("a"); // 触碰 a → 移到末尾，淘汰顺序：b → c → a
+  c.set("d", 30); // 90+30=120 > 100 → 淘汰 b（最老的）
   assert.equal(c.get("b"), undefined, "b 应被淘汰");
   assert.equal(c.get("a"), 30, "a 被触碰过不应淘汰");
   assert.equal(c.get("c"), 30);
@@ -74,7 +74,7 @@ test("LruCache 零预算立即淘汰", () => {
 test("LruCache sizeOf 正确计入 key", () => {
   const c = new LruCache<string, number>(10, (k, v) => k.length + v);
   c.set("abc", 5); // 3+5=8
-  c.set("ab", 3);  // 2+3=5 → 8+5=13 > 10 → 淘汰 abc; 剩 5
+  c.set("ab", 3); // 2+3=5 → 8+5=13 > 10 → 淘汰 abc; 剩 5
   assert.equal(c.get("abc"), undefined);
   assert.equal(c.get("ab"), 3);
 });

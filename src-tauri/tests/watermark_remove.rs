@@ -4,23 +4,54 @@
 //! exercise `Rect::valid`, `rects_intersect`, and `quantize` plus the
 //! `ObjectFingerprint` constructor shape.
 
-use pdfe_lib::watermark_remove::{
-    quantize, rects_intersect, ObjectFingerprint, Rect,
-};
+use pdfe_lib::watermark_remove::{quantize, rects_intersect, ObjectFingerprint, Rect};
 
 #[test]
 fn rect_validates_dimensions() {
-    assert!(Rect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 }.valid());
+    assert!(Rect {
+        left: 0.0,
+        bottom: 0.0,
+        right: 10.0,
+        top: 10.0
+    }
+    .valid());
     // Zero-width or zero-height rectangle should be invalid.
-    assert!(!Rect { left: 5.0, bottom: 0.0, right: 5.0, top: 10.0 }.valid());
-    assert!(!Rect { left: 0.0, bottom: 5.0, right: 10.0, top: 5.0 }.valid());
+    assert!(!Rect {
+        left: 5.0,
+        bottom: 0.0,
+        right: 5.0,
+        top: 10.0
+    }
+    .valid());
+    assert!(!Rect {
+        left: 0.0,
+        bottom: 5.0,
+        right: 10.0,
+        top: 5.0
+    }
+    .valid());
 }
 
 #[test]
 fn rect_intersection_overlap() {
-    let a = Rect { left: 0.0, bottom: 0.0, right: 100.0, top: 100.0 };
-    let b = Rect { left: 50.0, bottom: 50.0, right: 150.0, top: 150.0 };
-    let c = Rect { left: 200.0, bottom: 200.0, right: 300.0, top: 300.0 };
+    let a = Rect {
+        left: 0.0,
+        bottom: 0.0,
+        right: 100.0,
+        top: 100.0,
+    };
+    let b = Rect {
+        left: 50.0,
+        bottom: 50.0,
+        right: 150.0,
+        top: 150.0,
+    };
+    let c = Rect {
+        left: 200.0,
+        bottom: 200.0,
+        right: 300.0,
+        top: 300.0,
+    };
     assert!(rects_intersect(&a, &b));
     assert!(rects_intersect(&b, &a));
     assert!(!rects_intersect(&a, &c));

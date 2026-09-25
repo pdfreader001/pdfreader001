@@ -49,9 +49,7 @@ pub struct PageSearchHit {
 /// Pure function: compute the outer bounding box that contains all given rects.
 ///
 /// Each rect is (left, bottom, right, top). Returns `None` if the input is empty.
-pub fn bounding_box_from_rects(
-    rects: &[(f32, f32, f32, f32)],
-) -> Option<(f32, f32, f32, f32)> {
+pub fn bounding_box_from_rects(rects: &[(f32, f32, f32, f32)]) -> Option<(f32, f32, f32, f32)> {
     if rects.is_empty() {
         return None;
     }
@@ -159,7 +157,11 @@ pub async fn render_thumbnail(
     let doc = pdfium.load_pdf_from_byte_slice(&entry.bytes, None)?;
     let pages = doc.pages();
     let page = pages
-        .get(page_index.try_into().map_err(|_| AppError::PageOutOfRange)?)
+        .get(
+            page_index
+                .try_into()
+                .map_err(|_| AppError::PageOutOfRange)?,
+        )
         .map_err(|_| AppError::PageOutOfRange)?;
 
     let config = PdfRenderConfig::new().set_target_width(160);
@@ -200,7 +202,11 @@ pub fn get_page_text_logic(bytes: &[u8], page_index: u32) -> AppResult<String> {
         .map_err(|_| AppError::Damaged)?;
     let pages = doc.pages();
     let page = pages
-        .get(page_index.try_into().map_err(|_| AppError::PageOutOfRange)?)
+        .get(
+            page_index
+                .try_into()
+                .map_err(|_| AppError::PageOutOfRange)?,
+        )
         .map_err(|_| AppError::PageOutOfRange)?;
     let text = page.text()?;
     Ok(text.all())
@@ -244,7 +250,11 @@ pub fn search_page_text_logic(
     let doc = pdfium.load_pdf_from_byte_slice(bytes, None)?;
     let pages = doc.pages();
     let page = pages
-        .get(page_index.try_into().map_err(|_| AppError::PageOutOfRange)?)
+        .get(
+            page_index
+                .try_into()
+                .map_err(|_| AppError::PageOutOfRange)?,
+        )
         .map_err(|_| AppError::PageOutOfRange)?;
 
     let page_text = page.text()?;
@@ -271,7 +281,12 @@ pub fn search_page_text_logic(
         let mut rects: Vec<(f32, f32, f32, f32)> = Vec::new();
         for segment in segments.iter() {
             let b = segment.bounds();
-            rects.push((b.left().value, b.bottom().value, b.right().value, b.top().value));
+            rects.push((
+                b.left().value,
+                b.bottom().value,
+                b.right().value,
+                b.top().value,
+            ));
         }
         if let Some((l, b, r, t)) = bounding_box_from_rects(&rects) {
             hits.push(PageSearchHit {
@@ -348,7 +363,11 @@ pub fn pick_text_at_point_logic(
         .map_err(|_| AppError::Damaged)?;
     let pages = doc.pages();
     let page = pages
-        .get(page_index.try_into().map_err(|_| AppError::PageOutOfRange)?)
+        .get(
+            page_index
+                .try_into()
+                .map_err(|_| AppError::PageOutOfRange)?,
+        )
         .map_err(|_| AppError::PageOutOfRange)?;
     let text = match page.text() {
         Ok(t) => t,
@@ -363,7 +382,13 @@ pub fn pick_text_at_point_logic(
     ) -> Option<(f32, f32, f32, f32, char)> {
         let b = c.tight_bounds().ok()?;
         let ch = c.unicode_char()?;
-        Some((b.left().value, b.bottom().value, b.right().value, b.top().value, ch))
+        Some((
+            b.left().value,
+            b.bottom().value,
+            b.right().value,
+            b.top().value,
+            ch,
+        ))
     }
 
     // 1. 找到 hit 字符的索引
@@ -488,10 +513,7 @@ mod tests {
 
     #[test]
     fn test_bounding_box_two_overlapping() {
-        let rects = [
-            (0.0, 0.0, 10.0, 10.0),
-            (5.0, 5.0, 15.0, 15.0),
-        ];
+        let rects = [(0.0, 0.0, 10.0, 10.0), (5.0, 5.0, 15.0, 15.0)];
         let (l, b, r, t) = bounding_box_from_rects(&rects).unwrap();
         assert!(approx(l, 0.0));
         assert!(approx(b, 0.0));
@@ -501,10 +523,7 @@ mod tests {
 
     #[test]
     fn test_bounding_box_separate() {
-        let rects = [
-            (0.0, 0.0, 5.0, 5.0),
-            (20.0, 30.0, 25.0, 35.0),
-        ];
+        let rects = [(0.0, 0.0, 5.0, 5.0), (20.0, 30.0, 25.0, 35.0)];
         let (l, b, r, t) = bounding_box_from_rects(&rects).unwrap();
         assert!(approx(l, 0.0));
         assert!(approx(b, 0.0));
@@ -528,10 +547,7 @@ mod tests {
 
     #[test]
     fn test_bounding_box_negative_coords() {
-        let rects = [
-            (-10.0, -5.0, 5.0, 10.0),
-            (-3.0, -20.0, 15.0, -8.0),
-        ];
+        let rects = [(-10.0, -5.0, 5.0, 10.0), (-3.0, -20.0, 15.0, -8.0)];
         let (l, b, r, t) = bounding_box_from_rects(&rects).unwrap();
         assert!(approx(l, -10.0));
         assert!(approx(b, -20.0));

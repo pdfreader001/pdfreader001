@@ -298,7 +298,7 @@ export default function ThumbnailPanel() {
     if (docId === null || !dragging) return;
     e.preventDefault();
     const data = e.dataTransfer.getData("text/plain");
-    let indices: number[] = [];
+    let indices: number[];
     try {
       indices = JSON.parse(data);
     } catch {
@@ -365,7 +365,10 @@ export default function ThumbnailPanel() {
   if (docId === null) return null;
 
   const overscan = 400;
-  const first = Math.max(0, items.findIndex((i) => i.top + i.h >= scrollTop - overscan));
+  const first = Math.max(
+    0,
+    items.findIndex((i) => i.top + i.h >= scrollTop - overscan),
+  );
   let last = first;
   while (last < items.length && items[last].top <= scrollTop + viewH + overscan) last++;
 
@@ -436,5 +439,3 @@ export default function ThumbnailPanel() {
     </div>
   );
 }
-
-

@@ -21,9 +21,7 @@ export default function ConvertPanel() {
   const errorToast = useApp((s) => s.errorToast);
   const t = useT();
 
-  const [mode, setMode] = useState<"pdf2img" | "img2pdf" | "office2pdf" | "ebook2pdf">(
-    "pdf2img",
-  );
+  const [mode, setMode] = useState<"pdf2img" | "img2pdf" | "office2pdf" | "ebook2pdf">("pdf2img");
   const [imgPaths, setImgPaths] = useState<string[]>([]);
   const [dpi, setDpi] = useState(150);
   const [format, setFormat] = useState<"png" | "jpeg">("png");
@@ -66,11 +64,7 @@ export default function ConvertPanel() {
     if (typeof outDir !== "string") return;
     setBusy(true);
     try {
-      const outputs = await exportPagesToImages(
-        docId,
-        { pages, dpi, format },
-        outDir,
-      );
+      const outputs = await exportPagesToImages(docId, { pages, dpi, format }, outDir);
       pushToast("info", t("已导出 {n} 张图片", { n: outputs.length }));
     } catch (e) {
       errorToast(e);
@@ -175,10 +169,7 @@ export default function ConvertPanel() {
           </div>
           <div className="form-row">
             <label>{t("格式")}</label>
-            <select
-              value={format}
-              onChange={(e) => setFormat(e.target.value as "png" | "jpeg")}
-            >
+            <select value={format} onChange={(e) => setFormat(e.target.value as "png" | "jpeg")}>
               <option value="png">{t("PNG（无损）")}</option>
               <option value="jpeg">{t("JPEG（体积小）")}</option>
             </select>
@@ -190,19 +181,13 @@ export default function ConvertPanel() {
               min={36}
               max={600}
               value={dpi}
-              onChange={(e) =>
-                setDpi(Math.min(600, Math.max(36, parseInt(e.target.value) || 150)))
-              }
+              onChange={(e) => setDpi(Math.min(600, Math.max(36, parseInt(e.target.value) || 150)))}
               style={{ width: 80 }}
             />
             <label>{t("（36–600）")}</label>
           </div>
           <div className="task-footer">
-            <button
-              className="btn-primary"
-              onClick={onPdf2Img}
-              disabled={busy || docId === null}
-            >
+            <button className="btn-primary" onClick={onPdf2Img} disabled={busy || docId === null}>
               {busy ? t("导出中…") : t("导出图片")}
             </button>
           </div>
@@ -218,9 +203,7 @@ export default function ConvertPanel() {
               style={imgPaths.length ? undefined : { color: "var(--fg-dim)" }}
               title={imgPaths.join("\n")}
             >
-              {imgPaths.length > 0
-                ? t("已选 {n} 张", { n: imgPaths.length })
-                : t("未选择")}
+              {imgPaths.length > 0 ? t("已选 {n} 张", { n: imgPaths.length }) : t("未选择")}
             </span>
             {imgPaths.length > 0 && (
               <button onClick={() => setImgPaths([])} disabled={busy}>
@@ -242,10 +225,7 @@ export default function ConvertPanel() {
           </div>
           <div className="form-row">
             <label>{t("布局")}</label>
-            <select
-              value={layout}
-              onChange={(e) => setLayout(e.target.value as typeof layout)}
-            >
+            <select value={layout} onChange={(e) => setLayout(e.target.value as typeof layout)}>
               <option value="fit">{t("按比例居中（推荐）")}</option>
               <option value="fill">{t("拉伸铺满")}</option>
             </select>
@@ -295,10 +275,7 @@ function Office2PdfSection({ setBusy }: { setBusy: (b: boolean) => void }) {
       filters: [
         {
           name: t("Office 文档"),
-          extensions: [
-            "doc", "docx", "xls", "xlsx", "ppt", "pptx",
-            "odt", "ods", "odp", "rtf",
-          ],
+          extensions: ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp", "rtf"],
         },
       ],
     });
@@ -355,7 +332,13 @@ function Office2PdfSection({ setBusy }: { setBusy: (b: boolean) => void }) {
           {srcName || t("未选择")}
         </span>
         {src && (
-          <button onClick={() => { setSrc(null); setSrcName(""); }} disabled={false}>
+          <button
+            onClick={() => {
+              setSrc(null);
+              setSrcName("");
+            }}
+            disabled={false}
+          >
             ✕
           </button>
         )}
@@ -366,11 +349,7 @@ function Office2PdfSection({ setBusy }: { setBusy: (b: boolean) => void }) {
         )}
       </p>
       <div className="task-footer">
-        <button
-          className="btn-primary"
-          onClick={convert}
-          disabled={!probe?.installed || !src}
-        >
+        <button className="btn-primary" onClick={convert} disabled={!probe?.installed || !src}>
           {t("转换为 PDF")}
         </button>
       </div>
@@ -408,8 +387,18 @@ function Ebook2PdfSection({ setBusy }: { setBusy: (b: boolean) => void }) {
         {
           name: t("电子书"),
           extensions: [
-            "epub", "mobi", "azw", "azw3", "fb2", "lit",
-            "html", "htm", "rtf", "odt", "docx", "txt",
+            "epub",
+            "mobi",
+            "azw",
+            "azw3",
+            "fb2",
+            "lit",
+            "html",
+            "htm",
+            "rtf",
+            "odt",
+            "docx",
+            "txt",
           ],
         },
       ],
@@ -465,9 +454,7 @@ function Ebook2PdfSection({ setBusy }: { setBusy: (b: boolean) => void }) {
           ))}
       </div>
       <div className="merge-output">
-        <button onClick={pickFile}>
-          {t("选择电子书…")}
-        </button>
+        <button onClick={pickFile}>{t("选择电子书…")}</button>
         <span
           className="merge-output-path"
           title={src ?? undefined}
@@ -510,11 +497,7 @@ function Ebook2PdfSection({ setBusy }: { setBusy: (b: boolean) => void }) {
         )}
       </p>
       <div className="task-footer">
-        <button
-          className="btn-primary"
-          onClick={convert}
-          disabled={!probe?.installed || !src}
-        >
+        <button className="btn-primary" onClick={convert} disabled={!probe?.installed || !src}>
           {t("转换为 PDF")}
         </button>
       </div>

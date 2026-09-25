@@ -54,7 +54,10 @@ export default function SearchPanel() {
           collected.push({
             pageIndex,
             offset: pos,
-            snippet: (from > 0 ? "…" : "") + text.slice(from, to).replace(/\s+/g, " ") + (to < text.length ? "…" : ""),
+            snippet:
+              (from > 0 ? "…" : "") +
+              text.slice(from, to).replace(/\s+/g, " ") +
+              (to < text.length ? "…" : ""),
           });
           pos = lt.indexOf(lower, pos + q.length);
         }
@@ -169,6 +172,6 @@ function Highlighted({ text, query }: { text: string; query: string }) {
     pos = idx + query.length;
     idx = lt.indexOf(query, pos);
   }
-  if (pos < text.length) parts.push(<span key={k++}>{text.slice(pos)}</span>);
+  if (pos < text.length) parts.push(<span key={k}>{text.slice(pos)}</span>);
   return <span>{parts}</span>;
 }

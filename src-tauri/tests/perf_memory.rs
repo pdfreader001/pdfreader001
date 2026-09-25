@@ -69,9 +69,8 @@ mod win_mem {
     /// 当前进程工作集字节数；查询失败返回 0。
     pub fn working_set_bytes() -> usize {
         let mut counters = ProcessMemoryCounters::zeroed();
-        let ok = unsafe {
-            K32GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, counters.cb)
-        };
+        let ok =
+            unsafe { K32GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, counters.cb) };
         if ok != 0 {
             counters.working_set_size
         } else {
@@ -187,7 +186,10 @@ fn large_500_memory_profile() {
     let retained: usize = snapshots.iter().map(|s| s.len()).sum();
 
     eprintln!("[perf-mem] 500 页内存画像（文件 {} KiB）", file_kib);
-    eprintln!("[perf-mem]   基线（预热后）      : {:.1} MiB", mib(baseline));
+    eprintln!(
+        "[perf-mem]   基线（预热后）      : {:.1} MiB",
+        mib(baseline)
+    );
     eprintln!(
         "[perf-mem]   解析后（文档存活）  : {:.1} MiB（+{:.1} MiB）",
         mib(after_parse),

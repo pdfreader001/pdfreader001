@@ -13,9 +13,7 @@ export default function SplitPanel() {
   const errorToast = useApp((s) => s.errorToast);
   const t = useT();
 
-  const [mode, setMode] = useState<
-    "every_n" | "ranges" | "by_bookmark" | "selected"
-  >("every_n");
+  const [mode, setMode] = useState<"every_n" | "ranges" | "by_bookmark" | "selected">("every_n");
   const [everyN, setEveryN] = useState(1);
   const [ranges, setRanges] = useState("");
   const [bookmarkLevel, setBookmarkLevel] = useState(1);
@@ -60,10 +58,7 @@ export default function SplitPanel() {
     setBusy(true);
     try {
       const outputs = await splitDocument(docId, modePayload, outDir);
-      pushToast(
-        "info",
-        t("拆分完成，共生成 {n} 个文件", { n: outputs.length }),
-      );
+      pushToast("info", t("拆分完成，共生成 {n} 个文件", { n: outputs.length }));
     } catch (e) {
       errorToast(e);
     } finally {
@@ -82,10 +77,7 @@ export default function SplitPanel() {
     <div className="task-body">
       <div className="split-modes">
         {splitModes.map((m) => (
-          <label
-            key={m.k}
-            className={`split-mode${mode === m.k ? " active" : ""}`}
-          >
+          <label key={m.k} className={`split-mode${mode === m.k ? " active" : ""}`}>
             <input
               type="radio"
               checked={mode === m.k}
@@ -129,9 +121,7 @@ export default function SplitPanel() {
             min={1}
             max={10}
             value={bookmarkLevel}
-            onChange={(e) =>
-              setBookmarkLevel(Math.max(1, parseInt(e.target.value) || 1))
-            }
+            onChange={(e) => setBookmarkLevel(Math.max(1, parseInt(e.target.value) || 1))}
             style={{ width: 60 }}
           />
           <label>{t("级书签拆分")}</label>
@@ -145,11 +135,7 @@ export default function SplitPanel() {
         </p>
       )}
       <div className="task-footer">
-        <button
-          className="btn-primary"
-          onClick={doSplit}
-          disabled={busy || docId === null}
-        >
+        <button className="btn-primary" onClick={doSplit} disabled={busy || docId === null}>
           {busy ? t("拆分中…") : t("开始拆分")}
         </button>
       </div>

@@ -3,14 +3,8 @@ import assert from "node:assert/strict";
 import { isApiError } from "../../src/lib/ipc.ts";
 
 test("isApiError 识别标准 ApiError 结构", () => {
-  assert.equal(
-    isApiError({ code: "password", message: "需要密码" }),
-    true,
-  );
-  assert.equal(
-    isApiError({ code: "io", message: "磁盘满", args: { path: "/tmp" } }),
-    true,
-  );
+  assert.equal(isApiError({ code: "password", message: "需要密码" }), true);
+  assert.equal(isApiError({ code: "io", message: "磁盘满", args: { path: "/tmp" } }), true);
 });
 
 test("isApiError 拒绝缺少字段的对象", () => {

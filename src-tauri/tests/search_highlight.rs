@@ -2,8 +2,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use pdfium_render::prelude::*;
 use pdfe_lib::render::{search_page_text_logic, PageSearchResult};
+use pdfium_render::prelude::*;
 
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -20,8 +20,7 @@ fn pdfium<'a>() -> &'a Pdfium {
 #[test]
 fn search_sample_pdf_first_page() {
     let bytes = fs::read(fixture("sample.pdf")).unwrap();
-    let result: PageSearchResult =
-        search_page_text_logic(&bytes, 0, "PDF", Some(20)).unwrap();
+    let result: PageSearchResult = search_page_text_logic(&bytes, 0, "PDF", Some(20)).unwrap();
 
     assert_eq!(result.page_index, 0);
     assert!(!result.hits.is_empty(), "应该至少找到 1 个 PDF 命中");
@@ -47,7 +46,9 @@ fn search_sample_pdf_first_page() {
 #[test]
 fn search_nonexistent_returns_empty() {
     let bytes = fs::read(fixture("sample.pdf")).unwrap();
-    let result = search_page_text_logic(&bytes, 0, "ThisStringDefinitelyDoesNotExist12345", Some(10)).unwrap();
+    let result =
+        search_page_text_logic(&bytes, 0, "ThisStringDefinitelyDoesNotExist12345", Some(10))
+            .unwrap();
     assert_eq!(result.hits.len(), 0);
 }
 
@@ -122,7 +123,12 @@ fn search_hits_within_page_bounds() {
         assert!(h.right > h.left, "命中 {} 宽度应为正", i);
         assert!(h.top > h.bottom, "命中 {} 高度应为正", i);
     }
-    println!("验证 {} 个命中都在页面范围内 ({:.1} x {:.1})", result.hits.len(), page_w, page_h);
+    println!(
+        "验证 {} 个命中都在页面范围内 ({:.1} x {:.1})",
+        result.hits.len(),
+        page_w,
+        page_h
+    );
 }
 
 /// 大小写不区分大小写搜索（pdfium 默认不区分大小写）。
@@ -132,9 +138,5 @@ fn search_case_insensitive() {
     let upper = search_page_text_logic(&bytes, 0, "PDF", Some(20)).unwrap();
     let lower = search_page_text_logic(&bytes, 0, "pdf", Some(20)).unwrap();
     // 两种大小写应返回相同数量的命中
-    assert_eq!(
-        upper.hits.len(),
-        lower.hits.len(),
-        "搜索应不区分大小写"
-    );
+    assert_eq!(upper.hits.len(), lower.hits.len(), "搜索应不区分大小写");
 }

@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import type { AnnotationInfo, DocumentInfo, PageInfo, BookmarkNode, SearchHitRect } from "../lib/ipc";
+import type {
+  AnnotationInfo,
+  DocumentInfo,
+  PageInfo,
+  BookmarkNode,
+  SearchHitRect,
+} from "../lib/ipc";
 import { isApiError } from "../lib/ipc";
 import { pageCache, thumbCache } from "../lib/bitmapCache";
 import { translateError } from "../i18n";
@@ -7,7 +13,17 @@ import { translateError } from "../i18n";
 export type ViewMode = "continuous" | "single" | "dual";
 export type FitMode = "none" | "width" | "page";
 export type LeftTab = "thumbnails" | "bookmarks";
-export type TaskId = "merge" | "split" | "watermark" | "edit" | "security" | "export" | "diagnose" | "ocr" | "forms" | null;
+export type TaskId =
+  | "merge"
+  | "split"
+  | "watermark"
+  | "edit"
+  | "security"
+  | "export"
+  | "diagnose"
+  | "ocr"
+  | "forms"
+  | null;
 /** 内容编辑面板的内层页签 */
 export type EditTab = "annot" | "deep";
 /** 深度编辑当前工具：select 不请求画布选区；rewrite/addtext 请求框选；image/scandetect 为纯参数模式 */
@@ -173,7 +189,7 @@ interface AppState {
   setHelpOpen: (b: boolean) => void;
   setSelectingFor: (mode: string | null) => void;
   setLiveSelection: (rect: (CssRect & { pageIndex: number }) | null) => void;
-  setCompletedSelection: (s: Omit<CompletedSelection, "mode"> & { mode?: string } | null) => void;
+  setCompletedSelection: (s: (Omit<CompletedSelection, "mode"> & { mode?: string }) | null) => void;
   setDblClickText: (s: DblClickText | null) => void;
   setEditTarget: (t: TextEditTarget | null) => void;
   setSearch: (query: string, hits: SearchHit[]) => void;
@@ -198,7 +214,12 @@ interface AppState {
   setCanRedo: (b: boolean) => void;
   setUndoDepth: (n: number) => void;
   setRedoDepth: (n: number) => void;
-  setUndoRedo: (ur: { canUndo: boolean; canRedo: boolean; undoDepth: number; redoDepth: number }) => void;
+  setUndoRedo: (ur: {
+    canUndo: boolean;
+    canRedo: boolean;
+    undoDepth: number;
+    redoDepth: number;
+  }) => void;
   setLoading: (b: boolean) => void;
   setBookmarks: (b: BookmarkNode[]) => void;
   setBookmarksLoading: (b: boolean) => void;
@@ -211,10 +232,7 @@ interface AppState {
 const POS_PREFIX = "pdfe:pos:";
 export function saveReadingPos(fileName: string, pageCount: number, page: number, scale: number) {
   try {
-    localStorage.setItem(
-      POS_PREFIX + `${fileName}:${pageCount}`,
-      JSON.stringify({ page, scale }),
-    );
+    localStorage.setItem(POS_PREFIX + `${fileName}:${pageCount}`, JSON.stringify({ page, scale }));
   } catch {
     /* 忽略存储失败 */
   }
@@ -302,7 +320,11 @@ export const useApp = create<AppState>((set, get) => ({
       const p = Math.max(0, Math.min(page, Math.max(0, s.pageCount - 1)));
       const base = { currentPage: p };
       if (flash) {
-        return { ...base, jumpTarget: { page: p, nonce: s.jumpTarget.nonce + 1 }, flashTarget: { page: p, nonce: s.flashTarget.nonce + 1 } };
+        return {
+          ...base,
+          jumpTarget: { page: p, nonce: s.jumpTarget.nonce + 1 },
+          flashTarget: { page: p, nonce: s.flashTarget.nonce + 1 },
+        };
       }
       return { ...base, jumpTarget: { page: p, nonce: s.jumpTarget.nonce + 1 } };
     }),
@@ -337,10 +359,10 @@ export const useApp = create<AppState>((set, get) => ({
       selectedPages: new Set(),
       thumbFocus: -1,
       searchHits: [],
-    searchActive: -1,
-    searchQuery: "",
-    searchHighlights: {},
-    loadingHighlights: new Set(),
+      searchActive: -1,
+      searchQuery: "",
+      searchHighlights: {},
+      loadingHighlights: new Set(),
     });
   },
   clearDoc: () =>
@@ -404,7 +426,14 @@ export const useApp = create<AppState>((set, get) => ({
     }),
   setDblClickText: (s) => set({ dblClickText: s }),
   setEditTarget: (t) => set({ editTarget: t }),
-  setSearch: (query, hits) => set({ searchQuery: query, searchHits: hits, searchActive: hits.length ? 0 : -1, searchHighlights: {}, loadingHighlights: new Set() }),
+  setSearch: (query, hits) =>
+    set({
+      searchQuery: query,
+      searchHits: hits,
+      searchActive: hits.length ? 0 : -1,
+      searchHighlights: {},
+      loadingHighlights: new Set(),
+    }),
   setSearchActive: (i) => set({ searchActive: i }),
   setSearching: (b) => set({ searching: b }),
   setPageHighlights: (pageIndex, rects) =>
@@ -461,9 +490,12 @@ export const useApp = create<AppState>((set, get) => ({
   pushToast: (kind, message) => {
     const id = ++toastSeq;
     set((s) => ({ toasts: [...s.toasts, { id, kind, message }] }));
-    setTimeout(() => {
-      set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
-    }, kind === "error" ? 5000 : 2500);
+    setTimeout(
+      () => {
+        set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) }));
+      },
+      kind === "error" ? 5000 : 2500,
+    );
   },
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   errorToast: (e) => {

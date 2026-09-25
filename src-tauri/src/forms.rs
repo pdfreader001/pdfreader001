@@ -168,15 +168,13 @@ fn find_target_widget<'a>(
 /// 遍历所有页的 Widget annotations，找到 name 匹配的目标字段。
 /// Text 字段通过 `PdfFormTextField::set_value` 写入；
 /// Checkbox 字段通过 `PdfFormCheckboxField::set_checked` 写入。
-pub fn set_form_field_value_logic(
-    bytes: &[u8],
-    opts: &SetFormFieldOpts,
-) -> AppResult<Vec<u8>> {
+pub fn set_form_field_value_logic(bytes: &[u8], opts: &SetFormFieldOpts) -> AppResult<Vec<u8>> {
     let pdfium_inst = get_pdfium();
     let mut doc = load_doc(pdfium_inst, bytes)?;
 
     // 第一步：扫描所有 Widget annotation，定位目标字段
-    let (page_idx, annot_idx, kind) = find_target_widget(&doc, &opts.name).ok_or(AppError::NotFound)?;
+    let (page_idx, annot_idx, kind) =
+        find_target_widget(&doc, &opts.name).ok_or(AppError::NotFound)?;
 
     // 第二步：mutable 路径 — 拿到 form_field_mut 后按字段类型分支
     {
@@ -184,9 +182,7 @@ pub fn set_form_field_value_logic(
         let mut page = pages.get(page_idx)?;
         let annots = page.annotations_mut();
         let mut annot = annots.get(annot_idx as usize)?;
-        let widget = annot
-            .as_widget_annotation_mut()
-            .ok_or(AppError::NotFound)?;
+        let widget = annot.as_widget_annotation_mut().ok_or(AppError::NotFound)?;
         let field = widget.form_field_mut().ok_or(AppError::NotFound)?;
 
         // Text 字段：set_value
@@ -263,7 +259,10 @@ mod tests {
         }
         out.extend_from_slice(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
         obj!(1, "<< /Type /Pages /Kids [2 0 R] /Count 1 >>");
-        obj!(2, "<< /Type /Page /Parent 1 0 R /MediaBox [0 0 792 612] /Annots [5 0 R 6 0 R] >>");
+        obj!(
+            2,
+            "<< /Type /Page /Parent 1 0 R /MediaBox [0 0 792 612] /Annots [5 0 R 6 0 R] >>"
+        );
         obj!(3, "<< /Fields [5 0 R 6 0 R] >>");
         obj!(4, "<< /Type /Catalog /Pages 1 0 R /AcroForm 3 0 R >>");
         obj!(5, "<< /Type /Annot /Subtype /Widget /Rect [100 500 400 530] /P 2 0 R /FT /Tx /T (FullName) /V (John Doe) >>");
@@ -276,7 +275,12 @@ mod tests {
         out.extend_from_slice(xref_line.as_bytes());
         out.extend_from_slice(b"trailer\n");
         out.extend_from_slice(
-            format!("<< /Size {} /Root 4 0 R >>\nstartxref\n{}\n%%EOF\n", obj_count + 1, xref_offset).as_bytes(),
+            format!(
+                "<< /Size {} /Root 4 0 R >>\nstartxref\n{}\n%%EOF\n",
+                obj_count + 1,
+                xref_offset
+            )
+            .as_bytes(),
         );
         out
     }
@@ -293,7 +297,10 @@ mod tests {
         }
         out.extend_from_slice(b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
         obj!(1, "<< /Type /Pages /Kids [2 0 R] /Count 1 >>");
-        obj!(2, "<< /Type /Page /Parent 1 0 R /MediaBox [0 0 792 612] /Annots [5 0 R] >>");
+        obj!(
+            2,
+            "<< /Type /Page /Parent 1 0 R /MediaBox [0 0 792 612] /Annots [5 0 R] >>"
+        );
         obj!(3, "<< /Fields [5 0 R] >>");
         obj!(4, "<< /Type /Catalog /Pages 1 0 R /AcroForm 3 0 R >>");
         obj!(5, "<< /Type /Annot /Subtype /Widget /Rect [100 500 300 530] /P 2 0 R /FT /Ch /T (Country) /V (USA) /Opt [(USA) (UK) (JP)] >>");
@@ -305,7 +312,12 @@ mod tests {
         out.extend_from_slice(xref_line.as_bytes());
         out.extend_from_slice(b"trailer\n");
         out.extend_from_slice(
-            format!("<< /Size {} /Root 4 0 R >>\nstartxref\n{}\n%%EOF\n", obj_count + 1, xref_offset).as_bytes(),
+            format!(
+                "<< /Size {} /Root 4 0 R >>\nstartxref\n{}\n%%EOF\n",
+                obj_count + 1,
+                xref_offset
+            )
+            .as_bytes(),
         );
         out
     }
@@ -352,8 +364,7 @@ mod tests {
     fn find_target_combo_widget() {
         let bytes = build_combo_pdf_bytes();
         let doc = load(&bytes);
-        let (_, _, kind) =
-            find_target_widget(&doc, "Country").expect("Country should be found");
+        let (_, _, kind) = find_target_widget(&doc, "Country").expect("Country should be found");
         // pdfium maps /FT /Ch -> ListBox regardless of choice semantics
         assert_eq!(kind, FormFieldKind::ListBox);
     }

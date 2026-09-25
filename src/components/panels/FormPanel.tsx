@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../../state/store";
 import { useT } from "../../i18n";
-import {
-  listFormFields,
-  setFormFieldValue,
-  refreshUndoRedo,
-} from "../../lib/ipc";
+import { listFormFields, setFormFieldValue, refreshUndoRedo } from "../../lib/ipc";
 import type { FormFieldInfo, DocumentInfo } from "../../lib/ipc";
 import type { FormFieldKind } from "../../lib/ipc";
 
@@ -66,12 +62,9 @@ export default function FormPanel() {
     signature: "✎",
   };
 
-  const isEditable = (kind: FormFieldKind): boolean =>
-    kind === "text" || kind === "checkbox";
+  const isEditable = (kind: FormFieldKind): boolean => kind === "text" || kind === "checkbox";
 
-  const isDirty = fields.some(
-    (f) => (drafts[f.name] ?? "") !== f.value,
-  );
+  const isDirty = fields.some((f) => (drafts[f.name] ?? "") !== f.value);
 
   const updateDraft = (name: string, value: string) => {
     setDrafts((prev) => ({ ...prev, [name]: value }));
@@ -123,10 +116,7 @@ export default function FormPanel() {
       <p className="placeholder" style={{ fontSize: 11 }}>
         {t("列出 PDF 表单（AcroForm）字段并填写新值，保存后立即写入文档。")}
       </p>
-      <div
-        className="task-footer"
-        style={{ marginBottom: 12, display: "flex", gap: 8 }}
-      >
+      <div className="task-footer" style={{ marginBottom: 12, display: "flex", gap: 8 }}>
         <button onClick={loadFields} disabled={loading || docId === null}>
           {loading ? t("加载中…") : t("刷新")}
         </button>
@@ -160,9 +150,7 @@ export default function FormPanel() {
                 gap: 4,
               }}
             >
-              <div
-                style={{ display: "flex", alignItems: "center", gap: 6 }}
-              >
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span
                   className="annot-kind"
                   style={{
@@ -178,31 +166,18 @@ export default function FormPanel() {
                 >
                   {kindLabel[f.kind]}
                 </span>
-                <span style={{ fontWeight: 600, color: "var(--text)" }}>
-                  {f.name}
-                </span>
+                <span style={{ fontWeight: 600, color: "var(--text)" }}>{f.name}</span>
               </div>
               {f.kind === "checkbox" ? (
                 <label className="chk" style={{ padding: "2px 0" }}>
                   <input
                     type="checkbox"
-                    checked={[
-                      "yes",
-                      "true",
-                      "1",
-                      "on",
-                      "checked",
-                    ].includes((drafts[f.name] ?? "").toLowerCase())}
-                    onChange={(e) =>
-                      updateDraft(
-                        f.name,
-                        e.target.checked ? "true" : "false",
-                      )
-                    }
+                    checked={["yes", "true", "1", "on", "checked"].includes(
+                      (drafts[f.name] ?? "").toLowerCase(),
+                    )}
+                    onChange={(e) => updateDraft(f.name, e.target.checked ? "true" : "false")}
                   />
-                  <span style={{ marginLeft: 4 }}>
-                    {drafts[f.name] || t("（未勾选）")}
-                  </span>
+                  <span style={{ marginLeft: 4 }}>{drafts[f.name] || t("（未勾选）")}</span>
                 </label>
               ) : isEditable(f.kind) ? (
                 <input

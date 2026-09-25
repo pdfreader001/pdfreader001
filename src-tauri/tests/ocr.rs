@@ -24,8 +24,7 @@ fn fixture(name: &str) -> PathBuf {
 fn render_page_to_png_basic() {
     let bytes = fs::read(fixture("sample.pdf")).expect("fixture missing");
     let pdfium_inst = pdfe_lib::pdfium();
-    let png = pdfe_lib::ocr::render_page_to_png(pdfium_inst, &bytes, 0, 150)
-        .expect("render ok");
+    let png = pdfe_lib::ocr::render_page_to_png(pdfium_inst, &bytes, 0, 150).expect("render ok");
     // PNG magic: 89 50 4E 47
     assert!(png.len() > 8, "png not empty");
     assert_eq!(&png[0..4], &[0x89, b'P', b'N', b'G'], "png magic");
@@ -132,10 +131,7 @@ fn apply_overlay_skips_empty_text() {
     // 空白字符不应该产生新文本
     assert!(!all_text.trim().is_empty(), "page has some text (original)");
     // 验证：原 sample.pdf 文本仍存在（不是被空文本污染）
-    assert!(
-        !all_text.is_empty(),
-        "page has at least original text"
-    );
+    assert!(!all_text.is_empty(), "page has at least original text");
 }
 
 /// apply_text_overlay_logic：越界页返回 PageOutOfRange
@@ -175,9 +171,7 @@ fn ocr_error_codes_unique() {
         AppError::TessdataMissing {
             path: "test".into(),
         },
-        AppError::OcrFailed {
-            detail: "x".into(),
-        },
+        AppError::OcrFailed { detail: "x".into() },
     ];
     let mut codes: Vec<&str> = errs.iter().map(|e| e.code()).collect();
     codes.sort();
@@ -190,17 +184,11 @@ fn ocr_error_codes_unique() {
 fn ocr_error_codes_match_spec() {
     assert_eq!(AppError::OcrUnavailable.code(), "ocr_unavailable");
     assert_eq!(
-        AppError::TessdataMissing {
-            path: "x".into()
-        }
-        .code(),
+        AppError::TessdataMissing { path: "x".into() }.code(),
         "tessdata_missing"
     );
     assert_eq!(
-        AppError::OcrFailed {
-            detail: "x".into()
-        }
-        .code(),
+        AppError::OcrFailed { detail: "x".into() }.code(),
         "ocr_failed"
     );
 }

@@ -158,8 +158,7 @@ pub async fn export_plain_copy(
         let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
         decrypt_pdf_bytes_logic(pdfium, &entry.bytes, password.as_deref())?
     };
-    std::fs::write(&output_path, &bytes)
-        .map_err(AppError::Io)?;
+    std::fs::write(&output_path, &bytes).map_err(AppError::Io)?;
     Ok(output_path)
 }
 
@@ -216,8 +215,9 @@ pub fn encrypt_pdf_bytes_logic(plain: &[u8], opts: &EncryptOptions) -> AppResult
         return Err(AppError::PasswordEmpty);
     }
 
-    let mut doc = lopdf::Document::load_mem(plain)
-        .map_err(|e| AppError::PdfEncryptFailed { detail: e.to_string() })?;
+    let mut doc = lopdf::Document::load_mem(plain).map_err(|e| AppError::PdfEncryptFailed {
+        detail: e.to_string(),
+    })?;
 
     // Standard security handler 的加密过滤器，名字必须与 stream/string filter 一致。
     let mut crypt_filters: BTreeMap<Vec<u8>, Arc<dyn CryptFilter>> = BTreeMap::new();
@@ -233,16 +233,22 @@ pub fn encrypt_pdf_bytes_logic(plain: &[u8], opts: &EncryptOptions) -> AppResult
         user_password: &opts.user_password,
         permissions: build_permissions(opts),
     })
-    .map_err(|e| AppError::PdfEncryptFailed { detail: e.to_string() })?;
+    .map_err(|e| AppError::PdfEncryptFailed {
+        detail: e.to_string(),
+    })?;
 
     doc.encrypt(&state)
-        .map_err(|e| AppError::PdfEncryptFailed { detail: e.to_string() })?;
+        .map_err(|e| AppError::PdfEncryptFailed {
+            detail: e.to_string(),
+        })?;
 
     // 加密文档会跳过 object streams（流内容已加密、文件密钥已不可得），
     // 每个对象单独序列化，xref 流不参与加密。
     let mut out = Vec::new();
     doc.save_to(&mut out)
-        .map_err(|e| AppError::PdfEncryptFailed { detail: e.to_string() })?;
+        .map_err(|e| AppError::PdfEncryptFailed {
+            detail: e.to_string(),
+        })?;
     Ok(out)
 }
 
@@ -310,10 +316,22 @@ mod tests {
     /// map_revision: known variants round-trip to stable strings.
     #[test]
     fn map_revision_known_variants() {
-        assert_eq!(map_revision(&PdfSecurityHandlerRevision::Unprotected), "Unprotected");
-        assert_eq!(map_revision(&PdfSecurityHandlerRevision::Revision2), "Revision2");
-        assert_eq!(map_revision(&PdfSecurityHandlerRevision::Revision3), "Revision3");
-        assert_eq!(map_revision(&PdfSecurityHandlerRevision::Revision4), "Revision4");
+        assert_eq!(
+            map_revision(&PdfSecurityHandlerRevision::Unprotected),
+            "Unprotected"
+        );
+        assert_eq!(
+            map_revision(&PdfSecurityHandlerRevision::Revision2),
+            "Revision2"
+        );
+        assert_eq!(
+            map_revision(&PdfSecurityHandlerRevision::Revision3),
+            "Revision3"
+        );
+        assert_eq!(
+            map_revision(&PdfSecurityHandlerRevision::Revision4),
+            "Revision4"
+        );
     }
 
     /// SecurityStatus: default-constructed status serializes all 8 bool fields.

@@ -107,8 +107,20 @@ const CJK_FONT_CANDIDATES: &[&str] = &[
 
 /// 扫描系统字体目录时的文件名关键词：命中者视为中文字体，扫描时优先尝试。
 const CJK_FONT_KEYWORDS: &[&str] = &[
-    "msyh", "msjh", "sim", "hei", "song", "kai", "fang", "deng", "ming", "yahei", "gothic",
-    "noto", "sourcehan", "arialuni",
+    "msyh",
+    "msjh",
+    "sim",
+    "hei",
+    "song",
+    "kai",
+    "fang",
+    "deng",
+    "ming",
+    "yahei",
+    "gothic",
+    "noto",
+    "sourcehan",
+    "arialuni",
 ];
 
 /// 扫描系统字体目录时最多尝试的文件数，避免极端环境下逐个读取上百个字体文件拖慢编辑。
@@ -138,7 +150,10 @@ const FONT_NAME_MAP: &[(&str, &[&str])] = &[
     ("deng", &["deng.ttf", "dengb.ttf"]),
     ("songti", &["simsun.ttc", "simsunb.ttf"]),
     ("heiti", &["simhei.ttf"]),
-    ("notosanscjk", &["NotoSansCJK-Regular.ttc", "NotoSansSC-Regular.otf"]),
+    (
+        "notosanscjk",
+        &["NotoSansCJK-Regular.ttc", "NotoSansSC-Regular.otf"],
+    ),
     ("sourcehansans", &["SourceHanSansSC-Regular.otf"]),
     // ---------- 西文 ----------
     ("helvetica", &["arial.ttf", "arialbd.ttf"]),
@@ -400,8 +415,9 @@ pub async fn add_image_watermark(
 ) -> AppResult<DocumentInfo> {
     push_snapshot(&state, doc_id);
     let _gate = crate::document::pdfium_gate();
-    let img = image::open(&opts.image_path)
-        .map_err(|_| AppError::ImageReadFailed { path: opts.image_path.clone() })?;
+    let img = image::open(&opts.image_path).map_err(|_| AppError::ImageReadFailed {
+        path: opts.image_path.clone(),
+    })?;
     let img = apply_image_opacity(img, opts.style.opacity);
     let (iw, ih) = (img.width() as f32, img.height() as f32);
     if iw < 1.0 || ih < 1.0 {

@@ -5,7 +5,9 @@ use pdfium_render::prelude::*;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::document::{atomic_write, pdfium as get_pdfium, push_snapshot, AppState, DocumentInfo, PageInfo};
+use crate::document::{
+    atomic_write, pdfium as get_pdfium, push_snapshot, AppState, DocumentInfo, PageInfo,
+};
 use crate::error::{AppError, AppResult};
 
 #[derive(Deserialize)]
@@ -355,9 +357,11 @@ pub async fn merge_documents(
         let dest_idx = merged.pages().len();
         if let Some(ref ranges) = src.ranges {
             if ranges.trim().is_empty() {
-                merged
-                    .pages_mut()
-                    .copy_page_range_from_document(&doc, 0..=(total - 1), dest_idx)?;
+                merged.pages_mut().copy_page_range_from_document(
+                    &doc,
+                    0..=(total - 1),
+                    dest_idx,
+                )?;
             } else {
                 merged
                     .pages_mut()
@@ -408,24 +412,26 @@ pub(crate) fn parse_ranges(spec: &str, total: u32) -> AppResult<Vec<(u32, u32)>>
             continue;
         }
         if let Some((a, b)) = part.split_once('-') {
-            let start: u32 = a
-                .trim()
-                .parse()
-                .map_err(|_| AppError::InvalidPageRange { range: part.to_string() })?;
-            let end: u32 = b
-                .trim()
-                .parse()
-                .map_err(|_| AppError::InvalidPageRange { range: part.to_string() })?;
+            let start: u32 = a.trim().parse().map_err(|_| AppError::InvalidPageRange {
+                range: part.to_string(),
+            })?;
+            let end: u32 = b.trim().parse().map_err(|_| AppError::InvalidPageRange {
+                range: part.to_string(),
+            })?;
             if start == 0 || end == 0 || start > end || end > total {
-                return Err(AppError::InvalidPageRange { range: part.to_string() });
+                return Err(AppError::InvalidPageRange {
+                    range: part.to_string(),
+                });
             }
             out.push((start - 1, end - 1));
         } else {
-            let n: u32 = part
-                .parse()
-                .map_err(|_| AppError::InvalidPageRange { range: part.to_string() })?;
+            let n: u32 = part.parse().map_err(|_| AppError::InvalidPageRange {
+                range: part.to_string(),
+            })?;
             if n == 0 || n > total {
-                return Err(AppError::InvalidPageRange { range: part.to_string() });
+                return Err(AppError::InvalidPageRange {
+                    range: part.to_string(),
+                });
             }
             out.push((n - 1, n - 1));
         }

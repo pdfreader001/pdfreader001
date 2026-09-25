@@ -42,9 +42,7 @@ const SHORTCUT_KEYS = [
   },
   {
     groupKey: "界面",
-    items: [
-      { keys: "Ctrl + Shift + L", descKey: "切换界面语言" },
-    ],
+    items: [{ keys: "Ctrl + Shift + L", descKey: "切换界面语言" }],
   },
 ];
 
@@ -137,20 +135,38 @@ export default function HelpPanel() {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
           <h2 style={{ margin: 0 }}>{t("PDFe 帮助")}</h2>
-          <button onClick={() => setHelpOpen(false)} title={t("关闭（Esc）")}>✕</button>
+          <button onClick={() => setHelpOpen(false)} title={t("关闭（Esc）")}>
+            ✕
+          </button>
         </div>
 
         <h3 style={{ marginTop: 12, marginBottom: 8 }}>{t("快捷键")}</h3>
         {SHORTCUT_KEYS.map((g) => (
           <div key={g.groupKey} style={{ marginBottom: 14 }}>
-            <div style={{ color: "var(--fg-dim)", fontSize: 12, marginBottom: 4 }}>{t(g.groupKey)}</div>
+            <div style={{ color: "var(--fg-dim)", fontSize: 12, marginBottom: 4 }}>
+              {t(g.groupKey)}
+            </div>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <tbody>
                 {g.items.map((s) => (
                   <tr key={s.descKey}>
-                    <td style={{ padding: "3px 6px", color: "var(--accent)", fontFamily: "Consolas, monospace", whiteSpace: "nowrap" }}>
+                    <td
+                      style={{
+                        padding: "3px 6px",
+                        color: "var(--accent)",
+                        fontFamily: "Consolas, monospace",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {s.keys}
                     </td>
                     <td style={{ padding: "3px 6px", color: "var(--fg-dim)" }}>{t(s.descKey)}</td>
@@ -164,10 +180,15 @@ export default function HelpPanel() {
         <h3 style={{ marginTop: 20, marginBottom: 8 }}>{t("功能清单")}</h3>
         {FEATURE_KEYS.map((g) => (
           <div key={g.groupKey} style={{ marginBottom: 14 }}>
-            <div style={{ color: "var(--fg-dim)", fontSize: 12, marginBottom: 4 }}>{t(g.groupKey)}</div>
+            <div style={{ color: "var(--fg-dim)", fontSize: 12, marginBottom: 4 }}>
+              {t(g.groupKey)}
+            </div>
             <ul style={{ margin: 0, paddingLeft: 20 }}>
               {g.items.map((it) => (
-                <li key={it} style={{ margin: "3px 0", color: "var(--fg)", fontSize: 13, lineHeight: 1.5 }}>
+                <li
+                  key={it}
+                  style={{ margin: "3px 0", color: "var(--fg)", fontSize: 13, lineHeight: 1.5 }}
+                >
                   {t(it)}
                 </li>
               ))}
@@ -175,7 +196,16 @@ export default function HelpPanel() {
           </div>
         ))}
 
-        <div style={{ marginTop: 24, padding: "10px 12px", background: "var(--bg)", borderRadius: 6, fontSize: 12, color: "var(--fg-dim)" }}>
+        <div
+          style={{
+            marginTop: 24,
+            padding: "10px 12px",
+            background: "var(--bg)",
+            borderRadius: 6,
+            fontSize: 12,
+            color: "var(--fg-dim)",
+          }}
+        >
           💡 {t("💡 提示：按 F1 或 ? 随时打开此面板；按 Esc 关闭。")}
         </div>
       </div>

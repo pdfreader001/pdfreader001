@@ -110,7 +110,9 @@ fn copy_page_increases_count() {
     let src_doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
     let mut doc = pdfium.load_pdf_from_byte_slice(&bytes, None).unwrap();
     assert_eq!(doc.pages().len(), 2);
-    doc.pages_mut().copy_page_from_document(&src_doc, 0, 2).unwrap();
+    doc.pages_mut()
+        .copy_page_from_document(&src_doc, 0, 2)
+        .unwrap();
     assert_eq!(doc.pages().len(), 3);
 }
 
@@ -342,7 +344,10 @@ fn office_detect_safe_no_panic() {
     // 不强求探测成功；只要求探测函数行为可预测（不在缺失机器上 panic）
     if any {
         // 至少存在一个候选时，断言路径是非空字符串
-        let found = candidates.iter().find(|p| std::path::Path::new(p).is_file()).unwrap();
+        let found = candidates
+            .iter()
+            .find(|p| std::path::Path::new(p).is_file())
+            .unwrap();
         assert!(!found.is_empty());
     }
     // 不存在时 installed 应为 false，逻辑层面已通过 office::run_version 静默返回 None
@@ -558,7 +563,11 @@ fn perf_save_500_pages() {
     let saved = doc.save_to_bytes().unwrap();
     let elapsed = start.elapsed();
     assert!(!saved.is_empty());
-    eprintln!("[perf] save 500 pages: {:?} ({}KB)", elapsed, saved.len() / 1024);
+    eprintln!(
+        "[perf] save 500 pages: {:?} ({}KB)",
+        elapsed,
+        saved.len() / 1024
+    );
     assert!(
         elapsed.as_secs_f64() < 2.0,
         "保存 500 页耗时过长: {:?}",

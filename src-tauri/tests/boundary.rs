@@ -72,8 +72,7 @@ fn search_whitespace_query() {
 #[test]
 fn search_max_hits_zero() {
     let bytes = fs::read(fixture("sample.pdf")).unwrap();
-    let result =
-        pdfe_lib::render::search_page_text_logic(&bytes, 0, "Hello", Some(0)).unwrap();
+    let result = pdfe_lib::render::search_page_text_logic(&bytes, 0, "Hello", Some(0)).unwrap();
     assert_eq!(result.hits.len(), 0);
 }
 
@@ -240,11 +239,26 @@ fn image_to_pdf_opts_empty_paths() {
 #[test]
 fn rects_intersect_basic() {
     use pdfe_lib::watermark_remove::{rects_intersect, Rect};
-    let a = Rect { left: 0.0, bottom: 0.0, right: 100.0, top: 100.0 };
-    let b = Rect { left: 50.0, bottom: 50.0, right: 150.0, top: 150.0 };
+    let a = Rect {
+        left: 0.0,
+        bottom: 0.0,
+        right: 100.0,
+        top: 100.0,
+    };
+    let b = Rect {
+        left: 50.0,
+        bottom: 50.0,
+        right: 150.0,
+        top: 150.0,
+    };
     assert!(rects_intersect(&a, &b), "重叠应判定为相交");
 
-    let c = Rect { left: 200.0, bottom: 200.0, right: 300.0, top: 300.0 };
+    let c = Rect {
+        left: 200.0,
+        bottom: 200.0,
+        right: 300.0,
+        top: 300.0,
+    };
     assert!(!rects_intersect(&a, &c), "分离矩形不应相交");
 }
 
@@ -252,9 +266,19 @@ fn rects_intersect_basic() {
 #[test]
 fn rects_intersect_edge_touching() {
     use pdfe_lib::watermark_remove::{rects_intersect, Rect};
-    let a = Rect { left: 0.0, bottom: 0.0, right: 100.0, top: 100.0 };
+    let a = Rect {
+        left: 0.0,
+        bottom: 0.0,
+        right: 100.0,
+        top: 100.0,
+    };
     // 右侧恰好贴在 a 的右边
-    let b = Rect { left: 100.0, bottom: 0.0, right: 200.0, top: 100.0 };
+    let b = Rect {
+        left: 100.0,
+        bottom: 0.0,
+        right: 200.0,
+        top: 100.0,
+    };
     assert!(!rects_intersect(&a, &b), "边对齐应判为不相交");
 }
 
@@ -262,8 +286,18 @@ fn rects_intersect_edge_touching() {
 #[test]
 fn rects_intersect_contained() {
     use pdfe_lib::watermark_remove::{rects_intersect, Rect};
-    let outer = Rect { left: 0.0, bottom: 0.0, right: 100.0, top: 100.0 };
-    let inner = Rect { left: 10.0, bottom: 10.0, right: 90.0, top: 90.0 };
+    let outer = Rect {
+        left: 0.0,
+        bottom: 0.0,
+        right: 100.0,
+        top: 100.0,
+    };
+    let inner = Rect {
+        left: 10.0,
+        bottom: 10.0,
+        right: 90.0,
+        top: 90.0,
+    };
     assert!(rects_intersect(&outer, &inner));
     assert!(rects_intersect(&inner, &outer));
 }
@@ -273,19 +307,28 @@ fn rects_intersect_contained() {
 fn rects_intersect_degenerate() {
     use pdfe_lib::watermark_remove::{rects_intersect, Rect};
     // 零宽线段被矩形严格包含
-    let line = Rect { left: 50.0, bottom: 0.0, right: 50.0, top: 100.0 };
-    let area = Rect { left: 40.0, bottom: 0.0, right: 60.0, top: 100.0 };
-    assert!(
-        rects_intersect(&line, &area),
-        "零宽矩形被包含时视为相交"
-    );
+    let line = Rect {
+        left: 50.0,
+        bottom: 0.0,
+        right: 50.0,
+        top: 100.0,
+    };
+    let area = Rect {
+        left: 40.0,
+        bottom: 0.0,
+        right: 60.0,
+        top: 100.0,
+    };
+    assert!(rects_intersect(&line, &area), "零宽矩形被包含时视为相交");
 
     // 完全分离的零宽矩形
-    let line_c = Rect { left: 200.0, bottom: 0.0, right: 200.0, top: 100.0 };
-    assert!(
-        !rects_intersect(&line, &line_c),
-        "分离的零宽矩形不应相交"
-    );
+    let line_c = Rect {
+        left: 200.0,
+        bottom: 0.0,
+        right: 200.0,
+        top: 100.0,
+    };
+    assert!(!rects_intersect(&line, &line_c), "分离的零宽矩形不应相交");
 }
 
 /// Rect 反序列化：缺字段应失败。
@@ -369,19 +412,35 @@ fn all_error_codes_are_unique() {
         AppError::AnnotationOutOfRange,
         AppError::TextEmpty,
         AppError::NoPagesToExport,
-        AppError::DpiOutOfRange { dpi: 1000, min: 36, max: 600 },
+        AppError::DpiOutOfRange {
+            dpi: 1000,
+            min: 36,
+            max: 600,
+        },
         AppError::ImageConstructFailed,
         AppError::NoImagesProvided,
-        AppError::ImageReadFailed { path: "/a/b".into() },
+        AppError::ImageReadFailed {
+            path: "/a/b".into(),
+        },
         AppError::PdfWriteFailed,
         AppError::InvalidRect,
         AppError::NoCandidates,
         AppError::SearchFailed,
-        AppError::ToolNotFound { tool: "soffice".into() },
-        AppError::UnsupportedFormat { format: "xls".into() },
+        AppError::ToolNotFound {
+            tool: "soffice".into(),
+        },
+        AppError::UnsupportedFormat {
+            format: "xls".into(),
+        },
         AppError::SourceNotFound { path: "/a".into() },
-        AppError::ToolStartFailed { tool: "soffice".into(), detail: "err".into() },
-        AppError::ToolFailed { tool: "soffice".into(), code: 1 },
+        AppError::ToolStartFailed {
+            tool: "soffice".into(),
+            detail: "err".into(),
+        },
+        AppError::ToolFailed {
+            tool: "soffice".into(),
+            code: 1,
+        },
         AppError::CannotDetermineSourceName,
         AppError::NoPdfGenerated,
     ];
@@ -399,20 +458,36 @@ fn error_args_contain_declared_fields() {
     let cases: Vec<(AppError, Vec<&str>)> = vec![
         (AppError::Io(std::io::Error::other("x")), vec!["detail"]),
         (AppError::Internal("msg".into()), vec!["detail"]),
-        (AppError::InvalidPageRange { range: "x".into() }, vec!["range"]),
         (
-            AppError::DpiOutOfRange { dpi: 1000, min: 36, max: 600 },
+            AppError::InvalidPageRange { range: "x".into() },
+            vec!["range"],
+        ),
+        (
+            AppError::DpiOutOfRange {
+                dpi: 1000,
+                min: 36,
+                max: 600,
+            },
             vec!["dpi", "min", "max"],
         ),
         (AppError::ToolNotFound { tool: "x".into() }, vec!["tool"]),
-        (AppError::UnsupportedFormat { format: "x".into() }, vec!["format"]),
+        (
+            AppError::UnsupportedFormat { format: "x".into() },
+            vec!["format"],
+        ),
         (AppError::SourceNotFound { path: "x".into() }, vec!["path"]),
         (
-            AppError::ToolStartFailed { tool: "x".into(), detail: "y".into() },
+            AppError::ToolStartFailed {
+                tool: "x".into(),
+                detail: "y".into(),
+            },
             vec!["tool", "detail"],
         ),
         (
-            AppError::ToolFailed { tool: "x".into(), code: 1 },
+            AppError::ToolFailed {
+                tool: "x".into(),
+                code: 1,
+            },
             vec!["tool", "code"],
         ),
         (AppError::ImageReadFailed { path: "x".into() }, vec!["path"]),
@@ -432,9 +507,17 @@ fn error_with_args_serializes_args() {
     use serde_json::Value;
     let cases = vec![
         AppError::Io(std::io::Error::other("disk full")),
-        AppError::InvalidPageRange { range: "1-2-x".into() },
-        AppError::DpiOutOfRange { dpi: 1000, min: 36, max: 600 },
-        AppError::ToolNotFound { tool: "soffice".into() },
+        AppError::InvalidPageRange {
+            range: "1-2-x".into(),
+        },
+        AppError::DpiOutOfRange {
+            dpi: 1000,
+            min: 36,
+            max: 600,
+        },
+        AppError::ToolNotFound {
+            tool: "soffice".into(),
+        },
     ];
     for e in cases {
         let json = serde_json::to_string(&e).unwrap();
@@ -473,7 +556,11 @@ fn error_without_args_omits_args() {
 fn error_json_code_matches_method() {
     use pdfe_lib::error::AppError;
     use serde_json::Value;
-    let e = AppError::DpiOutOfRange { dpi: 1000, min: 36, max: 600 };
+    let e = AppError::DpiOutOfRange {
+        dpi: 1000,
+        min: 36,
+        max: 600,
+    };
     let json = serde_json::to_string(&e).unwrap();
     let v: Value = serde_json::from_str(&json).unwrap();
     assert_eq!(v["code"].as_str().unwrap(), e.code());
@@ -488,7 +575,11 @@ fn error_io_message_is_readable() {
     use pdfe_lib::error::AppError;
     let e = AppError::Io(std::io::Error::other("disk full"));
     let msg = e.to_string();
-    assert!(msg.contains("disk full"), "Io 错误消息应包含 detail: {}", msg);
+    assert!(
+        msg.contains("disk full"),
+        "Io 错误消息应包含 detail: {}",
+        msg
+    );
 }
 
 /// Internal 错误的 message 应可读。
@@ -497,5 +588,9 @@ fn error_internal_message_is_readable() {
     use pdfe_lib::error::AppError;
     let e = AppError::Internal("detailed problem description".into());
     let msg = e.to_string();
-    assert!(msg.contains("detailed problem description"), "Internal 错误消息应包含原文: {}", msg);
+    assert!(
+        msg.contains("detailed problem description"),
+        "Internal 错误消息应包含原文: {}",
+        msg
+    );
 }

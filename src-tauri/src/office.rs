@@ -99,14 +99,19 @@ pub async fn convert_office_to_pdf(
     output_dir: String,
 ) -> AppResult<String> {
     if !Path::new(&soffice_path).is_file() {
-        return Err(AppError::ToolNotFound { tool: "LibreOffice".into() });
+        return Err(AppError::ToolNotFound {
+            tool: "LibreOffice".into(),
+        });
     }
     if !Path::new(&source).is_file() {
         return Err(AppError::SourceNotFound { path: source });
     }
     let out = Path::new(&output_dir);
     if !out.is_dir() {
-        return Err(AppError::Internal(format!("输出目录不存在：{}", output_dir)));
+        return Err(AppError::Internal(format!(
+            "输出目录不存在：{}",
+            output_dir
+        )));
     }
 
     let out_str = out.to_string_lossy().to_string();
@@ -121,10 +126,16 @@ pub async fn convert_office_to_pdf(
         .arg(&out_str)
         .arg(&source)
         .status()
-        .map_err(|e| AppError::ToolStartFailed { tool: "LibreOffice".into(), detail: e.to_string() })?;
+        .map_err(|e| AppError::ToolStartFailed {
+            tool: "LibreOffice".into(),
+            detail: e.to_string(),
+        })?;
 
     if !status.success() {
-        return Err(AppError::ToolFailed { tool: "LibreOffice".into(), code: status.code().unwrap_or(-1) });
+        return Err(AppError::ToolFailed {
+            tool: "LibreOffice".into(),
+            code: status.code().unwrap_or(-1),
+        });
     }
 
     // 推断输出 PDF 路径

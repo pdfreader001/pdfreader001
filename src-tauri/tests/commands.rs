@@ -70,7 +70,10 @@ fn invoke(window: &MockWindow, cmd: &str, args: Value) -> Result<Value, Value> {
             invoke_key: INVOKE_KEY.to_string(),
         },
     )
-    .map(|body| body.deserialize::<Value>().expect("命令返回值不是合法 JSON"))
+    .map(|body| {
+        body.deserialize::<Value>()
+            .expect("命令返回值不是合法 JSON")
+    })
 }
 
 /// 调用命令并断言成功。
@@ -190,7 +193,11 @@ fn cmd_open_annotate_save_roundtrip() {
     assert_eq!(arr[0]["index"], 0);
 
     // 4) 保存到原路径（path 传 null → 用打开时的路径，等价前端 Ctrl+S）
-    let saved = call(&w, "save_document", json!({ "docId": doc_id, "path": null }));
+    let saved = call(
+        &w,
+        "save_document",
+        json!({ "docId": doc_id, "path": null }),
+    );
     assert_eq!(saved["fileName"], "sample.pdf");
     assert!(saved["fileSizeBytes"].as_u64().unwrap() > 0, "保存后非空");
 
@@ -253,7 +260,11 @@ fn cmd_undo_redo_stack_semantics() {
     call(&w, "undo_document", json!({ "docId": doc_id }));
     assert_eq!(call(&w, "redo_depth", json!({ "docId": doc_id })), 1);
     add_highlight(&w, doc_id, "note C");
-    assert_eq!(call(&w, "redo_depth", json!({ "docId": doc_id })), 0, "新编辑清空 redo");
+    assert_eq!(
+        call(&w, "redo_depth", json!({ "docId": doc_id })),
+        0,
+        "新编辑清空 redo"
+    );
     assert_eq!(call(&w, "can_redo", json!({ "docId": doc_id })), false);
     assert_eq!(annotation_count(&w, doc_id, 0), 2, "note A + note C");
 }
@@ -299,7 +310,12 @@ fn cmd_close_document_releases_handle() {
     add_highlight(&w, doc_id, "note");
 
     call(&w, "close_document", json!({ "docId": doc_id }));
-    for cmd in ["get_metadata", "save_document", "undo_document", "list_annotations"] {
+    for cmd in [
+        "get_metadata",
+        "save_document",
+        "undo_document",
+        "list_annotations",
+    ] {
         let err = call_err(&w, cmd, json!({ "docId": doc_id, "pageIndex": 0 }));
         assert_eq!(err["code"], "not_found", "{cmd} 在关闭后应报 not_found");
     }
@@ -348,7 +364,9 @@ fn cmd_open_missing_file_reports_io_error() {
     let app = mock_app();
     let w = window(&app);
 
-    let missing = std::env::temp_dir().join("pdfe_cmd_missing").join("nope.pdf");
+    let missing = std::env::temp_dir()
+        .join("pdfe_cmd_missing")
+        .join("nope.pdf");
     let err = call_err(
         &w,
         "open_document",

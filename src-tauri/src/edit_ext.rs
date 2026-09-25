@@ -300,8 +300,9 @@ pub async fn replace_image(
         let docs = state.docs.lock().unwrap();
         let entry = docs.get(&doc_id).ok_or(AppError::NotFound)?;
         let mut doc = load_doc(pdfium, &entry.bytes)?;
-        let img = image::open(&new_image_path)
-            .map_err(|_| AppError::ImageReadFailed { path: new_image_path.clone() })?;
+        let img = image::open(&new_image_path).map_err(|_| AppError::ImageReadFailed {
+            path: new_image_path.clone(),
+        })?;
         let (iw, ih) = (img.width() as f32, img.height() as f32);
         if iw < 1.0 || ih < 1.0 {
             return Err(AppError::InvalidImageSize);
@@ -551,10 +552,7 @@ pub async fn is_scanned_page(
 /// Pure helper used by both the command and the integration tests.
 /// `is_scanned_page_logic(doc, page_index)` returns `Ok(true)` when the page
 /// has fewer than 8 characters of extractable text.
-pub fn is_scanned_page_logic(
-    doc: &pdfium_render::prelude::PdfDocument,
-    page_index: u32,
-) -> bool {
+pub fn is_scanned_page_logic(doc: &pdfium_render::prelude::PdfDocument, page_index: u32) -> bool {
     let pages = doc.pages();
     let Ok(page) = pages.get(page_index as u16) else {
         return true;
@@ -658,49 +656,89 @@ mod tests {
 
     #[test]
     fn pt_rect_valid_true() {
-        let r = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
+        let r = PtRect {
+            left: 0.0,
+            bottom: 0.0,
+            right: 10.0,
+            top: 10.0,
+        };
         assert!(r.valid());
     }
 
     #[test]
     fn pt_rect_valid_zero_width() {
-        let r = PtRect { left: 5.0, bottom: 0.0, right: 5.0, top: 10.0 };
+        let r = PtRect {
+            left: 5.0,
+            bottom: 0.0,
+            right: 5.0,
+            top: 10.0,
+        };
         assert!(!r.valid());
     }
 
     #[test]
     fn pt_rect_valid_zero_height() {
-        let r = PtRect { left: 0.0, bottom: 5.0, right: 10.0, top: 5.0 };
+        let r = PtRect {
+            left: 0.0,
+            bottom: 5.0,
+            right: 10.0,
+            top: 5.0,
+        };
         assert!(!r.valid());
     }
 
     #[test]
     fn pt_rect_valid_inverted() {
-        let r = PtRect { left: 10.0, bottom: 10.0, right: 0.0, top: 0.0 };
+        let r = PtRect {
+            left: 10.0,
+            bottom: 10.0,
+            right: 0.0,
+            top: 0.0,
+        };
         assert!(!r.valid());
     }
 
     #[test]
     fn pt_rect_width_positive() {
-        let r = PtRect { left: 10.0, bottom: 0.0, right: 50.0, top: 0.0 };
+        let r = PtRect {
+            left: 10.0,
+            bottom: 0.0,
+            right: 50.0,
+            top: 0.0,
+        };
         assert_eq!(r.width(), 40.0);
     }
 
     #[test]
     fn pt_rect_width_negative_clamps_zero() {
-        let r = PtRect { left: 50.0, bottom: 0.0, right: 10.0, top: 0.0 };
+        let r = PtRect {
+            left: 50.0,
+            bottom: 0.0,
+            right: 10.0,
+            top: 0.0,
+        };
         assert_eq!(r.width(), 0.0);
     }
 
     #[test]
     fn pt_rect_height_positive() {
-        let r = PtRect { left: 0.0, bottom: 10.0, right: 0.0, top: 50.0 };
+        let r = PtRect {
+            left: 0.0,
+            bottom: 10.0,
+            right: 0.0,
+            top: 50.0,
+        };
         assert_eq!(r.height(), 40.0);
     }
 
     #[test]
     fn pt_rect_height_negative_clamps_zero() {
-        let r = PtRect { left: 0.0, bottom: 50.0, right: 0.0, top: 10.0 };
+        let r = PtRect {
+            left: 0.0,
+            bottom: 50.0,
+            right: 0.0,
+            top: 10.0,
+        };
         assert_eq!(r.height(), 0.0);
     }
 
@@ -710,45 +748,100 @@ mod tests {
 
     #[test]
     fn pt_rect_intersects_overlap() {
-        let a = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
-        let b = PtRect { left: 5.0, bottom: 5.0, right: 15.0, top: 15.0 };
+        let a = PtRect {
+            left: 0.0,
+            bottom: 0.0,
+            right: 10.0,
+            top: 10.0,
+        };
+        let b = PtRect {
+            left: 5.0,
+            bottom: 5.0,
+            right: 15.0,
+            top: 15.0,
+        };
         assert!(a.intersects(&b));
         assert!(b.intersects(&a));
     }
 
     #[test]
     fn pt_rect_intersects_contained() {
-        let outer = PtRect { left: 0.0, bottom: 0.0, right: 20.0, top: 20.0 };
-        let inner = PtRect { left: 5.0, bottom: 5.0, right: 15.0, top: 15.0 };
+        let outer = PtRect {
+            left: 0.0,
+            bottom: 0.0,
+            right: 20.0,
+            top: 20.0,
+        };
+        let inner = PtRect {
+            left: 5.0,
+            bottom: 5.0,
+            right: 15.0,
+            top: 15.0,
+        };
         assert!(outer.intersects(&inner));
         assert!(inner.intersects(&outer));
     }
 
     #[test]
     fn pt_rect_intersects_separate_x() {
-        let a = PtRect { left: 0.0, bottom: 0.0, right: 5.0, top: 10.0 };
-        let b = PtRect { left: 10.0, bottom: 0.0, right: 15.0, top: 10.0 };
+        let a = PtRect {
+            left: 0.0,
+            bottom: 0.0,
+            right: 5.0,
+            top: 10.0,
+        };
+        let b = PtRect {
+            left: 10.0,
+            bottom: 0.0,
+            right: 15.0,
+            top: 10.0,
+        };
         assert!(!a.intersects(&b));
     }
 
     #[test]
     fn pt_rect_intersects_separate_y() {
-        let a = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 5.0 };
-        let b = PtRect { left: 0.0, bottom: 10.0, right: 10.0, top: 15.0 };
+        let a = PtRect {
+            left: 0.0,
+            bottom: 0.0,
+            right: 10.0,
+            top: 5.0,
+        };
+        let b = PtRect {
+            left: 0.0,
+            bottom: 10.0,
+            right: 10.0,
+            top: 15.0,
+        };
         assert!(!a.intersects(&b));
     }
 
     #[test]
     fn pt_rect_intersects_touch_not_overlap() {
         // Touching at edge: strict inequality -> no overlap
-        let a = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
-        let b = PtRect { left: 10.0, bottom: 0.0, right: 20.0, top: 10.0 };
+        let a = PtRect {
+            left: 0.0,
+            bottom: 0.0,
+            right: 10.0,
+            top: 10.0,
+        };
+        let b = PtRect {
+            left: 10.0,
+            bottom: 0.0,
+            right: 20.0,
+            top: 10.0,
+        };
         assert!(!a.intersects(&b));
     }
 
     #[test]
     fn pt_rect_intersects_identical() {
-        let a = PtRect { left: 1.0, bottom: 2.0, right: 3.0, top: 4.0 };
+        let a = PtRect {
+            left: 1.0,
+            bottom: 2.0,
+            right: 3.0,
+            top: 4.0,
+        };
         assert!(a.intersects(&a));
     }
 
@@ -758,13 +851,23 @@ mod tests {
 
     #[test]
     fn pt_rect_contains_inside() {
-        let r = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
+        let r = PtRect {
+            left: 0.0,
+            bottom: 0.0,
+            right: 10.0,
+            top: 10.0,
+        };
         assert!(r.contains(5.0, 5.0));
     }
 
     #[test]
     fn pt_rect_contains_outside() {
-        let r = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
+        let r = PtRect {
+            left: 0.0,
+            bottom: 0.0,
+            right: 10.0,
+            top: 10.0,
+        };
         assert!(!r.contains(15.0, 5.0));
         assert!(!r.contains(5.0, 15.0));
         assert!(!r.contains(-1.0, 5.0));
@@ -773,7 +876,12 @@ mod tests {
     #[test]
     fn pt_rect_contains_on_edge() {
         // Inclusive on edges
-        let r = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
+        let r = PtRect {
+            left: 0.0,
+            bottom: 0.0,
+            right: 10.0,
+            top: 10.0,
+        };
         assert!(r.contains(0.0, 0.0));
         assert!(r.contains(10.0, 10.0));
         assert!(r.contains(10.0, 5.0));
@@ -785,20 +893,39 @@ mod tests {
 
     #[test]
     fn normalize_bounds_orders_corners() {
-        assert_eq!(normalize_bounds(40.0, 60.0, 10.0, 20.0), (10.0, 20.0, 40.0, 60.0));
-        assert_eq!(normalize_bounds(10.0, 20.0, 40.0, 60.0), (10.0, 20.0, 40.0, 60.0));
+        assert_eq!(
+            normalize_bounds(40.0, 60.0, 10.0, 20.0),
+            (10.0, 20.0, 40.0, 60.0)
+        );
+        assert_eq!(
+            normalize_bounds(10.0, 20.0, 40.0, 60.0),
+            (10.0, 20.0, 40.0, 60.0)
+        );
     }
 
     /// The delta matrix must map the old AABB's two corners exactly onto the
     /// target rect's corners.
     #[test]
     fn bounds_delta_matrix_maps_corners_to_target() {
-        let target = PtRect { left: 100.0, bottom: 200.0, right: 160.0, top: 280.0 };
+        let target = PtRect {
+            left: 100.0,
+            bottom: 200.0,
+            right: 160.0,
+            top: 280.0,
+        };
         let m = bounds_delta_matrix(10.0, 20.0, 40.0, 60.0, &target).expect("non-degenerate");
 
         let (x0, y0) = m.apply_to_points(PdfPoints::new(10.0), PdfPoints::new(20.0));
-        assert!((x0.value - 100.0).abs() < 1e-3, "left-bottom x: {}", x0.value);
-        assert!((y0.value - 200.0).abs() < 1e-3, "left-bottom y: {}", y0.value);
+        assert!(
+            (x0.value - 100.0).abs() < 1e-3,
+            "left-bottom x: {}",
+            x0.value
+        );
+        assert!(
+            (y0.value - 200.0).abs() < 1e-3,
+            "left-bottom y: {}",
+            y0.value
+        );
 
         let (x1, y1) = m.apply_to_points(PdfPoints::new(40.0), PdfPoints::new(60.0));
         assert!((x1.value - 160.0).abs() < 1e-3, "right-top x: {}", x1.value);
@@ -808,7 +935,12 @@ mod tests {
     /// Pure translation (same size) keeps scale factors at 1.
     #[test]
     fn bounds_delta_matrix_pure_translation() {
-        let target = PtRect { left: 15.0, bottom: 25.0, right: 45.0, top: 65.0 };
+        let target = PtRect {
+            left: 15.0,
+            bottom: 25.0,
+            right: 45.0,
+            top: 65.0,
+        };
         let m = bounds_delta_matrix(10.0, 20.0, 40.0, 60.0, &target).expect("non-degenerate");
         assert!((m.a() - 1.0).abs() < 1e-6);
         assert!((m.d() - 1.0).abs() < 1e-6);
@@ -821,7 +953,12 @@ mod tests {
     /// Degenerate source bounds cannot be scaled and must be rejected.
     #[test]
     fn bounds_delta_matrix_rejects_degenerate_bounds() {
-        let target = PtRect { left: 0.0, bottom: 0.0, right: 10.0, top: 10.0 };
+        let target = PtRect {
+            left: 0.0,
+            bottom: 0.0,
+            right: 10.0,
+            top: 10.0,
+        };
         assert!(bounds_delta_matrix(5.0, 0.0, 5.0, 10.0, &target).is_none());
         assert!(bounds_delta_matrix(0.0, 5.0, 10.0, 5.0, &target).is_none());
     }
@@ -832,7 +969,12 @@ mod tests {
     #[test]
     fn bounds_delta_matrix_composes_after_old_matrix() {
         let old = PdfMatrix::new(2.0, 1.0, -1.0, 3.0, 7.0, 11.0);
-        let target = PtRect { left: 50.0, bottom: 60.0, right: 90.0, top: 100.0 };
+        let target = PtRect {
+            left: 50.0,
+            bottom: 60.0,
+            right: 90.0,
+            top: 100.0,
+        };
         let delta = bounds_delta_matrix(10.0, 20.0, 40.0, 60.0, &target).expect("non-degenerate");
         let composed = old.multiply(delta);
 
@@ -848,7 +990,12 @@ mod tests {
     /// composing it after any object matrix preserves the mapping.
     #[test]
     fn bounds_delta_matrix_maps_page_space_points() {
-        let target = PtRect { left: 50.0, bottom: 60.0, right: 90.0, top: 100.0 };
+        let target = PtRect {
+            left: 50.0,
+            bottom: 60.0,
+            right: 90.0,
+            top: 100.0,
+        };
         let delta = bounds_delta_matrix(10.0, 20.0, 40.0, 60.0, &target).expect("non-degenerate");
         let (x0, y0) = delta.apply_to_points(PdfPoints::new(10.0), PdfPoints::new(20.0));
         assert!((x0.value - 50.0).abs() < 1e-3);

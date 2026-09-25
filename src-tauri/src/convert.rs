@@ -49,8 +49,8 @@ pub fn export_page_to_image_bytes(
     let rgba = bitmap.as_rgba_bytes();
     let w = bitmap.width() as u32;
     let h = bitmap.height() as u32;
-    let img = image::RgbaImage::from_raw(w, h, rgba.to_vec())
-        .ok_or(AppError::ImageConstructFailed)?;
+    let img =
+        image::RgbaImage::from_raw(w, h, rgba.to_vec()).ok_or(AppError::ImageConstructFailed)?;
     let dyn_img = image::DynamicImage::ImageRgba8(img);
 
     let mut out: Vec<u8> = Vec::new();
@@ -58,7 +58,10 @@ pub fn export_page_to_image_bytes(
         "jpeg" | "jpg" => {
             dyn_img
                 .to_rgb8()
-                .write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Jpeg)
+                .write_to(
+                    &mut std::io::Cursor::new(&mut out),
+                    image::ImageFormat::Jpeg,
+                )
                 .map_err(|e| AppError::Internal(format!("JPEG 编码失败：{e}")))?;
         }
         _ => {
@@ -96,10 +99,7 @@ pub fn images_to_pdf_from_images(
             let mh = sizes.iter().map(|(_, h)| *h).max().unwrap_or(842) as f32;
             vec![(mw, mh); images.len()]
         }
-        _ => sizes
-            .iter()
-            .map(|(w, h)| (*w as f32, *h as f32))
-            .collect(), // fit
+        _ => sizes.iter().map(|(w, h)| (*w as f32, *h as f32)).collect(), // fit
     };
 
     let pdfium = get_pdfium();
@@ -214,10 +214,7 @@ pub async fn export_pages_to_images(
 /// page_size: "fit" = 按图片尺寸生成页面（每页可能不同）；"a4"/"letter" = 统一页面尺寸；"auto" = 全部页面取最大者。
 /// layout: "fill" 拉伸铺满；"fit" 按比例居中（默认 fit）。
 #[tauri::command]
-pub async fn images_to_pdf(
-    opts: ImageToPdfOpts,
-    output_path: String,
-) -> AppResult<String> {
+pub async fn images_to_pdf(opts: ImageToPdfOpts, output_path: String) -> AppResult<String> {
     if opts.image_paths.is_empty() {
         return Err(AppError::NoImagesProvided);
     }
@@ -240,10 +237,7 @@ pub async fn images_to_pdf(
             let mh = sizes.iter().map(|(_, h)| *h).max().unwrap_or(842) as f32;
             vec![(mw, mh); imgs.len()]
         }
-        _ => sizes
-            .iter()
-            .map(|(w, h)| (*w as f32, *h as f32))
-            .collect(), // fit
+        _ => sizes.iter().map(|(w, h)| (*w as f32, *h as f32)).collect(), // fit
     };
 
     let _gate = crate::document::pdfium_gate();
@@ -281,7 +275,6 @@ pub async fn images_to_pdf(
         }
     }
     let bytes = doc.save_to_bytes()?;
-    std::fs::write(&output_path, &bytes)
-        .map_err(|_| AppError::PdfWriteFailed)?;
+    std::fs::write(&output_path, &bytes).map_err(|_| AppError::PdfWriteFailed)?;
     Ok(output_path)
 }

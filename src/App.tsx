@@ -48,9 +48,7 @@ function BookmarkTree({
           >
             {node.title || t("（无标题）")}
           </div>
-          {node.children.length > 0 && (
-            <BookmarkTree nodes={node.children} onJump={onJump} />
-          )}
+          {node.children.length > 0 && <BookmarkTree nodes={node.children} onJump={onJump} />}
         </div>
       ))}
     </div>
@@ -124,13 +122,7 @@ function LeftPanel() {
   );
 }
 
-function PasswordDialog({
-  path,
-  onDone,
-}: {
-  path: string;
-  onDone: () => void;
-}) {
+function PasswordDialog({ path, onDone }: { path: string; onDone: () => void }) {
   const [pwd, setPwd] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -243,8 +235,13 @@ export default function App() {
         st.setDoc(info, path);
         const pos = loadReadingPos(info.fileName, info.pageCount);
         if (pos) st.jumpToPage(pos.page);
-        st.pushToast("info", t("已打开 {name}（{n} 页）", { name: info.fileName, n: info.pageCount }));
-        refreshUndoRedo(info.docId).then(st.setUndoRedo).catch(() => {});
+        st.pushToast(
+          "info",
+          t("已打开 {name}（{n} 页）", { name: info.fileName, n: info.pageCount }),
+        );
+        refreshUndoRedo(info.docId)
+          .then(st.setUndoRedo)
+          .catch(() => {});
         // 异步加载全文档注释（不阻塞打开）
         listAnnotations(info.docId, null)
           .then((all) => {

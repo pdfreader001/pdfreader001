@@ -113,11 +113,7 @@ export default function Toolbar({
       >
         {locale === "zh" ? "中" : "EN"}
       </button>
-      <button
-        className="tbtn"
-        onClick={() => setHelpOpen(true)}
-        title={t("帮助（? 或 F1）")}
-      >
+      <button className="tbtn" onClick={() => setHelpOpen(true)} title={t("帮助（? 或 F1）")}>
         ?
       </button>
     </header>

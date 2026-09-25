@@ -181,11 +181,7 @@ export default function SecurityPanel() {
         <>
           <div className="security-status">
             <span className="security-status-label">{t("加密状态")}</span>
-            <span
-              className={`security-badge ${
-                isProtected ? "protected" : "unprotected"
-              }`}
-            >
+            <span className={`security-badge ${isProtected ? "protected" : "unprotected"}`}>
               {isProtected
                 ? t("已加密（{handler}）", {
                     handler: status.handlerRevision,
@@ -201,9 +197,7 @@ export default function SecurityPanel() {
                 <div key={row.key} className="perm-row">
                   <span className={`perm-dot ${ok ? "ok" : "deny"}`} />
                   <span className="perm-label">{t(row.labelKey)}</span>
-                  <span className="perm-result">
-                    {ok ? t("允许") : t("禁止")}
-                  </span>
+                  <span className="perm-result">{ok ? t("允许") : t("禁止")}</span>
                 </div>
               );
             })}
@@ -214,9 +208,7 @@ export default function SecurityPanel() {
       {docId !== null && (
         <>
           <div className="field">
-            <label htmlFor="sec-open-pw">
-              {t("现有打开密码（读取加密状态与去除密码时需要）")}
-            </label>
+            <label htmlFor="sec-open-pw">{t("现有打开密码（读取加密状态与去除密码时需要）")}</label>
             <input
               id="sec-open-pw"
               type="password"
@@ -233,15 +225,11 @@ export default function SecurityPanel() {
           </div>
 
           {needOpenPw && (
-            <p className="placeholder">
-              {t("该文档已加密，请填写现有打开密码后重试")}
-            </p>
+            <p className="placeholder">{t("该文档已加密，请填写现有打开密码后重试")}</p>
           )}
 
           <div className="field">
-            <label htmlFor="sec-user-pw">
-              {t("打开密码（打开文档时需输入，可留空）")}
-            </label>
+            <label htmlFor="sec-user-pw">{t("打开密码（打开文档时需输入，可留空）")}</label>
             <input
               id="sec-user-pw"
               type="password"
@@ -252,9 +240,7 @@ export default function SecurityPanel() {
           </div>
 
           <div className="field">
-            <label htmlFor="sec-owner-pw">
-              {t("权限密码（留空则与打开密码相同）")}
-            </label>
+            <label htmlFor="sec-owner-pw">{t("权限密码（留空则与打开密码相同）")}</label>
             <input
               id="sec-owner-pw"
               type="password"
@@ -270,9 +256,7 @@ export default function SecurityPanel() {
                 <input
                   type="checkbox"
                   checked={permFlags[row.key]}
-                  onChange={(e) =>
-                    setPermFlags({ ...permFlags, [row.key]: e.target.checked })
-                  }
+                  onChange={(e) => setPermFlags({ ...permFlags, [row.key]: e.target.checked })}
                 />
                 <span className="perm-label">{t(row.labelKey)}</span>
               </label>
@@ -288,16 +272,8 @@ export default function SecurityPanel() {
       )}
 
       <div className="task-footer">
-        <button
-          className="btn-primary"
-          onClick={onExportPlain}
-          disabled={busy || docId === null}
-        >
-          {busy
-            ? t("导出中…")
-            : isProtected
-              ? t("导出明文副本")
-              : t("导出当前文档")}
+        <button className="btn-primary" onClick={onExportPlain} disabled={busy || docId === null}>
+          {busy ? t("导出中…") : isProtected ? t("导出明文副本") : t("导出当前文档")}
         </button>
         {isProtected && (
           <button onClick={onStripInMemory} disabled={busy}>

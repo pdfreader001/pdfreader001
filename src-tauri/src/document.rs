@@ -100,7 +100,9 @@ pub struct AppState {
 
 impl AppState {
     pub(crate) fn next_doc_id(&self) -> u64 {
-        self.next_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1
+        self.next_id
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+            + 1
     }
 }
 

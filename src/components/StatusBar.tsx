@@ -33,7 +33,8 @@ export default function StatusBar() {
   return (
     <footer className="statusbar">
       <span title={fileName}>
-        {fileName} · {t("共")} {pageCount} {t("页")}{dirty ? ` · ${t("未保存")}` : ""}
+        {fileName} · {t("共")} {pageCount} {t("页")}
+        {dirty ? ` · ${t("未保存")}` : ""}
       </span>
       <span className="grow" />
       <span>
@@ -52,11 +53,7 @@ export default function StatusBar() {
         <button onClick={() => setScale(scale / 1.2)} title={t("缩小")}>
           −
         </button>
-        <button
-          style={{ width: 52 }}
-          onClick={() => setFitMode("width")}
-          title={t("适应宽度")}
-        >
+        <button style={{ width: 52 }} onClick={() => setFitMode("width")} title={t("适应宽度")}>
           {Math.round(scale * 100)}%
         </button>
         <button onClick={() => setScale(scale * 1.2)} title={t("放大")}>

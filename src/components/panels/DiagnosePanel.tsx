@@ -26,15 +26,14 @@ export default function DiagnosePanel() {
   const t = useT();
 
   const [security, setSecurity] = useState<SecurityStatus | null>(null);
-  const [scan, setScan] = useState<
-    | { sampled: number; scannedCount: number; ratio: number; running: boolean }
-    | null
-  >(null);
+  const [scan, setScan] = useState<{
+    sampled: number;
+    scannedCount: number;
+    ratio: number;
+    running: boolean;
+  } | null>(null);
 
-  const annotationTotal = Object.values(annotations).reduce(
-    (s, arr) => s + arr.length,
-    0,
-  );
+  const annotationTotal = Object.values(annotations).reduce((s, arr) => s + arr.length, 0);
 
   const reloadSecurity = async () => {
     if (docId === null) return;
@@ -94,9 +93,7 @@ export default function DiagnosePanel() {
   return (
     <div className="task-body">
       <p className="placeholder">
-        {t(
-          "查看文档关键统计：页数、文件大小、加密状态、注释总数、扫描版抽样。",
-        )}
+        {t("查看文档关键统计：页数、文件大小、加密状态、注释总数、扫描版抽样。")}
       </p>
 
       <table
@@ -152,10 +149,7 @@ export default function DiagnosePanel() {
         </tbody>
       </table>
 
-      <div
-        className="task-footer"
-        style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
-      >
+      <div className="task-footer" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button onClick={reloadSecurity} disabled={docId === null}>
           {t("刷新加密状态")}
         </button>

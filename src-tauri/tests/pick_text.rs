@@ -33,14 +33,24 @@ fn pick_first_char_in_hello() {
     // 原字体样式：字号 > 0，颜色为 #rrggbb
     assert!(r.font_size > 0.0, "应读出原字号，实际 {}", r.font_size);
     assert_eq!(r.color.len(), 7, "颜色应为 #rrggbb，实际 {}", r.color);
-    assert!(r.color.starts_with('#'), "颜色应以 # 开头，实际 {}", r.color);
+    assert!(
+        r.color.starts_with('#'),
+        "颜色应以 # 开头，实际 {}",
+        r.color
+    );
 }
 
 /// 字体名应剥离子集前缀（`ABCDEF+SimSun` → `SimSun`）。
 #[test]
 fn strip_subset_prefix_removes_six_letter_tag() {
-    assert_eq!(pdfe_lib::render::strip_subset_prefix("ABCDEF+SimSun"), "SimSun");
-    assert_eq!(pdfe_lib::render::strip_subset_prefix("Helvetica"), "Helvetica");
+    assert_eq!(
+        pdfe_lib::render::strip_subset_prefix("ABCDEF+SimSun"),
+        "SimSun"
+    );
+    assert_eq!(
+        pdfe_lib::render::strip_subset_prefix("Helvetica"),
+        "Helvetica"
+    );
     assert_eq!(pdfe_lib::render::strip_subset_prefix("abc+Def"), "abc+Def");
 }
 

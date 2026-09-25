@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-ssr/
+target/
+src-tauri/target/
+src-tauri/pdfium/
+src-tauri/icons/
+src-tauri/msix/
+src-tauri/Cargo.lock
+package-lock.json
+docs/
+public/
+*.md

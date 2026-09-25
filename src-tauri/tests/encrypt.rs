@@ -8,10 +8,10 @@
 //! - 仅设权限密码（打开密码留空）时无需密码即可打开，但权限仍受限
 //! - 解密（移除密码）需要持有正确密码，产物为无加密的明文档
 
-use pdfium_render::prelude::*;
 use pdfe_lib::security::{
     decrypt_pdf_bytes_logic, encrypt_pdf_bytes_logic, get_security_status_logic, EncryptOptions,
 };
+use pdfium_render::prelude::*;
 
 fn pdfium<'a>() -> &'a Pdfium {
     pdfe_lib::pdfium()
@@ -112,9 +112,7 @@ fn encrypt_with_owner_password_only() {
     let doc = pdfium
         .load_pdf_from_byte_slice(&encrypted, None)
         .expect("empty open password should open without a password");
-    assert!(
-        !doc.permissions().can_extract_text_and_graphics().unwrap()
-    );
+    assert!(!doc.permissions().can_extract_text_and_graphics().unwrap());
 
     assert!(pdfium
         .load_pdf_from_byte_slice(&encrypted, Some("owner"))
@@ -133,12 +131,10 @@ fn decrypt_with_correct_password_removes_encryption() {
     let restricted = pdfium
         .load_pdf_from_byte_slice(&encrypted, Some("secret"))
         .unwrap();
-    assert!(
-        !restricted
-            .permissions()
-            .can_extract_text_and_graphics()
-            .unwrap()
-    );
+    assert!(!restricted
+        .permissions()
+        .can_extract_text_and_graphics()
+        .unwrap());
 
     let plain = decrypt_pdf_bytes_logic(pdfium, &encrypted, Some("secret")).unwrap();
     let doc = pdfium

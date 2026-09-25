@@ -3,11 +3,11 @@
 //! 用法：在 Cargo workspace 用 `cargo test --test annotations` 即可
 //! 全部走纯函数路径（不依赖 Tauri State）。
 
-use pdfium_render::prelude::*;
 use pdfe_lib::edit::{
     add_annotation_logic, delete_annotation_logic, list_annotations_logic, AddAnnotationOpts,
     AnnotationKind, RegionSpec,
 };
+use pdfium_render::prelude::*;
 
 fn pdfium<'a>() -> &'a Pdfium {
     pdfe_lib::pdfium()

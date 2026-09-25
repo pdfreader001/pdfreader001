@@ -8,7 +8,11 @@
 function tryClose(v: unknown): void {
   const c = (v as unknown as { close?: () => void }).close;
   if (typeof c === "function") {
-    try { c.call(v); } catch { /* ignore */ }
+    try {
+      c.call(v);
+    } catch {
+      /* ignore */
+    }
   }
 }
 

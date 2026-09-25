@@ -15,9 +15,9 @@ use std::path::PathBuf;
 use std::sync::Once;
 use std::time::{Duration, Instant};
 
-use pdfium_render::prelude::*;
 use pdfe_lib::edit::{add_annotation_logic, AddAnnotationOpts, AnnotationKind, RegionSpec};
 use pdfe_lib::render::{render_page_logic, search_page_text_logic};
+use pdfium_render::prelude::*;
 
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -541,7 +541,8 @@ fn large_500_save_to_disk_under_2s() {
         reopened_pages
     );
     assert_eq!(
-        reopened_pages, 500,
+        reopened_pages,
+        500,
         "保存后重开页数 {} ≠ 500，写盘 {} KiB（疑似文档被截断）",
         reopened_pages,
         size / 1024

@@ -120,8 +120,7 @@ export function useShortcuts(h: ShortcutHandlers): void {
         if (key === "l") {
           e.preventDefault();
           const cur = st.locale;
-          const next: "zh" | "en" | "ja" =
-            cur === "zh" ? "en" : cur === "en" ? "ja" : "zh";
+          const next: "zh" | "en" | "ja" = cur === "zh" ? "en" : cur === "en" ? "ja" : "zh";
           st.setLocale(next);
           return;
         }

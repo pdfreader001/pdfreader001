@@ -18,8 +18,8 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::document::{pdfium, AppState, DocumentInfo};
-use crate::pages::load_doc;
 use crate::error::{AppError, AppResult};
+use crate::pages::load_doc;
 
 /// 单个 OCR 识别结果：单词 + PDF 坐标矩形（左下原点）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -114,10 +114,11 @@ pub fn apply_text_overlay_logic(
 
     // 收集所有不同 word 文本，预先解析 font_token（每页一个字体即可）
     let sample = words.first().map(|w| w.text.as_str()).unwrap_or("A");
-    let font_token = crate::watermark::load_font_for_text(&mut doc, sample)
-        .map_err(|e| AppError::OcrFailed {
+    let font_token = crate::watermark::load_font_for_text(&mut doc, sample).map_err(|e| {
+        AppError::OcrFailed {
             detail: format!("load font: {}", e),
-        })?;
+        }
+    })?;
 
     {
         let pages = doc.pages_mut();
@@ -220,13 +221,12 @@ fn ocr_with_tesseract(
         }
     }
 
-    let mut tess = Tesseract::new(
-        Some(&config.lang),
-        config.tessdata_dir.as_deref(),
-    )
-    .map_err(|e| AppError::OcrFailed {
-        detail: format!("init tesseract: {}", e),
-    })?;
+    let mut tess =
+        Tesseract::new(Some(&config.lang), config.tessdata_dir.as_deref()).map_err(|e| {
+            AppError::OcrFailed {
+                detail: format!("init tesseract: {}", e),
+            }
+        })?;
 
     tess.set_image_from_bytes(png_bytes)
         .map_err(|e| AppError::OcrFailed {
@@ -235,11 +235,9 @@ fn ocr_with_tesseract(
 
     // 取识别结果 + 坐标
     // tesseract-rs 0.15 提供 get_data().get_words(...)
-    let text = tess
-        .get_text()
-        .map_err(|e| AppError::OcrFailed {
-            detail: format!("get text: {}", e),
-        })?;
+    let text = tess.get_text().map_err(|e| AppError::OcrFailed {
+        detail: format!("get text: {}", e),
+    })?;
 
     // hOCR 输出含每个 word 的 bbox
     let hocr = tess.get_hocr_text(0).unwrap_or_default();
@@ -470,10 +468,7 @@ mod tests {
 
     #[test]
     fn test_strip_html_tags_nested_tags() {
-        assert_eq!(
-            strip_html_tags("<div><span>text</span></div>"),
-            "text"
-        );
+        assert_eq!(strip_html_tags("<div><span>text</span></div>"), "text");
     }
 
     #[test]
@@ -583,7 +578,8 @@ mod tests {
     #[test]
     fn test_parse_hocr_malformed_bbox_skipped() {
         // bbox with only 3 numbers — should be skipped
-        let hocr = r#"<span class='ocrx_word' id='word_1' title='bbox 10 20 30; x_wconf 50'>Bad</span>"#;
+        let hocr =
+            r#"<span class='ocrx_word' id='word_1' title='bbox 10 20 30; x_wconf 50'>Bad</span>"#;
         let words = parse_hocr_words_core(hocr, 300);
         assert!(words.is_empty());
     }
@@ -599,7 +595,8 @@ mod tests {
 
     #[test]
     fn test_parse_hocr_empty_word_text_skipped() {
-        let hocr = r#"<span class='ocrx_word' id='word_1' title='bbox 10 20 30 40; x_wconf 50'>  </span>"#;
+        let hocr =
+            r#"<span class='ocrx_word' id='word_1' title='bbox 10 20 30 40; x_wconf 50'>  </span>"#;
         let words = parse_hocr_words_core(hocr, 300);
         assert!(words.is_empty());
     }

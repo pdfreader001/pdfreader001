@@ -2,7 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useApp } from "../state/store";
 import { requestPage, usePageCanvas } from "../hooks/useRenderer";
 import type { PageInfo, AnnotationInfo } from "../lib/ipc";
-import { searchPageText, pickTextAtPoint, deleteAnnotation, listAnnotations, refreshUndoRedo } from "../lib/ipc";
+import {
+  searchPageText,
+  pickTextAtPoint,
+  deleteAnnotation,
+  listAnnotations,
+  refreshUndoRedo,
+} from "../lib/ipc";
 import type { SearchHitRect } from "../lib/ipc";
 import { useT } from "../i18n";
 import type { DeepEditMode } from "../state/store";
@@ -84,14 +90,11 @@ const PageView = React.memo(function PageView({
   const [deleting, setDeleting] = useState(false);
   const t = useT();
 
-  const onAnnotationContextMenu = useCallback(
-    (e: React.MouseEvent, ann: AnnotationInfo) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setContextMenu({ x: e.clientX, y: e.clientY, annotation: ann });
-    },
-    [],
-  );
+  const onAnnotationContextMenu = useCallback((e: React.MouseEvent, ann: AnnotationInfo) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, annotation: ann });
+  }, []);
 
   const handleDeleteAnnotation = useCallback(async () => {
     if (!contextMenu || docId === null) return;
@@ -325,7 +328,7 @@ const PageView = React.memo(function PageView({
           const color = ann.color || "#ffeb3b";
 
           let className = "annot-overlay";
-          let style: React.CSSProperties = {
+          const style: React.CSSProperties = {
             left,
             top,
             width,
@@ -465,9 +468,7 @@ export default function Canvas() {
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() =>
-      setViewport({ w: el.clientWidth, h: el.clientHeight }),
-    );
+    const ro = new ResizeObserver(() => setViewport({ w: el.clientWidth, h: el.clientHeight }));
     ro.observe(el);
     setViewport({ w: el.clientWidth, h: el.clientHeight });
     return () => ro.disconnect();
@@ -523,11 +524,16 @@ export default function Canvas() {
     return out;
   }, [pages, scale, viewMode, currentPage]);
 
-  const totalHeight = rows.length ? rows[rows.length - 1].top + rows[rows.length - 1].height + 24 : 0;
+  const totalHeight = rows.length
+    ? rows[rows.length - 1].top + rows[rows.length - 1].height + 24
+    : 0;
 
   // 可视行 + 前后各预渲染 1 行
   const visible = useMemo(() => {
-    const first = Math.max(0, rows.findIndex((r) => r.top + r.height >= scrollTop - 200));
+    const first = Math.max(
+      0,
+      rows.findIndex((r) => r.top + r.height >= scrollTop - 200),
+    );
     if (first < 0) return { start: 0, end: 0 };
     let end = first;
     while (end < rows.length && rows[end].top <= scrollTop + viewport.h + 200) end++;
