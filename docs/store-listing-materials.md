@@ -86,9 +86,9 @@ $dst.Dispose(); $src.Dispose()
 4. 截图方式：按 `Win + PrtScn`（整屏 → `图片\屏幕截图`），或 `Win+Shift+S` 矩形截图后另存。
 5. 命名：`01-reader-zh.png`、`01-reader-en.png` …（中英各一套，Store 一览按语言分别上传图片）。
 
-> 依赖说明：应用无 CLI 参数、无文件关联、无拖放，打开文档只能走 `@tauri-apps/plugin-dialog` 的原生对话框，因此「有内容」的截图**必须人工操作**（自动化需 SendKeys 驱动原生对话框，会抢焦点且可能把路径键入其他程序）。
+> 依赖说明：应用无 CLI 参数、无文件关联；打开文档只能走 `@tauri-apps/plugin-dialog` 的原生对话框（**合并向导**面板可接收系统拖入的 `.pdf`，但该入口只用于合并、不用于打开文档），因此「有内容」的截图**必须人工操作**（自动化需 SendKeys 驱动原生对话框，会抢焦点且可能把路径键入其他程序）。
 
-### 2.3 逐张操作卡（建议 8 张）
+### 2.3 逐张操作卡（主卡 9 张 + 可选补位；Store 桌面最多 10 张）
 
 界面元素取自 [Toolbar.tsx](../src/components/Toolbar.tsx)、[Rail.tsx](../src/components/Rail.tsx)、[StatusBar.tsx](../src/components/StatusBar.tsx)、[ThumbnailPanel.tsx](../src/components/ThumbnailPanel.tsx) 及各 `panels/*Panel.tsx`。**按钮名一律照抄界面中文文案**（界面默认中文；英文界面下的对应文案见各卡「说明（EN）」）。
 
@@ -163,20 +163,26 @@ $dst.Dispose(); $src.Dispose()
 - **说明（中）**：缩略图管理页面：多选、拖拽重排、旋转与删除
 - **说明（EN）**：Manage pages from thumbnails: multi-select, drag to reorder, rotate and delete
 
-#### 05 水印去除 — `05-watermark-zh.png`
+#### 05 水印添加与去除 — `05-watermark-zh.png`
 
 - **前置**：带**重复**水印的 PDF
-- **步骤（自动检测）**：
-  1. 点工具栏 `💧 水印` 打开面板
-  2. 顶层切到 `去除水印`，子模式选 `自动检测`
-  3. 采样页数保持默认 → 点 `开始检测`
-  4. 候选列表出现 `类型: kind · 位置: (l,b)–(r,t) · 出现: n/total`
-  5. 勾选候选 → 点 `应用去除`
-- **步骤（手动框选，备选）**：切 `手动框选` → 点 `🎯 在画布上框选水印区域` → 画布上拖框 → 核对左下/右下/左上/右上坐标 → `应用到当前页`
-- **入镜**：水印面板「去除水印 · 自动检测」+ 候选列表 + 画布上的水印本体
-- **自检**：候选列表非空（「出现」如 `8/12`）
-- **说明（中）**：添加水印，或自动检测重复水印对象后一键去除
-- **说明（EN）**：Add watermarks, or auto-detect repeating watermark objects and remove them
+- **步骤（添加水印，面板默认页签）**：
+  1. 点工具栏 `💧 水印` 打开面板（默认停在 `添加水印`）
+  2. 顶部选 `文字水印`（或 `图片水印`），填 `水印文字`，调 `字号` / `颜色` / `透明度` / `旋转角度`
+  3. `位置`：或点上排九宫格 `◤ ▲ ◥ ◀ ◉ ▶ ◣ ▼ ◢`，或**直接在画布上拖动水印本体**定位（拖动后 `位置` 下方出现提示 `已用画布拖动定位；点击上方九宫格可重置。`）
+  4. 勾 `平铺整页` 可见 `间距`（pt）输入；如已多选页面可勾 `仅应用到选中的 {n} 页`
+  5. **实时预览**：以上任一参数变化，画布当前页立即按该参数叠加显示水印效果（无需先点添加）
+  6. 点 `添加水印`（执行中显示 `添加中…`）
+- **步骤（去除水印 · 自动检测）**：
+  1. 顶层切到 `去除水印`，子模式选 `自动检测`
+  2. `采样页数` 保持默认 → 点 `开始检测`（执行中显示 `检测中…`）
+  3. 候选列表出现 `类型: kind · 位置: (l,b)–(r,t) · 出现: n/total`
+  4. 勾选候选 → 点 `预览删除区域` → 核对画布上的红框 → 点 `确认去除（已选 {n} 项）`
+- **步骤（去除水印 · 手动框选，备选）**：切 `手动框选` → 点 `🎯 在画布上框选水印区域` → 画布上拖框 → 核对 `左 / 下 / 右 / 上` 坐标 → `预览删除区域` → `确认去除`
+- **入镜**：水印面板「添加水印」（文字水印参数 + `位置` 九宫格 + `添加水印`）+ 画布上被拖动定位的水印本体；或「去除水印 · 自动检测」+ 候选列表
+- **自检**：添加水印下能同时看到 `位置` 九宫格与画布上的水印本体（用画布拖动定位时会显示提示行）；自动检测下候选列表非空（「出现」如 `8/12`）
+- **说明（中）**：添加文字/图片水印并在画布上拖动定位，或自动检测重复水印对象后一键去除
+- **说明（EN）**：Add text or image watermarks and place them by dragging on the canvas, or auto-detect repeating watermark objects and remove them
 
 #### 06 深度编辑 — `06-rewrite-zh.png`
 
@@ -223,14 +229,32 @@ $dst.Dispose(); $src.Dispose()
 - **说明（中）**：页面导出 PNG/JPG，可选 DPI；图片也能反向合并成 PDF
 - **说明（EN）**：Export pages to PNG/JPG at a chosen DPI; images can be merged back into PDF
 
+#### 09 合并向导 — `09-merge-zh.png`
+
+- **前置**：≥2 份 PDF（各份页数不同，总数不宜过多，便于一行行看清）
+- **步骤**：
+  1. 点工具栏 `🗂 合并` 打开面板
+  2. 点 `➕ 添加文件` 选 3 份 PDF；或**把 `.pdf` 从资源管理器拖入窗口**（拖动进窗口时合并列表区高亮，松开即加入；非 `.pdf` 会被忽略）
+  3. 用每行左侧 `⋮⋮` 手柄**拖动调整顺序**（拖动时列表出现插入指示线）；也可用行内 `↑` / `↓` / `✕`
+  4. 每行核对 `共 {n} 页 · 选用 {k} 页`；在输入框填页码范围（如 `1,3,5-7`，留空为全部页）
+  5. 底部核对汇总 `合并顺序：1 → 2 → 3` 与 `合并后共 {n} 页`
+  6. （可选）点 `选择…` 指定输出文件；留空则显示 `未选择（结果仅打开到查看器）`
+  7. 点 `开始合并`（执行中显示 `合并中…`）
+- **入镜**：合并面板列表（`⋮⋮` 手柄 + 序号 + 文件名 + `↑` / `↓` / `✕` + `共 N 页 · 选用 K 页`）、页码范围输入框、汇总行（`合并顺序：…` / `合并后共 N 页`）、底部 `开始合并`
+- **自检**：每行都显示页数而非 `读取中…`；汇总「合并后共 N 页」与各行之和相符；无标红行（有则会出现 `请先修正标红的页码范围，或删除该文件`）
+- **说明（中）**：合并向导：拖入多个 PDF、拖拽排序、逐份指定页码范围并预览合并后总页数
+- **说明（EN）**：Merge wizard: drop multiple PDFs, drag to reorder, set page ranges per file and preview the merged page count
+
 ---
 
-**可选补位（替换/追加到 10 张内）**：
+**可选补位（替换/追加，Store 桌面最多 10 张）**：
+
+推荐优先补 **`10 表单字段填写`**——与主卡 01–09 合计正好 10 张，用满上限。
 
 | # | 场景 | 操作要点 |
 |---|------|----------|
-| 09 | 表单字段填写 — `09-form-zh.png` | 点工具栏 `📝 表单` → 面板列出 AcroForm 字段（`text` 显示为 `T`、`checkbox` 显示为 `☑`，其余只读）→ 改一个文本字段值 → 保持画面（可点 `保存表单`）。无字段时提示「当前文档没有表单字段」。 |
-| 10 | 诊断面板 / 英文界面 — `10-diag-en.png` | 点工具栏 `🩺 诊断` 展示页数/大小/加密/扫描抽样/注释总数；再切英文界面（工具栏 `EN` 或 `Ctrl+Shift+L`）重拍整套。 |
+| 10 | 表单字段填写 — `10-form-zh.png` | 点工具栏 `📝 表单` → 面板列出 AcroForm 字段（`text` 显示为 `T`、`checkbox` 显示为 `☑`，其余只读）→ 改一个文本字段值 → 保持画面（可点 `保存表单`）。无字段时提示「当前文档没有表单字段」。 |
+| 11 | 诊断面板 / 英文界面 — `11-diag-en.png` | 点工具栏 `🩺 诊断` 展示页数/大小/加密/扫描抽样/注释总数；再切英文界面（工具栏 `EN` 或 `Ctrl+Shift+L`）重拍整套。 |
 
 **OCR 面板不建议入镜**：`ocr` 为可选 feature，默认构建下调用返回 `ocr_unavailable`。要拍该场景必须先 `cargo build --features ocr`（需 Tesseract + 语言包）。
 
@@ -238,7 +262,7 @@ $dst.Dispose(); $src.Dispose()
 
 字段限制（来自 Partner Center 一览文档）：说明必填 ≤10,000 字符；简短说明上限 1000、最佳 <270；产品功能最多 20 条、每条 ≤200 字符；短标题 ≤50；排序标题／语音标题 ≤255；「此版本中的新增功能」≤1500（**首次提交留空**）。
 
-**实测字符数（按 Unicode 码点计）**：简短说明 中 75 / EN 236（均 <270）；说明 中 723 / EN 1868（≤10,000）；产品功能 中 10 条最长 35、EN 10 条最长 90（各 10 条，共 20 条 ≤20，每条 ≤200）；短标题 4 / 排序标题 22 / 语音标题 4（≤255）。**全部达标**。
+**实测字符数（按 Unicode 码点计，含段内换行、不含末尾换行）**：简短说明 中 75 / EN 236（均 <270）；说明 中 778 / EN 2035（≤10,000）；产品功能 中 10 条最长 55、EN 10 条最长 155（各 10 条，共 20 条 ≤20，每条 ≤200）；短标题 4 / 排序标题 22 / 语音标题 4（≤255）。**全部达标**。
 
 ### 3.1 简短说明
 
@@ -267,12 +291,13 @@ PDFe 是一款面向 Windows 的轻量 PDF 阅读与编辑工具，基于 PDFium
 · 6 种批注：高亮、下划线、删除线、便签、自由文本、矩形
 
 页面与文档
-· 旋转、删除、重排、提取页面；多文档合并；按页数、自定义范围或书签层级拆分
+· 合并向导：把多个 PDF 直接拖入面板、拖拽调整顺序，逐份指定页码范围并实时预览合并后总页数
+· 旋转、删除、重排、提取页面；按页数、自定义范围或书签层级拆分
 · 文本重写：在编辑模式下双击正文即原位改写，遮盖原区域后按原样式重绘（字体缺失自动近似替换并提示）
 · 图片选中、移动、缩放、替换、删除
 
 水印
-· 添加文字/图片水印；按重复对象自动检测并去除，或手动框选区域去除
+· 添加文字/图片水印，可在画布上直接拖动定位；按重复对象自动检测并去除，或手动框选区域去除
 
 安全与导出
 · 设置打开密码与权限密码，查看权限矩阵；持有密码时移除加密，或导出明文副本
@@ -304,12 +329,13 @@ FIND & ANNOTATE
 · Six annotation types: highlight, underline, strikeout, sticky note, free text, rectangle
 
 PAGES & DOCUMENTS
-· Rotate, delete, reorder and extract pages; merge documents; split by page count, custom ranges or bookmark levels
+· Merge wizard: drop multiple PDFs into the panel, drag to reorder, set page ranges per file and preview the merged page count in real time
+· Rotate, delete, reorder and extract pages; split by page count, custom ranges or bookmark levels
 · Text rewrite: in edit mode, double-click text to rewrite it in place, covering the original area and redrawing with the original style (falls back to a near match when a font is missing)
 · Select, move, resize, replace and delete images
 
 WATERMARKS
-· Add text or image watermarks; auto-detect repeating watermark objects and remove them, or drag-select a region to remove
+· Add text or image watermarks and position them by dragging on the canvas; auto-detect repeating watermark objects and remove them, or drag-select a region to remove
 
 SECURITY & EXPORT
 · Set open and permission passwords and review the permission matrix; remove encryption when you know the password, or export a plain copy
@@ -333,9 +359,9 @@ System requirements: Windows 10 version 1809 or later (x64).
 1. 连续 / 单页 / 双页三种阅读视图，10%–800% 缩放
 2. 全文搜索，命中结果页面高亮并逐条跳转
 3. 6 种批注：高亮、下划线、删除线、便签、自由文本、矩形
-4. 页面旋转 / 删除 / 重排 / 提取，多文档合并，按页数或书签拆分
+4. 合并向导：拖入多个 PDF、拖拽排序并预览合并后页数；页面旋转 / 删除 / 重排 / 提取，按页数或书签拆分
 5. 编辑模式下双击正文即原位改写文字，按原字体样式重绘
-6. 水印添加；自动检测重复水印对象或手动框选去除
+6. 水印添加并可在画布上拖动定位；自动检测重复水印对象或手动框选去除
 7. 打开密码与权限密码，权限矩阵查看，导出明文副本
 8. 页面导出 PNG / JPG 并可指定 DPI，图片反向合并为 PDF
 9. 表单（AcroForm）字段填写并写回文档
@@ -346,9 +372,9 @@ System requirements: Windows 10 version 1809 or later (x64).
 1. Continuous, single-page and two-page reading views with 10%–800% zoom
 2. Full-text search with on-page highlights and jump-to-hit
 3. Six annotation types: highlight, underline, strikeout, sticky note, free text, rectangle
-4. Rotate, delete, reorder and extract pages; merge documents; split by pages or bookmarks
+4. Merge wizard: drop multiple PDFs, drag to reorder and preview the merged page count; rotate, delete, reorder and extract pages; split by pages or bookmarks
 5. In edit mode, double-click to rewrite text in place with the original font style
-6. Add watermarks; remove them by auto-detecting repeating objects or drag-selecting a region
+6. Add watermarks and position them by dragging on the canvas; remove them by auto-detecting repeating objects or drag-selecting a region
 7. Open and permission passwords, permission matrix, plain-copy export
 8. Export pages to PNG / JPG at a chosen DPI; merge images back into PDF
 9. Fill AcroForm fields and write them back to the document
@@ -376,7 +402,7 @@ System requirements: Windows 10 version 1809 or later (x64).
 ## 5. 提交前检查清单
 
 - [x] 300×300 一览图标 —— `docs/store-listing/StoreLogo-300x300.png`（勿用包内 50×50）
-- [ ] ≥4 张（建议 8 张）≥1366×768 PNG，中英各一套，逐张核对像素
+- [ ] ≥4 张（主卡 01–09 + 可选补位，建议 8–10 张，上限 10 张）≥1366×768 PNG，中英各一套，逐张核对像素
 - [ ] 每张截图配 ≤200 字符说明，中英各一份
 - [ ] 说明 / 简短说明 / 产品功能 中英双份文案落库
 - [ ] 短标题、排序标题、系统要求填写
