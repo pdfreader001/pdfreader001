@@ -60,8 +60,8 @@
 ### M4 · 水印
 - [ ] 添加：文字/图片、字体/字号/颜色/透明度/旋转、九宫格/平铺/拖放、范围选择
       > 部分实现：文字/图片、样式参数、九宫格/平铺、范围选择均已有；画布拖放定位未实现。
-- [ ] 当前页实时预览（叠加层）
-      > 未实现：`WatermarkPanel.tsx` 无预览叠加层。
+- [x] 当前页实时预览（叠加层）
+      > 由 `WatermarkAddPanel` 在任一参数变化时用 `src/lib/watermarkLayout.ts` 重算放置框（该模块逐行镜像后端 `watermark.rs` 的 `estimate_text_width` / `anchor` / `tile_positions`，并由 `tests/lib/watermarkLayout.test.ts` 与 Rust 单测双向锁定），写入 store `watermarkPreview`；`Canvas.tsx` 在当前页叠加 `.wm-preview-text` / `.wm-preview-image`，带字号/颜色/透明度/旋转（`transform-origin: left bottom` 对齐 PDFium 绕对象左下角顺时针旋转）与平铺多点。图片用 asset 协议（`convertFileSrc`）回显，宽高比取自 `Image.naturalWidth/Height`，与后端 `wm_h = wm_w * ih / iw` 一致。
 - [x] 去除-自动：内容流分析（每页重复对象）→ 候选清单 → 勾选 → 预览 → redaction 移除
       > 跨页采样 + 指纹 + 候选清单 + 勾选（`watermark_remove::detect_watermark_candidates`）；「预览」由面板「预览删除区域」按钮把候选边界叠加到画布（store `removalPreview` + `.removal-preview-rect`）；移除按指纹在每页删除命中对象（`apply_watermark_removal`），非 PDF redaction 注释。
 - [x] 去除-手动：框选区域删除

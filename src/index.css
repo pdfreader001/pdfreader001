@@ -306,6 +306,23 @@ input:focus {
   pointer-events: none;
   z-index: 3;
 }
+/* 水印添加预览：在当前页叠加「将要写入」的水印（实时所见即所得）。
+   旋转与 PDFium 一致 —— 绕对象左下角顺时针，故 transform-origin 取 left bottom。 */
+.wm-preview-text {
+  position: absolute;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+  transform-origin: left bottom;
+  z-index: 4;
+}
+.wm-preview-image {
+  position: absolute;
+  display: block;
+  pointer-events: none;
+  transform-origin: left bottom;
+  z-index: 4;
+}
 .search-highlight {
   position: absolute;
   background: rgba(255, 215, 0, 0.4);

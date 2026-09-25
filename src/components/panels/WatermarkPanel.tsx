@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { useApp } from "../../state/store";
 import { useT } from "../../i18n";
 import {
@@ -12,6 +13,7 @@ import {
 } from "../../lib/ipc";
 import type { WatermarkStyle } from "../../lib/ipc";
 import type { DetectResult, ObjectFingerprint, Rect as RemoveRect } from "../../lib/ipc";
+import { MIN_FONT_SIZE, estimateTextWidth, watermarkAnchors } from "../../lib/watermarkLayout";
 
 const POSITIONS: { k: string; label: string }[] = [
   { k: "top-left", label: "◤" },
@@ -68,6 +70,9 @@ function WatermarkAddPanel() {
   const docId = useApp((s) => s.docId);
   const pageCount = useApp((s) => s.pageCount);
   const selectedPages = useApp((s) => s.selectedPages);
+  const pages = useApp((s) => s.pages);
+  const currentPage = useApp((s) => s.currentPage);
+  const setWatermarkPreview = useApp((s) => s.setWatermarkPreview);
   const updatePages = useApp((s) => s.updatePages);
   const markDirty = useApp((s) => s.markDirty);
   const setUndoRedo = useApp((s) => s.setUndoRedo);
@@ -90,6 +95,8 @@ function WatermarkAddPanel() {
   const [tileSpacing, setTileSpacing] = useState(120);
   const [onlySelected, setOnlySelected] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** 所选图片原始宽高比（高/宽），用于按后端规则推算预览高度；读取失败为 null */
+  const [imageRatio, setImageRatio] = useState<number | null>(null);
 
   const pickImage = async () => {
     const picked = await open({
@@ -101,6 +108,90 @@ function WatermarkAddPanel() {
       setImageName(picked.split(/[\\/]/).pop() || picked);
     }
   };
+
+  // 取图片原始尺寸：后端按 wm_h = wm_w * ih / iw 定高，预览需用同一比例
+  useEffect(() => {
+    if (imagePath === null) {
+      setImageRatio(null);
+      return;
+    }
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (!cancelled && img.naturalWidth > 0) {
+        setImageRatio(img.naturalHeight / img.naturalWidth);
+      }
+    };
+    img.onerror = () => {
+      if (!cancelled) setImageRatio(null);
+    };
+    img.src = convertFileSrc(imagePath);
+    return () => {
+      cancelled = true;
+    };
+  }, [imagePath]);
+
+  // 实时预览：任一参数变化即按后端几何重算放置框，写入 store 由画布叠加显示
+  const previewPage = pages[currentPage];
+  useEffect(() => {
+    // 仅当本次「应用」会覆盖当前页时才预览（对齐 apply 的页面范围逻辑）
+    const inScope = !onlySelected || selectedPages.size === 0 || selectedPages.has(currentPage);
+    if (docId === null || !previewPage || !inScope) {
+      setWatermarkPreview(null);
+      return;
+    }
+    const textSize = Math.max(fontSize, MIN_FONT_SIZE);
+    const objW =
+      kind === "text" ? estimateTextWidth(text, textSize) : previewPage.width * (scale / 100);
+    const objH = kind === "text" ? textSize : imageRatio !== null ? objW * imageRatio : null;
+    if (objW <= 0 || objH === null || objH <= 0) {
+      setWatermarkPreview(null);
+      return;
+    }
+    const anchors = watermarkAnchors(previewPage.width, previewPage.height, objW, objH, {
+      position,
+      tiled,
+      tileSpacing,
+    });
+    setWatermarkPreview({
+      pageIndex: currentPage,
+      regions: anchors.map((a) => ({
+        left: a.x,
+        bottom: a.y,
+        right: a.x + objW,
+        top: a.y + objH,
+      })),
+      kind,
+      text: kind === "text" ? text : "",
+      fontSize: textSize,
+      color,
+      opacity,
+      rotation,
+      imageSrc: kind === "image" && imagePath !== null ? convertFileSrc(imagePath) : null,
+    });
+  }, [
+    docId,
+    previewPage,
+    currentPage,
+    selectedPages,
+    onlySelected,
+    kind,
+    text,
+    fontSize,
+    color,
+    scale,
+    imageRatio,
+    imagePath,
+    opacity,
+    rotation,
+    position,
+    tiled,
+    tileSpacing,
+    setWatermarkPreview,
+  ]);
+
+  // 卸载（切换 add/remove 子模式、关闭任务）时移除叠加层
+  useEffect(() => () => setWatermarkPreview(null), [setWatermarkPreview]);
 
   const apply = async () => {
     if (docId === null) return;

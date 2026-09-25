@@ -69,6 +69,28 @@ export interface RemovalPreview {
   pageIndex: number | null;
 }
 
+/** 水印「添加」的实时预览（当前页叠加层）。
+ * 由 `WatermarkAddPanel` 在参数变化时重算写入；`regions` 为放置框（九宫格 1 项、平铺多项），
+ * 几何规则来自 `src/lib/watermarkLayout.ts`（与后端 `watermark.rs` 一致）。 */
+export interface WatermarkPreview {
+  /** 只叠加在这一页（0-based） */
+  pageIndex: number;
+  regions: PdfRegion[];
+  kind: "text" | "image";
+  /** kind === "text" 时的水印文本 */
+  text: string;
+  /** kind === "text" 时的字号（pt） */
+  fontSize: number;
+  /** kind === "text" 时的填充色 "#rrggbb" */
+  color: string;
+  /** 0–100 */
+  opacity: number;
+  /** 顺时针角度 */
+  rotation: number;
+  /** kind === "image" 时的本地图片 URL（asset 协议，由 convertFileSrc 生成） */
+  imageSrc: string | null;
+}
+
 /** 双击文字命中：区域 + 原文 + 原字体样式（用于重写时预填/沿用）。 */
 export interface DblClickText {
   region: PdfRegion;
@@ -172,6 +194,8 @@ interface AppState {
   /** 水印去除的待删预览区域（见 RemovalPreview）。非空时叠加显示在画布上，
    * 用于「强制预览确认」：用户必须先看到将被删除的区域才能执行删除。 */
   removalPreview: RemovalPreview | null;
+  /** 水印「添加」的实时预览（见 WatermarkPreview）。非空时叠加显示在当前页。 */
+  watermarkPreview: WatermarkPreview | null;
 
   toasts: Toast[];
   jumpTarget: { page: number; nonce: number };
@@ -204,6 +228,8 @@ interface AppState {
   setEditTarget: (t: TextEditTarget | null) => void;
   /** 设置 / 清空水印去除预览区域（null 表示关闭预览） */
   setRemovalPreview: (preview: RemovalPreview | null) => void;
+  /** 设置 / 清空水印添加预览（null 表示关闭预览） */
+  setWatermarkPreview: (preview: WatermarkPreview | null) => void;
   setSearch: (query: string, hits: SearchHit[]) => void;
   setSearchActive: (i: number) => void;
   setSearching: (b: boolean) => void;
@@ -303,6 +329,7 @@ export const useApp = create<AppState>((set, get) => ({
   dblClickText: null,
   editTarget: null,
   removalPreview: null,
+  watermarkPreview: null,
   searchOpen: false,
   helpOpen: false,
 
@@ -377,6 +404,7 @@ export const useApp = create<AppState>((set, get) => ({
       searchHighlights: {},
       loadingHighlights: new Set(),
       removalPreview: null,
+      watermarkPreview: null,
     });
   },
   clearDoc: () =>
@@ -394,6 +422,7 @@ export const useApp = create<AppState>((set, get) => ({
       editTarget: null,
       annotations: {},
       removalPreview: null,
+      watermarkPreview: null,
       ...exitEditState(),
     }),
   setViewMode: (m) => set({ viewMode: m, fitMode: m === "single" ? "page" : "width" }),
@@ -404,8 +433,16 @@ export const useApp = create<AppState>((set, get) => ({
   setScrollTop: (t) => set({ scrollTop: t }),
   setLeftTab: (t) => set({ leftTab: t, leftVisible: true }),
   toggleLeft: () => set((s) => ({ leftVisible: !s.leftVisible })),
-  openTask: (t) => set({ task: t, searchOpen: false, removalPreview: null, ...exitEditState() }),
-  closeTask: () => set({ task: null, removalPreview: null, ...exitEditState() }),
+  openTask: (t) =>
+    set({
+      task: t,
+      searchOpen: false,
+      removalPreview: null,
+      watermarkPreview: null,
+      ...exitEditState(),
+    }),
+  closeTask: () =>
+    set({ task: null, removalPreview: null, watermarkPreview: null, ...exitEditState() }),
   setEditTab: (t) => set({ editTab: t }),
   setEditMode: (m) =>
     set({
@@ -442,6 +479,7 @@ export const useApp = create<AppState>((set, get) => ({
   setDblClickText: (s) => set({ dblClickText: s }),
   setEditTarget: (t) => set({ editTarget: t }),
   setRemovalPreview: (preview) => set({ removalPreview: preview }),
+  setWatermarkPreview: (preview) => set({ watermarkPreview: preview }),
   setSearch: (query, hits) =>
     set({
       searchQuery: query,

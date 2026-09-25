@@ -70,6 +70,8 @@ const PageView = React.memo(function PageView({
   const setPageAnnotations = useApp((s) => s.setPageAnnotations);
   // 水印去除预览区域：所有页都叠加显示（水印按位置在各页重复出现）
   const removalPreview = useApp((s) => s.removalPreview);
+  // 水印添加预览：只叠加在当前页（由 WatermarkAddPanel 写入）
+  const watermarkPreview = useApp((s) => s.watermarkPreview);
   const updatePages = useApp((s) => s.updatePages);
   const markDirty = useApp((s) => s.markDirty);
   const setUndoRedo = useApp((s) => s.setUndoRedo);
@@ -389,6 +391,58 @@ const PageView = React.memo(function PageView({
               key={`rmp-${i}`}
               className="removal-preview-rect"
               style={{ left, top, width, height }}
+            />
+          );
+        })}
+      {/* 水印添加预览：把「将要写入」的水印按后端几何叠加在当前页（实时所见即所得）。
+          旋转语义与 PDFium 一致（绕对象左下角顺时针），故 transform-origin 取 left bottom。 */}
+      {watermarkPreview &&
+        watermarkPreview.pageIndex === pageIndex &&
+        watermarkPreview.kind === "text" &&
+        watermarkPreview.text !== "" &&
+        watermarkPreview.regions.map((r, i) => {
+          const width = (r.right - r.left) * scale;
+          const height = (r.top - r.bottom) * scale;
+          if (width <= 0 || height <= 0) return null;
+          return (
+            <div
+              key={`wmp-${i}`}
+              className="wm-preview-text"
+              style={{
+                left: r.left * scale,
+                top: (page.height - r.top) * scale,
+                fontSize: watermarkPreview.fontSize * scale,
+                color: watermarkPreview.color,
+                opacity: watermarkPreview.opacity / 100,
+                transform: `rotate(${watermarkPreview.rotation}deg)`,
+              }}
+            >
+              {watermarkPreview.text}
+            </div>
+          );
+        })}
+      {watermarkPreview &&
+        watermarkPreview.pageIndex === pageIndex &&
+        watermarkPreview.kind === "image" &&
+        watermarkPreview.imageSrc !== null &&
+        watermarkPreview.regions.map((r, i) => {
+          const width = (r.right - r.left) * scale;
+          const height = (r.top - r.bottom) * scale;
+          if (width <= 0 || height <= 0) return null;
+          return (
+            <img
+              key={`wmp-${i}`}
+              className="wm-preview-image"
+              src={watermarkPreview.imageSrc ?? undefined}
+              alt=""
+              style={{
+                left: r.left * scale,
+                top: (page.height - r.top) * scale,
+                width,
+                height,
+                opacity: watermarkPreview.opacity / 100,
+                transform: `rotate(${watermarkPreview.rotation}deg)`,
+              }}
             />
           );
         })}
