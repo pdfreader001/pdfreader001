@@ -49,7 +49,7 @@ fn pt_rect_validation() {
     let valid = PtRect { left: 0.0, bottom: 0.0, right: 100.0, top: 100.0 };
     assert!(valid.right > valid.left && valid.top > valid.bottom);
     let zero_w = PtRect { left: 50.0, bottom: 0.0, right: 50.0, top: 100.0 };
-    assert!(!(zero_w.right > zero_w.left));
+    assert!(zero_w.right <= zero_w.left);
 }
 
 // ---------- scan detection ----------

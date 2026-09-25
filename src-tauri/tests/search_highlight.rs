@@ -24,7 +24,7 @@ fn search_sample_pdf_first_page() {
         search_page_text_logic(&bytes, 0, "PDF", Some(20)).unwrap();
 
     assert_eq!(result.page_index, 0);
-    assert!(result.hits.len() > 0, "应该至少找到 1 个 PDF 命中");
+    assert!(!result.hits.is_empty(), "应该至少找到 1 个 PDF 命中");
     println!("找到 {} 个命中", result.hits.len());
 
     for (i, h) in result.hits.iter().enumerate() {
@@ -72,7 +72,7 @@ fn search_chinese_if_present() {
 
     // 搜索 "the"（常见英文词）
     let result = search_page_text_logic(&bytes, 0, "the", Some(20)).unwrap();
-    if result.hits.len() > 0 {
+    if !result.hits.is_empty() {
         println!("'the' 命中数: {}", result.hits.len());
         // 验证第一个命中的坐标在页面范围内
         let h = &result.hits[0];

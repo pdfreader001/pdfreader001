@@ -84,7 +84,7 @@ pub fn list_form_fields_logic(bytes: &[u8]) -> AppResult<Vec<FormFieldInfo>> {
     };
 
     let pages = doc.pages();
-    let values_map = form.field_values(&pages);
+    let values_map = form.field_values(pages);
 
     // 扫描所有页的 Widget annotation，拿到每个字段的 (name, kind)
     let mut kinds: Vec<(String, FormFieldKind)> = Vec::new();
@@ -93,7 +93,7 @@ pub fn list_form_fields_logic(bytes: &[u8]) -> AppResult<Vec<FormFieldInfo>> {
         let page = doc.pages().get(p_idx)?;
         let annots = page.annotations();
         for i in 0..annots.len() {
-            let mut annot = annots.get(i as usize)?;
+            let mut annot = annots.get(i)?;
             let widget = match annot.as_widget_annotation_mut() {
                 Some(w) => w,
                 None => continue,
@@ -145,7 +145,7 @@ fn find_target_widget<'a>(
         let page = doc.pages().get(p_idx).ok()?;
         let annots = page.annotations();
         for i in 0..annots.len() {
-            let mut annot = annots.get(i as usize).ok()?;
+            let mut annot = annots.get(i).ok()?;
             // Only Widget annotations carry form fields.
             let widget = annot.as_widget_annotation_mut()?;
             let resolved = widget.form_field().and_then(|f| {

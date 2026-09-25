@@ -216,7 +216,7 @@ fn scan_font_files(fonts_dir: &Path) -> Vec<PathBuf> {
 /// 2. 仍未命中则扫描系统字体目录，取第一个可加载且非符号字体的字体；
 /// 3. 全部失败才返回 [`AppError::NoChineseFont`]。
 pub(crate) fn load_font_for_text(doc: &mut PdfDocument, text: &str) -> AppResult<PdfFontToken> {
-    if text.chars().all(|c| c.is_ascii()) {
+    if text.is_ascii() {
         return Ok(doc.fonts_mut().helvetica());
     }
 
@@ -268,7 +268,7 @@ pub(crate) fn load_font_for_text_style(
         if let Some((_, files)) = FONT_NAME_MAP.iter().find(|(key, _)| source.contains(key)) {
             // 含非 ASCII 的文本只能交给「看起来支持中文」的候选文件，
             // 否则（如 Arial）会缺字形渲染成空白。
-            let usable: Vec<&str> = if text.chars().all(|c| c.is_ascii()) {
+            let usable: Vec<&str> = if text.is_ascii() {
                 files.to_vec()
             } else {
                 files
@@ -373,8 +373,8 @@ pub async fn add_text_watermark(
                 let objects = page.objects_mut();
                 for (x, y) in spots {
                     let mut obj = objects.create_text_object(
-                        PdfPoints::new(x as f32),
-                        PdfPoints::new(y as f32),
+                        PdfPoints::new(x),
+                        PdfPoints::new(y),
                         &opts.text,
                         font_token,
                         PdfPoints::new(font_size),

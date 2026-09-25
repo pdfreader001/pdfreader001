@@ -369,7 +369,7 @@ pub async fn merge_documents(
                 .copy_page_range_from_document(&doc, 0..=(total - 1), dest_idx)?;
         }
     }
-    if merged.pages().len() == 0 {
+    if merged.pages().is_empty() {
         return Err(AppError::MergeResultEmpty);
     }
     let new_bytes = merged.save_to_bytes()?;

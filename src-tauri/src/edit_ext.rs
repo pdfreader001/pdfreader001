@@ -136,10 +136,10 @@ pub fn rewrite_text_logic(
                 }
                 let Ok(bounds) = obj.bounds() else { continue };
                 let (l, b, r, t) = (
-                    bounds.left().value as f32,
-                    bounds.bottom().value as f32,
-                    bounds.right().value as f32,
-                    bounds.top().value as f32,
+                    bounds.left().value,
+                    bounds.bottom().value,
+                    bounds.right().value,
+                    bounds.top().value,
                 );
                 let obj_rect = PtRect {
                     left: l.min(r),
@@ -317,10 +317,10 @@ pub async fn replace_image(
             objs.get(object_index as usize).ok().and_then(|obj| {
                 obj.bounds().ok().map(|b| {
                     (
-                        b.left().value as f32,
-                        b.bottom().value as f32,
-                        b.right().value as f32,
-                        b.top().value as f32,
+                        b.left().value,
+                        b.bottom().value,
+                        b.right().value,
+                        b.top().value,
                     )
                 })
             })
@@ -458,10 +458,10 @@ pub fn list_image_objects_logic(
         }
         let Ok(b) = obj.bounds() else { continue };
         let (l, bb, r, t) = normalize_bounds(
-            b.left().value as f32,
-            b.bottom().value as f32,
-            b.right().value as f32,
-            b.top().value as f32,
+            b.left().value,
+            b.bottom().value,
+            b.right().value,
+            b.top().value,
         );
         out.push(ImageObjectInfo {
             object_index: i as u32,

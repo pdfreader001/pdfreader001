@@ -50,7 +50,7 @@ pub fn export_page_to_image_bytes(
     let w = bitmap.width() as u32;
     let h = bitmap.height() as u32;
     let img = image::RgbaImage::from_raw(w, h, rgba.to_vec())
-        .ok_or_else(|| AppError::ImageConstructFailed)?;
+        .ok_or(AppError::ImageConstructFailed)?;
     let dyn_img = image::DynamicImage::ImageRgba8(img);
 
     let mut out: Vec<u8> = Vec::new();
@@ -182,7 +182,7 @@ pub async fn export_pages_to_images(
         let h = bitmap.height() as u32;
         // 构造 image::RgbaImage
         let img = image::RgbaImage::from_raw(w, h, rgba.to_vec())
-            .ok_or_else(|| AppError::ImageConstructFailed)?;
+            .ok_or(AppError::ImageConstructFailed)?;
         let dyn_img = image::DynamicImage::ImageRgba8(img);
 
         let stem = format!("page_{:04}", page_index + 1);

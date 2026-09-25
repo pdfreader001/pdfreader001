@@ -50,14 +50,12 @@ fn encrypt_requires_correct_open_password() {
 
     let err = pdfium
         .load_pdf_from_byte_slice(&encrypted, Some("nope"))
-        .err()
-        .expect("wrong password must fail");
+        .expect_err("wrong password must fail");
     assert_eq!(pdfe_lib::error::AppError::from(err).code(), "password");
 
     let err = pdfium
         .load_pdf_from_byte_slice(&encrypted, None)
-        .err()
-        .expect("missing password must fail");
+        .expect_err("missing password must fail");
     assert_eq!(pdfe_lib::error::AppError::from(err).code(), "password");
 }
 
@@ -80,10 +78,10 @@ fn encrypt_maps_permission_toggles() {
         perms.security_handler_revision().unwrap(),
         PdfSecurityHandlerRevision::Revision4
     );
-    assert_eq!(perms.can_print_high_quality().unwrap(), true);
-    assert_eq!(perms.can_modify_document_content().unwrap(), false);
-    assert_eq!(perms.can_extract_text_and_graphics().unwrap(), false);
-    assert_eq!(perms.can_add_or_modify_text_annotations().unwrap(), false);
+    assert!(perms.can_print_high_quality().unwrap());
+    assert!(!perms.can_modify_document_content().unwrap());
+    assert!(!perms.can_extract_text_and_graphics().unwrap());
+    assert!(!perms.can_add_or_modify_text_annotations().unwrap());
 
     // 全部放开的对照：4 项在 pdfium 侧都应读出 true。
     let open = encrypt_pdf_bytes_logic(
@@ -99,10 +97,10 @@ fn encrypt_maps_permission_toggles() {
     let doc = pdfium.load_pdf_from_byte_slice(&open, Some("pw")).unwrap();
     let perms = doc.permissions();
 
-    assert_eq!(perms.can_print_high_quality().unwrap(), true);
-    assert_eq!(perms.can_modify_document_content().unwrap(), true);
-    assert_eq!(perms.can_extract_text_and_graphics().unwrap(), true);
-    assert_eq!(perms.can_add_or_modify_text_annotations().unwrap(), true);
+    assert!(perms.can_print_high_quality().unwrap());
+    assert!(perms.can_modify_document_content().unwrap());
+    assert!(perms.can_extract_text_and_graphics().unwrap());
+    assert!(perms.can_add_or_modify_text_annotations().unwrap());
 }
 
 /// 仅设权限密码：无需密码即可打开，但权限仍然受限；权限密码同样可打开。
@@ -114,9 +112,8 @@ fn encrypt_with_owner_password_only() {
     let doc = pdfium
         .load_pdf_from_byte_slice(&encrypted, None)
         .expect("empty open password should open without a password");
-    assert_eq!(
-        doc.permissions().can_extract_text_and_graphics().unwrap(),
-        false
+    assert!(
+        !doc.permissions().can_extract_text_and_graphics().unwrap()
     );
 
     assert!(pdfium
@@ -136,12 +133,11 @@ fn decrypt_with_correct_password_removes_encryption() {
     let restricted = pdfium
         .load_pdf_from_byte_slice(&encrypted, Some("secret"))
         .unwrap();
-    assert_eq!(
-        restricted
+    assert!(
+        !restricted
             .permissions()
             .can_extract_text_and_graphics()
-            .unwrap(),
-        false
+            .unwrap()
     );
 
     let plain = decrypt_pdf_bytes_logic(pdfium, &encrypted, Some("secret")).unwrap();

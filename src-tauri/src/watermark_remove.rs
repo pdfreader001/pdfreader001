@@ -78,10 +78,10 @@ pub fn rects_intersect(a: &Rect, b: &Rect) -> bool {
 /// Convert a `PdfQuadPoints` (returned by `bounds()`) into our flat `Rect`.
 fn rect_from_pdfqp(r: &pdfium_render::prelude::PdfQuadPoints) -> Rect {
     Rect {
-        left: r.left().value as f32,
-        bottom: r.bottom().value as f32,
-        right: r.right().value as f32,
-        top: r.top().value as f32,
+        left: r.left().value,
+        bottom: r.bottom().value,
+        right: r.right().value,
+        top: r.top().value,
     }
 }
 
@@ -124,10 +124,10 @@ fn fingerprint_key(obj: &PdfPageObject) -> Option<(String, String)> {
     }
     .to_string();
     let bounds = obj.bounds().ok()?;
-    let l = bounds.left().value as f32;
-    let b = bounds.bottom().value as f32;
-    let r = bounds.right().value as f32;
-    let t = bounds.top().value as f32;
+    let l = bounds.left().value;
+    let b = bounds.bottom().value;
+    let r = bounds.right().value;
+    let t = bounds.top().value;
     let quant_l = quantize(l, 5.0);
     let quant_b = quantize(b, 5.0);
     let quant_w = quantize(r - l, 5.0);
@@ -260,10 +260,10 @@ pub async fn detect_watermark_candidates(
                 None => continue,
             };
             let bounds = obj.bounds()?;
-            let l = bounds.left().value as f32;
-            let b = bounds.bottom().value as f32;
-            let r = bounds.right().value as f32;
-            let t = bounds.top().value as f32;
+            let l = bounds.left().value;
+            let b = bounds.bottom().value;
+            let r = bounds.right().value;
+            let t = bounds.top().value;
             let fp = ObjectFingerprint {
                 object_index: i as u32,
                 kind,

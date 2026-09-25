@@ -133,7 +133,7 @@ fn apply_overlay_skips_empty_text() {
     assert!(!all_text.trim().is_empty(), "page has some text (original)");
     // 验证：原 sample.pdf 文本仍存在（不是被空文本污染）
     assert!(
-        all_text.len() > 0,
+        !all_text.is_empty(),
         "page has at least original text"
     );
 }

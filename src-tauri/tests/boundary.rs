@@ -145,7 +145,7 @@ fn all_error_codes_nonempty() {
         // 序列化应成功
         let json = serde_json::to_string(&e).unwrap();
         assert!(json.contains("\"code\""), "序列化 JSON 应包含 code 字段");
-        assert!(json.contains(&code), "JSON 应包含 code 字符串");
+        assert!(json.contains(code), "JSON 应包含 code 字符串");
     }
 }
 

@@ -159,7 +159,7 @@ pub async fn export_plain_copy(
         decrypt_pdf_bytes_logic(pdfium, &entry.bytes, password.as_deref())?
     };
     std::fs::write(&output_path, &bytes)
-        .map_err(|e| AppError::Io(e))?;
+        .map_err(AppError::Io)?;
     Ok(output_path)
 }
 

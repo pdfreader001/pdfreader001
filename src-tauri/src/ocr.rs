@@ -129,7 +129,7 @@ pub fn apply_text_overlay_logic(
                 continue;
             }
 
-            let font_size = ((w.top - w.bottom) as f32).max(2.0);
+            let font_size = (w.top - w.bottom).max(2.0);
             let x = w.left.max(0.0);
             let y = w.bottom.max(0.0);
 
@@ -138,7 +138,7 @@ pub fn apply_text_overlay_logic(
                 PdfPoints::new(x),
                 PdfPoints::new(y),
                 &w.text,
-                font_token.clone(),
+                font_token,
                 PdfPoints::new(font_size),
             ) {
                 Ok(o) => o,
