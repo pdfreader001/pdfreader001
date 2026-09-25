@@ -82,12 +82,16 @@ powershell -ExecutionPolicy Bypass -File scripts\build-msix.ps1 -Sign None
 
 | 类型 | 数量 | 位置 |
 |------|------|------|
-| Rust 单元/集成 | **127** | `src-tauri/tests/` |
+| Rust 单元/集成 | **315** | `src-tauri/tests/`（含 `commands.rs` 命令层 6 场景） |
 | Rust 端到端 (E2E) | **8 场景** | `src-tauri/tests/e2e.rs` |
 | TypeScript 类型检查 | 0 错误 | `npx tsc --noEmit` |
-| 性能基线（2/100/500 页） | 13 项 | `src-tauri/tests/perf.rs` |
+| 性能基线（2/100/500 页） | 20 项 | `src-tauri/tests/perf.rs`、`perf_memory.rs` |
+
+合计 **343** 项 Rust 测试（`cargo test -- --test-threads=1` 全绿）。
 
 E2E 测试覆盖跨模块业务场景：打开→浏览/搜索→编辑（注释/文本重写）→重开验证；不启动 Tauri runtime，直接调用各模块的 `_logic` 纯函数，验证 bytes 跨步骤流转 + 持久化正确。
+
+`commands.rs` 是命令层集成测试，走 `tauri::test` mock 运行时直调真实 `#[tauri::command]`，覆盖完整 IPC 链路（打开→加注释→保存→撤销/重做→关闭），实测 `AppState` 编排（撤销栈封顶 20、新编辑清空 redo、关闭后句柄失效）。
 
 运行：
 ```bash
@@ -95,6 +99,7 @@ E2E 测试覆盖跨模块业务场景：打开→浏览/搜索→编辑（注释
 cd src-tauri
 cargo test -- --test-threads=1    # 首次会生成 large_100/500.pdf fixture
 cargo test --test e2e             # 仅跑 E2E 场景
+cargo test --test commands        # 仅跑命令层集成测试
 
 # 前端
 npx tsc --noEmit

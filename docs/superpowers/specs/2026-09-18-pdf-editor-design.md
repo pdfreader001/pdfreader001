@@ -154,6 +154,9 @@ Rust 侧文档快照栈（内存序列化快照），上限 20 步，超出丢�
 - Rust 单元测试：黄金文件测试（样例 PDF → 操作 → 断言输出结构/文本），覆盖六大模块
 - 前端：Vitest + Testing Library 组件测试
 - E2E：tauri-driver + WebDriver 跑核心流程（打开 → 编辑 → 保存）
+  - 实际落点：`src-tauri/tests/commands.rs` 用 `tauri::test` mock 运行时直调真实 `#[tauri::command]`，
+    覆盖同一链路（打开 → 编辑 → 保存 → 撤销/重做 → 关闭）。未采用 tauri-driver：其依赖
+    WebView2 真实驱动与独立 exe 启动，本机与 CI 均不稳定
 - 手工回归清单：多语言 PDF（中日韩、RTL）、扫描版、加密文档、超大文件（500+ 页）
 
 ## 8. 打包与上架

@@ -79,12 +79,18 @@
 - [x] 页面导出 PNG/JPG（含 DPI 选择）
 
 ### M7 · 打磨与上架
-- [ ] 全链路错误处理 review（中文 toast）
-- [ ] 大文档性能测试（500+ 页）
-- [ ] tauri-driver E2E：打开→编辑→保存
+- [x] 全链路错误处理 review（中文 toast）
+- [x] 大文档性能测试（500+ 页）
+- [x] 命令层集成测试：打开→编辑→保存
+      —— 落点由 `tauri-driver` 改为 `tauri::test` mock 运行时（`src-tauri/tests/commands.rs`）：
+      tauri-driver 需 WebView2 真实驱动 + 独立 exe 启动，本机/CI 均不可靠；mock 运行时直调
+      真实 `#[tauri::command]`，跑通同一 IPC 链路（含 ACL 跳过、异步命令调度、错误对象序列化），
+      零外部依赖且可重复。覆盖 打开→加注释→保存→撤销/重做→关闭。
+      > 过程中该测试暴露并修复了一处真实缺陷：撤销/重做把 pop 出的快照压回对面栈（应为
+      > 操作前的当前 bytes），导致重做后文档状态不变（`fix(document)`，提交 `3e5a272`）。
 - [x] makeappx MSIX + signtool 签名
 - [ ] Store listing 素材（图标/截图/描述）
-- [ ] 提交认证测试
+- [ ] 提交认证测试（需 Partner Center 账号）
 
 ## 风险缓解（开发期）
 
