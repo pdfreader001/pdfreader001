@@ -16,7 +16,8 @@ export default defineConfig(() => ({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
+    // Listen on all interfaces (both IPv4 and IPv6) so WebView2 can connect via 127.0.0.1
+    host: host || "127.0.0.1",
     hmr: host
       ? {
           protocol: "ws",

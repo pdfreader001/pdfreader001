@@ -37,6 +37,9 @@ tesseract = { version = "0.15", optional = true }
 default = []
 ocr = ["dep:tesseract"]
 
+[dev-dependencies]
+# 用于生成带 AcroForm 字段的测试 PDF fixture（和 perf.rs 自动生成 large_*.pdf 同模式）
+printpdf = { version = "0.7", default-features = false, features = ["embedded_images"] }
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
