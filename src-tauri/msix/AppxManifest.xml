@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  PDFe MSIX 包装清单（full-trust Win32 应用）
+
+  `__PUBLISHER__`、`__VERSION__` 与 `__EXE__` 由 scripts/build-msix.ps1 在打包时替换：
+  - __PUBLISHER__ 必须与签名证书的 Subject 完全一致，否则 Add-AppxPackage 会报
+    「清单中的 Publisher 与签名证书不匹配」。
+  - __VERSION__ 取自 src-tauri/tauri.conf.json 的 version，补齐为四段（x.y.z.0）。
+  - __EXE__ 取自 tauri.conf.json 的 productName，与暂存进包的可执行文件名保持一致。
+
+  上架 Microsoft Store 时，Identity 的 Name / Publisher 需改为 Partner Center
+  分配的值（产品标识），本地自签名测试用当前值即可。
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="konnyyuan.pdfe"
+    Publisher="__PUBLISHER__"
+    Version="__VERSION__"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>PDFe</DisplayName>
+    <PublisherDisplayName>PDFe</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+    <Description>轻量 PDF 阅读与编辑工具</Description>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily
+      Name="Windows.Desktop"
+      MinVersion="10.0.17763.0"
+      MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="zh-CN" />
+    <Resource Language="en-US" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App" Executable="__EXE__" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="PDFe"
+        Description="轻量 PDF 阅读与编辑工具"
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile
+          Wide310x150Logo="Assets\Wide310x150Logo.png"
+          Square71x71Logo="Assets\Square71x71Logo.png"
+          Square310x310Logo="Assets\Square310x310Logo.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- 全信任桌面应用必需：允许以用户完整令牌运行 Win32 代码 -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

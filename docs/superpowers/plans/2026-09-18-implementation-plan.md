@@ -82,7 +82,7 @@
 - [ ] 全链路错误处理 review（中文 toast）
 - [ ] 大文档性能测试（500+ 页）
 - [ ] tauri-driver E2E：打开→编辑→保存
-- [ ] makeappx MSIX + signtool 签名
+- [x] makeappx MSIX + signtool 签名
 - [ ] Store listing 素材（图标/截图/描述）
 - [ ] 提交认证测试
 

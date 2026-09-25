@@ -42,7 +42,41 @@ cargo build --features ocr
   `set_render_mode(Invisible)` 会破坏文本对象导致 garbage 输出）
 - 字体复用 `watermark::load_font_for_text`，ASCII 自动选 `helvetica` 标准字体
 
-- ⏸️ 不上架、不打 MSIX 包（按约束）
+## 打包
+
+Tauri 2 在 Windows 下的 `bundle.targets = "all"` 只产出 msi + nsis，**不产出 MSIX**。
+MSIX 由脚本手工完成（`makeappx` pack → `signtool` sign）：
+
+```powershell
+# 自签名 + 打包（本机侧载测试）
+powershell -ExecutionPolicy Bypass -File scripts\build-msix.ps1
+
+# 自签名 + 打包 + 信任证书 + 安装验证（需写本机信任存储，会弹 UAC）
+powershell -ExecutionPolicy Bypass -File scripts\build-msix.ps1 -Install
+
+# 用正式代码签名证书
+powershell -ExecutionPolicy Bypass -File scripts\build-msix.ps1 -Sign Pfx -PfxPath C:\certs\pdfe.pfx -PfxPassword 你的密码
+
+# 只出未签名包（留给分发方签名）
+powershell -ExecutionPolicy Bypass -File scripts\build-msix.ps1 -Sign None
+```
+
+清单模板在 `src-tauri/msix/AppxManifest.xml`（full-trust Win32：
+`EntryPoint="Windows.FullTrustApplication"` + `rescap:runFullTrust`），
+脚本会替换 `__PUBLISHER__` / `__VERSION__` / `__EXE__` 三个占位符，
+并把 `pdfium.dll` 一并暂存到包内**与 exe 同级**（`document.rs::pdfium_library_path()`
+优先在 exe 目录查找，装到别的机器后编译期路径失效）。
+
+产物：`src-tauri/target/msix/PDFe_<version>_x64.msix`。
+
+> 注意：`Publisher` 必须与签名证书 Subject 完全一致，否则 `Add-AppxPackage`
+> 会报「清单中的 Publisher 与签名证书不匹配」。
+> `-Install` 时自签名证书需装入**本机** `LocalMachine\TrustedPeople`：AppXSVC
+> 以服务账户运行，读不到 `CurrentUser` 的证书存储；缺失时会报
+> `0x800B0109 应用包或捆绑包中的签名的根证书必须是受信任的证书`。
+> 该写入需要管理员权限，脚本在非管理员终端下会自动请求提权（弹 UAC）。
+> 尚未上架 Microsoft Store —— Store 上架需改用 Partner Center 分配的 Identity
+> 并由微软重签，自备证书只用于本机侧载。
 
 ## 测试
 

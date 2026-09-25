@@ -129,4 +129,4 @@ npx tsc --noEmit
 - `cargo check` 通过（warning 可接受，error 不可）
 - `tsc --noEmit` 零错误
 - 所有现有测试通过 + 新增测试通过
-- 不打 MSIX 包、不上架
+- MSIX 打包链路已就绪（`scripts/build-msix.ps1`，含 `AppxManifest.xml` 模板）；尚未上架 Microsoft Store
