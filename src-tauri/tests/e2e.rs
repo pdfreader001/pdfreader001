@@ -8,6 +8,12 @@
 //! - 多步操作（每个步骤相当于前端的 IPC 调用）
 //! - bytes 跨步骤流转（与前端的 `entry.bytes` 等价）
 //! - 每步失败即中止，最终必须重开原始 fixture 验证持久化正确
+//!
+//! 并发约束：pdfium 本体不是线程安全的。pdfium-render 的 `thread_safe` feature 只在
+//! `FPDF_InitLibrary` / `FPDF_DestroyLibrary` 之间持全局锁（即「同一时刻只允许存在一个
+//! Pdfium 实例」），**并不**串行化单次 `FPDF_*` 调用；而 `pdfium()` 返回的是永不释放的
+//! 进程级单例。默认并行跑本文件会偶发 `PdfiumLibraryInternalError`，甚至
+//! `STATUS_HEAP_CORRUPTION`（0xC0000374）。故每个用例首行都取 `pdfium_serial()`。
 
 use std::fs;
 use std::path::PathBuf;
@@ -30,10 +36,19 @@ fn fixture(name: &str) -> PathBuf {
         .join(name)
 }
 
+/// 本测试二进制内的 pdfium 串行闸门（原因见文件头「并发约束」）。
+fn pdfium_serial() -> std::sync::MutexGuard<'static, ()> {
+    static PDFIUM_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    PDFIUM_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 /// E2E 场景 1：打开 → 浏览 → 搜索 → 退出
 /// 验证：render + search + get_page_text 三模块协同。
 #[test]
 fn e2e_open_browse_search() {
+    let _serial = pdfium_serial();
     let bytes = fs::read(fixture("sample.pdf")).expect("fixture missing");
     let pdfium_inst = pdfium();
 
@@ -62,6 +77,7 @@ fn e2e_open_browse_search() {
 /// 验证：注释数据写入持久化，重开后 list_annotations 能读回。
 #[test]
 fn e2e_annotate_reopen_persists() {
+    let _serial = pdfium_serial();
     let initial = fs::read(fixture("sample.pdf")).expect("fixture missing");
 
     let pdfium_inst = pdfium();
@@ -157,6 +173,7 @@ fn e2e_annotate_reopen_persists() {
 /// 验证：rewrite_text 改变 PDF 文本层，重开后 get_page_text 能读到新文本。
 #[test]
 fn e2e_rewrite_text_persists() {
+    let _serial = pdfium_serial();
     let initial = fs::read(fixture("sample.pdf")).expect("fixture missing");
 
     // 1) 重写前：读第 0 页文本
@@ -217,6 +234,7 @@ fn e2e_rewrite_text_persists() {
 /// 验证：pick_text 给出的字符文本确实存在于 get_page_text 全文中。
 #[test]
 fn e2e_pick_text_consistent_with_full_text() {
+    let _serial = pdfium_serial();
     let bytes = fs::read(fixture("sample.pdf")).expect("fixture missing");
     let pdfium_inst = pdfium();
 
@@ -257,6 +275,7 @@ fn e2e_pick_text_consistent_with_full_text() {
 /// 验证：security + scanned + annotations + metadata 一次性全部能读。
 #[test]
 fn e2e_diagnose_all_modules() {
+    let _serial = pdfium_serial();
     let bytes = fs::read(fixture("sample.pdf")).expect("fixture missing");
     let pdfium_inst = pdfium();
 
@@ -284,6 +303,7 @@ fn e2e_diagnose_all_modules() {
 /// 验证：search 返回的非空命中数量 ≤ 文本出现次数。
 #[test]
 fn e2e_search_hit_count_matches_text_count() {
+    let _serial = pdfium_serial();
     let bytes = fs::read(fixture("sample.pdf")).expect("fixture missing");
     let full = get_page_text_logic(&bytes, 0).expect("full text");
 
@@ -318,6 +338,7 @@ fn e2e_search_hit_count_matches_text_count() {
 /// 验证：每次写操作返回新 bytes，源文件 bytes 保持不变。
 #[test]
 fn e2e_bytes_immutability_across_steps() {
+    let _serial = pdfium_serial();
     let initial = fs::read(fixture("sample.pdf")).expect("fixture missing");
     let initial_len = initial.len();
     let initial_hash: u32 = initial
@@ -369,6 +390,7 @@ fn e2e_bytes_immutability_across_steps() {
 /// 场景的真正价值在 security.rs 单测中已覆盖。
 #[test]
 fn e2e_diagnose_unprotected_baseline() {
+    let _serial = pdfium_serial();
     let bytes = fs::read(fixture("sample.pdf")).expect("fixture missing");
     let pdfium_inst = pdfium();
     let doc = pdfium_inst.load_pdf_from_byte_slice(&bytes, None).unwrap();
