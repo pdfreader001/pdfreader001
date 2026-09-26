@@ -186,7 +186,7 @@ Questions about this policy: please open an issue at <https://github.com/pdfread
 | 原子写入 `.tmp` | [document.rs](../src-tauri/src/document.rs#L251-L267) |
 | 仅 3 处文件写入，全为用户主动发起 | [convert.rs](../src-tauri/src/convert.rs#L278)（导出）、[security.rs](../src-tauri/src/security.rs#L161)（明文副本）、[security.rs](../src-tauri/src/security.rs#L274)（加密副本） |
 | 文件选择只走系统对话框 | 8 处 `plugin-dialog` 的 `open` / `save`（App.tsx、ConvertPanel、ThumbnailPanel、EditPanel、MergePanel、SecurityPanel、SplitPanel、WatermarkPanel） |
-| 只声明 `runFullTrust` | [AppxManifest.xml](../src-tauri/msix/AppxManifest.xml#L61-L64) |
+| 只声明 `runFullTrust` | [AppxManifest.xml](../src-tauri/msix/AppxManifest.xml#L68-L71) |
 | 默认构建无 OCR | [Cargo.toml](../src-tauri/Cargo.toml#L40-L43)（`default = []`，`ocr` 为可选特性） |
 
 **发布前必须补的两项**：

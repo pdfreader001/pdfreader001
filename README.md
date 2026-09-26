@@ -59,11 +59,18 @@ powershell -ExecutionPolicy Bypass -File scripts\build-msix.ps1 -Sign Pfx -PfxPa
 
 # 只出未签名包（留给分发方签名）
 powershell -ExecutionPolicy Bypass -File scripts\build-msix.ps1 -Sign None
+
+# 出提交 Microsoft Store 的正式包：注入 Partner Center「产品标识」三个值，由微软重签
+powershell -ExecutionPolicy Bypass -File scripts\build-msix.ps1 -Sign None `
+  -IdentityName 12345KonnyYuan.PDFe `
+  -Publisher "CN=d9e5f0b8-0000-0000-0000-000000000000" `
+  -PublisherDisplayName "Konny Yuan"
 ```
 
 清单模板在 `src-tauri/msix/AppxManifest.xml`（full-trust Win32：
 `EntryPoint="Windows.FullTrustApplication"` + `rescap:runFullTrust`），
-脚本会替换 `__PUBLISHER__` / `__VERSION__` / `__EXE__` 三个占位符，
+脚本会替换 `__IDENTITY_NAME__` / `__PUBLISHER__` / `__PUBLISHER_DISPLAY_NAME__` /
+`__VERSION__` / `__EXE__` 五个占位符（前三个有对应参数，默认值为本地测试值），
 并把 `pdfium.dll` 一并暂存到包内**与 exe 同级**（`document.rs::pdfium_library_path()`
 优先在 exe 目录查找，装到别的机器后编译期路径失效）。
 
@@ -75,8 +82,9 @@ powershell -ExecutionPolicy Bypass -File scripts\build-msix.ps1 -Sign None
 > 以服务账户运行，读不到 `CurrentUser` 的证书存储；缺失时会报
 > `0x800B0109 应用包或捆绑包中的签名的根证书必须是受信任的证书`。
 > 该写入需要管理员权限，脚本在非管理员终端下会自动请求提权（弹 UAC）。
-> 尚未上架 Microsoft Store —— Store 上架需改用 Partner Center 分配的 Identity
-> 并由微软重签，自备证书只用于本机侧载。
+> 尚未上架 Microsoft Store —— Store 上架需用 `-IdentityName` / `-Publisher` /
+> `-PublisherDisplayName` 注入 Partner Center 分配的产品标识并由微软重签，
+> 自备证书只用于本机侧载。
 
 ## 测试
 

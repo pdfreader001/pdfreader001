@@ -12,7 +12,7 @@
 | 产品名 | PDFe（`productName` = `pdfe`，窗口标题 `PDFe`） |
 | 版本 | `0.1.0` |
 | 标识 | `com.konnyyuan.pdfe` |
-| MSIX Identity | `Name="konnyyuan.pdfe"`（**上架需改为 Partner Center 分配的产品标识**） |
+| MSIX Identity | 清单为占位符 `__IDENTITY_NAME__` / `__PUBLISHER__` / `__PUBLISHER_DISPLAY_NAME__`，脚本默认注入本地测试值 `konnyyuan.pdfe` / `CN=PDFe Local Test` / `PDFe`（**上架须传 Partner Center 分配的产品标识**，见 §4） |
 | 打包形态 | MSIX 包装的 full-trust Win32（`Windows.FullTrustApplication` + `rescap:runFullTrust`） |
 | 最低系统 | Windows 10 1809（`10.0.17763.0`），`MaxVersionTested` = Windows 11 22H2（`10.0.22621.0`） |
 | 包内语言 | `zh-CN`、`en-US` |
@@ -436,7 +436,8 @@ System requirements: Windows 10 version 1809 or later (x64).
 - **定价与市场**：免费 + 全市场（需确认是否只投 zh-CN / en-US 市场）
 - **年龄分级**：按 Partner Center 问卷填写
 - **隐私政策 URL**：本应用无网络通信、不上传文件；问卷若判定需要，政策草稿见 [`store-listing/privacy-policy.md`](store-listing/privacy-policy.md)（中英双份，**尚需托管为公开网页并确认联系方式**）
-- **身份替换**：清单 `Identity/@Name` 与 `Publisher` 换成 Partner Center 分配值，包由微软重签
+- **产品类型**：必须选 **MSIX/PWA**，不要选「独立 .exe/.msi 安装程序包」。后者要求提交**版本化 HTTPS 直链**（需自建托管并自行维护更新链接）、**自备链接到 Microsoft Trusted Root Program 的 CA 代码签名证书**（Store 不重签）、提交**静默离线安装器**（不可为下载器 stub），且提交后二进制不得更改。MSIX 路径由**微软免费重签 + 免费 CDN 托管 + 自动更新**，与现有打包链路直接对接。
+- **身份替换**：三个值取自 Partner Center「产品管理 → 产品标识」——`包/标识/名称`（Identity `Name`）、`包/标识/发布者`（Identity `Publisher`，形如 `CN=d9e5f0b8-...`，微软重签由平台处理无需与本地证书一致）、`包/属性/发布者显示名称`（`PublisherDisplayName`）。本地侧载测试保持脚本默认值即可。打包脚本已参数化（`-IdentityName` / `-Publisher` / `-PublisherDisplayName`），拿到值后一条命令出正式包，详见 [README](../README.md) 的 MSIX 小节。
 
 ## 5. 提交前检查清单
 
@@ -447,7 +448,8 @@ System requirements: Windows 10 version 1809 or later (x64).
 - [x] 说明 / 简短说明 / 产品功能 中英双份文案落库 —— §3.1 简短说明、§3.2 说明、§3.3 产品功能（中英各 10 条）均已落库，实测字符数与上限比对见 §3 开头，全部达标
 - [ ] 短标题、排序标题、系统要求填写
 - [ ] 清单 Identity 替换 + 微软重签后重新走 `Add-AppxPackage` 侧载自测
-      打包链路已于 2026-09-26 以 `-Sign None` 复验通过：`npm run build` → `cargo build --release` → 暂存布局 → `makeappx pack` 全程 exit 0；解包后包内 payload 与 `target\release\pdfe.exe`、`pdfium\pdfium.dll` 的 SHA256 逐一比对一致，清单占位符（`__PUBLISHER__` / `__VERSION__` / `__EXE__`）均已正确替换。未签名包本身无法安装，故安装自测仍待签名后进行。
+      打包链路已于 2026-09-26 以 `-Sign None` 复验通过：`npm run build` → `cargo build --release` → 暂存布局 → `makeappx pack` 全程 exit 0；解包后包内 payload 与 `target\release\pdfe.exe`、`pdfium\pdfium.dll` 的 SHA256 逐一比对一致，清单占位符（`__PUBLISHER__` / `__VERSION__` / `__EXE__`）均已正确替换。
+      同日追加：清单新增 `__IDENTITY_NAME__` / `__PUBLISHER_DISPLAY_NAME__` 两个占位符，脚本新增 `-IdentityName` / `-PublisherDisplayName` 参数（默认值为本地测试值），残留占位符检查正则放宽为 `__[A-Z_]+__`。已用 `-SkipBuild -Sign None` 传测试值实跑验证注入生效（`Identity/@Name`、`Publisher`、`PublisherDisplayName` 三处均替换为目标值、无残留），再用默认值 `-Sign SelfSigned` 复跑，产物签名状态仍为 **Valid**（复用 `CN=PDFe Local Test` 证书）。未签名包本身无法安装，故安装自测仍待签名后进行。
 - [x] 自签名签名 + 侧载安装自测（2026-09-26 实测通过）
       `scripts\build-msix.ps1 -Sign SelfSigned -Install`：复用已有自签名证书（`CN=PDFe Local Test`，指纹 `76F0CE79C05E03A9152FD5472C13405E80F137FB`，本机 `LocalMachine\TrustedPeople` 已信任）→ `signtool sign` 成功，`Get-AuthenticodeSignature` 状态 **Valid** → 侧载安装成功（`Status = Ok`，`C:\Program Files\WindowsApps\konnyyuan.pdfe_0.1.0.0_x64__6cgrzvqajzfpg`）→ 启动验证通过（进程 `pdfe` 存活、窗口标题 `PDFe`、`Responding = True`）。
       **踩坑记录**：同版本重装会报 `0x80073CFB`「提供的程序包已安装，且禁止重新安装该程序包…内容不相同」——本地自测迭代同一版本号时，须先 `Remove-AppxPackage konnyyuan.pdfe_0.1.0.0_x64__6cgrzvqajzfpg` 再 `Add-AppxPackage`（或提升 `tauri.conf.json` 的 `version`）。

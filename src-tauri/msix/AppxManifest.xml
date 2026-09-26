@@ -2,14 +2,21 @@
 <!--
   PDFe MSIX 包装清单（full-trust Win32 应用）
 
-  `__PUBLISHER__`、`__VERSION__` 与 `__EXE__` 由 scripts/build-msix.ps1 在打包时替换：
+  `__IDENTITY_NAME__`、`__PUBLISHER__`、`__PUBLISHER_DISPLAY_NAME__`、`__VERSION__` 与
+  `__EXE__` 由 scripts/build-msix.ps1 在打包时替换：
+  - __IDENTITY_NAME__ 为包标识名，对应 Partner Center「产品标识 → 包/标识/名称」。
+    本地侧载测试用脚本默认值 konnyyuan.pdfe；上架必须换成 Partner Center 分配值
+    （形如 12345KonnyYuan.PDFe），用 -IdentityName 参数注入。
   - __PUBLISHER__ 必须与签名证书的 Subject 完全一致，否则 Add-AppxPackage 会报
-    「清单中的 Publisher 与签名证书不匹配」。
+    「清单中的 Publisher 与签名证书不匹配」。上架用 Partner Center 的
+    「包/标识/发布者」（形如 CN=d9e5f0b8-...），以 -Publisher 参数注入。
+  - __PUBLISHER_DISPLAY_NAME__ 对应 Partner Center「包/属性/发布者显示名称」，
+    以 -PublisherDisplayName 参数注入。
   - __VERSION__ 取自 src-tauri/tauri.conf.json 的 version，补齐为四段（x.y.z.0）。
   - __EXE__ 取自 tauri.conf.json 的 productName，与暂存进包的可执行文件名保持一致。
 
-  上架 Microsoft Store 时，Identity 的 Name / Publisher 需改为 Partner Center
-  分配的值（产品标识），本地自签名测试用当前值即可。
+  本地自签名测试用脚本默认值即可；上架 Microsoft Store 时必须换成 Partner Center
+  分配的产品标识值（见 docs/store-listing-materials.md §4）。
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -18,14 +25,14 @@
   IgnorableNamespaces="uap rescap">
 
   <Identity
-    Name="konnyyuan.pdfe"
+    Name="__IDENTITY_NAME__"
     Publisher="__PUBLISHER__"
     Version="__VERSION__"
     ProcessorArchitecture="x64" />
 
   <Properties>
     <DisplayName>PDFe</DisplayName>
-    <PublisherDisplayName>PDFe</PublisherDisplayName>
+    <PublisherDisplayName>__PUBLISHER_DISPLAY_NAME__</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
     <Description>轻量 PDF 阅读与编辑工具</Description>
   </Properties>

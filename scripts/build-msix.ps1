@@ -24,6 +24,14 @@
 .EXAMPLE
   # 复用已构建的 target\release，不重新编译
   powershell -ExecutionPolicy Bypass -File scripts\build-msix.ps1 -SkipBuild
+
+.EXAMPLE
+  # 出提交 Microsoft Store 用的正式包：注入 Partner Center「产品标识」三个值
+  # （Identity 的 Name / Publisher / PublisherDisplayName），由微软重签
+  powershell -ExecutionPolicy Bypass -File scripts\build-msix.ps1 -Sign None `
+    -IdentityName 12345KonnyYuan.PDFe `
+    -Publisher "CN=d9e5f0b8-0000-0000-0000-000000000000" `
+    -PublisherDisplayName "Konny Yuan"
 #>
 [CmdletBinding()]
 param(
@@ -40,6 +48,13 @@ param(
 
   # 自签名证书的 Subject，必须与 AppxManifest.xml 的 Publisher 一致
   [string]$Publisher = "CN=PDFe Local Test",
+
+  # MSIX 包标识名（Partner Center「产品标识 → 包/标识/名称」）
+  # 默认值为本地侧载测试用；上架必须传 Partner Center 分配的值
+  [string]$IdentityName = "konnyyuan.pdfe",
+
+  # 发布者显示名称（Partner Center「包/属性/发布者显示名称」）
+  [string]$PublisherDisplayName = "PDFe",
 
   # 签名后把证书信任到本机（LocalMachine\TrustedPeople，需管理员）并 Add-AppxPackage 安装验证
   [switch]$Install
@@ -142,17 +157,22 @@ foreach ($a in $assetFiles) {
 Write-Step "3/6 生成 AppxManifest.xml"
 $manifestXml = Get-Content $manifestTemplate -Raw -Encoding UTF8
 # 逐个替换（PowerShell 不支持用反引号把 .Replace 链式调用续到下一行）
+$manifestXml = $manifestXml.Replace("__IDENTITY_NAME__", $IdentityName)
 $manifestXml = $manifestXml.Replace("__PUBLISHER__", $Publisher)
+$manifestXml = $manifestXml.Replace("__PUBLISHER_DISPLAY_NAME__", $PublisherDisplayName)
 $manifestXml = $manifestXml.Replace("__VERSION__", $version4)
 $manifestXml = $manifestXml.Replace("__EXE__", $exeName)
-if ($manifestXml -match "__[A-Z]+__") { throw "清单中仍有未替换的占位符：$($Matches[0])" }
+# 占位符名可能含下划线（如 __IDENTITY_NAME__），字符类必须包含 _
+if ($manifestXml -match "__[A-Z_]+__") { throw "清单中仍有未替换的占位符：$($Matches[0])" }
 # 写 UTF-8 无 BOM：makeappx 对带 BOM 的清单会报错
 [System.IO.File]::WriteAllText(
   (Join-Path $layoutDir "AppxManifest.xml"),
   $manifestXml,
   (New-Object System.Text.UTF8Encoding($false))
 )
-Write-Host "  Publisher = $Publisher"
+Write-Host "  IdentityName         = $IdentityName"
+Write-Host "  Publisher            = $Publisher"
+Write-Host "  PublisherDisplayName = $PublisherDisplayName"
 
 # --- 4. makeappx pack ---
 Write-Step "4/6 makeappx pack"
@@ -257,7 +277,7 @@ if ($Install) {
     # 信任建立后复查：步骤 5 在证书尚未受本机信任时会显示 UnknownError
     Write-Host "  签名状态（装入信任后复查）: $((Get-AuthenticodeSignature $msixPath).Status)"
   }
-  Write-Host "  安装完成。启动方式：开始菜单搜索 PDFe，或运行 explorer shell:appsFolder\konnyyuan.pdfe_*!App" -ForegroundColor Green
+  Write-Host "  安装完成。启动方式：开始菜单搜索 PDFe，或运行 explorer shell:appsFolder\${IdentityName}_*!App" -ForegroundColor Green
 } else {
   Write-Host "  未加 -Install，跳过。手动安装："
   Write-Host "    Add-AppxPackage -Path `"$msixPath`""
