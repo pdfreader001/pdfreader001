@@ -435,7 +435,7 @@ System requirements: Windows 10 version 1809 or later (x64).
 - **类别**：建议「效率 / Productivity」，需在提交时确认可用类目
 - **定价与市场**：免费 + 全市场（需确认是否只投 zh-CN / en-US 市场）
 - **年龄分级**：按 Partner Center 问卷填写
-- **隐私政策 URL**：本应用无网络通信、不上传文件；如提交问卷判定需要，需另行准备政策页面
+- **隐私政策 URL**：本应用无网络通信、不上传文件；问卷若判定需要，政策草稿见 [`store-listing/privacy-policy.md`](store-listing/privacy-policy.md)（中英双份，**尚需托管为公开网页并确认联系方式**）
 - **身份替换**：清单 `Identity/@Name` 与 `Publisher` 换成 Partner Center 分配值，包由微软重签
 
 ## 5. 提交前检查清单
