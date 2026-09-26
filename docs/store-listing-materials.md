@@ -88,9 +88,9 @@ $dst.Dispose(); $src.Dispose()
 
    | 文件 | 对应操作卡 | 已验证特征 |
    | --- | --- | --- |
-   | `01-article.pdf`（12 页，约 504 KB） | 04 阅读主界面 / 05 全文搜索 / 06 批注 / 09 页面管理 | 12 页图文正文 + 10 条中文目录书签 |
-   | `02-watermark.pdf`（约 389 KB） | 07 水印去除 | 每页 6 个 −30° 旋转的**文本**水印，跨页指纹经 `quantize(·,5)` 后完全一致；预期检测出 6 个候选、ratio = 1.00 |
-   | `03-form.pdf`（1 页，约 136 KB） | 10 表单面板 | 真实 pdfium 识别出 7 个字段：`ApplicantName` / `EmployeeId` / `Email` / `StartDate` → `T`，`Department` → `▼T`，`AgreeTerms`（已勾选）/ `EnableBackup`（未勾选）→ `☑` |
+   | `01-article.pdf`（12 页，约 504 KB） | 01 阅读主界面 / 02 全文搜索与高亮 / 03 批注 / 04 页面管理 | 12 页图文正文 + 10 条中文目录书签（亦可用于补位 11 诊断面板） |
+   | `02-watermark.pdf`（约 389 KB） | 05 水印添加与去除 | 每页 6 个 −30° 旋转的**文本**水印，跨页指纹经 `quantize(·,5)` 后完全一致；预期检测出 6 个候选、ratio = 1.00 |
+   | `03-form.pdf`（1 页，约 136 KB） | 10 表单字段填写（补位） | 真实 pdfium 识别出 7 个字段：`ApplicantName` / `EmployeeId` / `Email` / `StartDate` → `T`，`Department` → `▼T`，`AgreeTerms`（已勾选）/ `EnableBackup`（未勾选）→ `☑` |
 
    ⚠️ `03-form.pdf` 的语言差异：正文（标题、标签、表格）为中文，但 **AcroForm 字段名与填写值是 ASCII**（`/AP` 外观流使用标准 Helvetica，无法承载中文），截图时表单面板的字段名列会显示英文。其余两份文档内容全中文。
 4. 截图方式：按 `Win + PrtScn`（整屏 → `图片\屏幕截图`），或 `Win+Shift+S` 矩形截图后另存。
@@ -414,8 +414,8 @@ System requirements: Windows 10 version 1809 or later (x64).
 - [x] 300×300 一览图标 —— `docs/store-listing/StoreLogo-300x300.png`（勿用包内 50×50）
 - [x] 16:9 超级英雄图（可选，非必填）—— `docs/store-listing/Hero-1920x1080.png` / `Hero-3840x2160.png`；无文字、无应用 UI、非图库照片
 - [ ] ≥4 张（主卡 01–09 + 可选补位，建议 8–10 张，上限 10 张）≥1366×768 PNG，中英各一套，逐张核对像素
-- [ ] 每张截图配 ≤200 字符说明，中英各一份
-- [ ] 说明 / 简短说明 / 产品功能 中英双份文案落库
+- [x] 每张截图配 ≤200 字符说明，中英各一份 —— 9 张主卡的「说明（中）/（EN）」已写入 §2.3，补位 10/11 见其表格；2026-09-26 实测（按 Unicode 码点）：中文 21–36、英文 58–129，**全部 ≤200**，且 9 张卡中英成对无缺
+- [x] 说明 / 简短说明 / 产品功能 中英双份文案落库 —— §3.1 简短说明、§3.2 说明、§3.3 产品功能（中英各 10 条）均已落库，实测字符数与上限比对见 §3 开头，全部达标
 - [ ] 短标题、排序标题、系统要求填写
 - [ ] 清单 Identity 替换 + 微软重签后重新走 `Add-AppxPackage` 侧载自测
       打包链路已于 2026-09-26 以 `-Sign None` 复验通过：`npm run build` → `cargo build --release` → 暂存布局 → `makeappx pack` 全程 exit 0；解包后包内 payload 与 `target\release\pdfe.exe`、`pdfium\pdfium.dll` 的 SHA256 逐一比对一致，清单占位符（`__PUBLISHER__` / `__VERSION__` / `__EXE__`）均已正确替换。未签名包本身无法安装，故安装自测仍待签名后进行。
