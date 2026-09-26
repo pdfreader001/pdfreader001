@@ -83,6 +83,16 @@ $dst.Dispose(); $src.Dispose()
    - 多页图文 PDF，≥10 页、带目录书签（用于阅读/搜索/批注/页面管理）
    - 带重复水印的 PDF（用于水印去除）
    - 带 AcroForm 字段的 PDF（用于表单）
+
+   三类样例已生成，位于 [`docs/store-listing/samples/`](samples/)（已入库，随仓库长期保留）：
+
+   | 文件 | 对应操作卡 | 已验证特征 |
+   | --- | --- | --- |
+   | `01-article.pdf`（12 页，约 504 KB） | 04 阅读主界面 / 05 全文搜索 / 06 批注 / 09 页面管理 | 12 页图文正文 + 10 条中文目录书签 |
+   | `02-watermark.pdf`（约 389 KB） | 07 水印去除 | 每页 6 个 −30° 旋转的**文本**水印，跨页指纹经 `quantize(·,5)` 后完全一致；预期检测出 6 个候选、ratio = 1.00 |
+   | `03-form.pdf`（1 页，约 136 KB） | 10 表单面板 | 真实 pdfium 识别出 7 个字段：`ApplicantName` / `EmployeeId` / `Email` / `StartDate` → `T`，`Department` → `▼T`，`AgreeTerms`（已勾选）/ `EnableBackup`（未勾选）→ `☑` |
+
+   ⚠️ `03-form.pdf` 的语言差异：正文（标题、标签、表格）为中文，但 **AcroForm 字段名与填写值是 ASCII**（`/AP` 外观流使用标准 Helvetica，无法承载中文），截图时表单面板的字段名列会显示英文。其余两份文档内容全中文。
 4. 截图方式：按 `Win + PrtScn`（整屏 → `图片\屏幕截图`），或 `Win+Shift+S` 矩形截图后另存。
 5. 命名：`01-reader-zh.png`、`01-reader-en.png` …（中英各一套，Store 一览按语言分别上传图片）。
 
