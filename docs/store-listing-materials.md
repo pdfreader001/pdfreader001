@@ -409,5 +409,8 @@ System requirements: Windows 10 version 1809 or later (x64).
 - [ ] 短标题、排序标题、系统要求填写
 - [ ] 清单 Identity 替换 + 微软重签后重新走 `Add-AppxPackage` 侧载自测
       打包链路已于 2026-09-26 以 `-Sign None` 复验通过：`npm run build` → `cargo build --release` → 暂存布局 → `makeappx pack` 全程 exit 0；解包后包内 payload 与 `target\release\pdfe.exe`、`pdfium\pdfium.dll` 的 SHA256 逐一比对一致，清单占位符（`__PUBLISHER__` / `__VERSION__` / `__EXE__`）均已正确替换。未签名包本身无法安装，故安装自测仍待签名后进行。
+- [x] 自签名签名 + 侧载安装自测（2026-09-26 实测通过）
+      `scripts\build-msix.ps1 -Sign SelfSigned -Install`：复用已有自签名证书（`CN=PDFe Local Test`，指纹 `76F0CE79C05E03A9152FD5472C13405E80F137FB`，本机 `LocalMachine\TrustedPeople` 已信任）→ `signtool sign` 成功，`Get-AuthenticodeSignature` 状态 **Valid** → 侧载安装成功（`Status = Ok`，`C:\Program Files\WindowsApps\konnyyuan.pdfe_0.1.0.0_x64__6cgrzvqajzfpg`）→ 启动验证通过（进程 `pdfe` 存活、窗口标题 `PDFe`、`Responding = True`）。
+      **踩坑记录**：同版本重装会报 `0x80073CFB`「提供的程序包已安装，且禁止重新安装该程序包…内容不相同」——本地自测迭代同一版本号时，须先 `Remove-AppxPackage konnyyuan.pdfe_0.1.0.0_x64__6cgrzvqajzfpg` 再 `Add-AppxPackage`（或提升 `tauri.conf.json` 的 `version`）。
 - [ ] Windows App 认证工具包（WACK）本地预检通过
-      `appcert.exe` 已装在本机：`C:\Program Files (x86)\Windows Kits\10\App Certification Kit\`。**需管理员提权**（非提权会话直接报「requested operation requires elevation」），且需针对已签名并安装的包运行；未签名包无法预检。
+      `appcert.exe` 已装在本机：`C:\Program Files (x86)\Windows Kits\10\App Certification Kit\`。**需管理员提权**（非提权会话直接报「requested operation requires elevation」），且需针对已签名并安装的包运行；未签名包无法预检。签名 + 安装的前置条件已于 2026-09-26 满足，仅剩提权执行 `appcert.exe` 这一步。
