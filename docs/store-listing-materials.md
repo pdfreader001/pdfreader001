@@ -12,7 +12,9 @@
 | 产品名 | PDFe（`productName` = `pdfe`，窗口标题 `PDFe`） |
 | 版本 | `0.1.0` |
 | 标识 | `com.konnyyuan.pdfe` |
-| MSIX Identity | 清单为占位符 `__IDENTITY_NAME__` / `__PUBLISHER__` / `__PUBLISHER_DISPLAY_NAME__`，脚本默认注入本地测试值 `konnyyuan.pdfe` / `CN=PDFe Local Test` / `PDFe`（**上架须传 Partner Center 分配的产品标识**，见 §4） |
+| MSIX Identity | 清单为占位符 `__IDENTITY_NAME__` / `__PUBLISHER__` / `__PUBLISHER_DISPLAY_NAME__`；本地侧载默认注入 `konnyyuan.pdfe` / `CN=PDFe Local Test` / `PDFe`，上架注入 Partner Center 分配值 `CCB6DC78.PDFe` / `CN=D7439EB2-4E51-48CF-A6CB-58843AEEF25F` / `老袁不圆润`（见 §4） |
+| 包系列名 PFN | `CCB6DC78.PDFe_hnyrmxy0d8w`（本地侧载测试的旧包系列为 `konnyyuan.pdfe_6cgrzvqajzfpg`，两者互不影响、可并存） |
+| Store ID | `9PC0GZ78MFC41`，商店链接 `https://apps.microsoft.com/detail/9PC0GZ78MFC41` |
 | 打包形态 | MSIX 包装的 full-trust Win32（`Windows.FullTrustApplication` + `rescap:runFullTrust`） |
 | 最低系统 | Windows 10 1809（`10.0.17763.0`），`MaxVersionTested` = Windows 11 22H2（`10.0.22621.0`） |
 | 包内语言 | `zh-CN`、`en-US` |
@@ -155,8 +157,9 @@ $dst.Dispose(); $src.Dispose()
   3. （可选）在「文本」里填内容 → 点 `添加到当前页`
   4. 批注出现在页面**左上固定条带**；若要多条，**每种换一页**再添加
 - **入镜**：右侧「编辑 · 注释」面板（类型选择 + 文本 + `添加到当前页`）、下方「本页注释（n）」列表（色块 + 类型 + 文本）、页面上的批注标记
-- **自检**：列表 ≥2 条；页面标记在上部可见
-- **注意**：批注落点是**硬编码固定区域**（`left 15% / top 20% / 宽 70% / 高 7%`，见 [EditPanel.tsx](../src/components/panels/EditPanel.tsx#L111-L116)），**不支持画布框选**；同页叠加多种类型会互相重叠——拍摄时每页只加 1 种。
+- **自检**：列表中**3 条**；高亮 / 下划线 / 删除线三种标记在同一页画布**上部同时可见**
+- **注意**：批注落点是**硬编码固定区域**（`left 15% / top 20% / 宽 70% / 高 7%`，见 [EditPanel.tsx](../src/components/panels/EditPanel.tsx#L113-L118)），**不支持画布框选**；同页叠加多种类型会互相重叠——按 UI 流程拍摄时每页只加 1 种。
+- **已产图说明**：`03-annot-zh.png` / `03-annot-en.png` 中三条批注按**正文命中位置**落点（走 IPC 直调生成，非面板固定区域流程），因此三者互不重叠、分别贴合「数据来源 / 客流总量 / 换乘」三处正文；面板的固定区域流程**无法复现**该定位。若严格按 UI 复现，请每页只加 1 种类型。
 - **说明（中）**：6 种批注：高亮、下划线、删除线、便签、自由文本、矩形
 - **说明（EN）**：Six annotation types: highlight, underline, strikeout, sticky note, free text, rectangle
 
@@ -189,8 +192,9 @@ $dst.Dispose(); $src.Dispose()
   3. 候选列表出现 `类型: kind · 位置: (l,b)–(r,t) · 出现: n/total`
   4. 勾选候选 → 点 `预览删除区域` → 核对画布上的红框 → 点 `确认去除（已选 {n} 项）`
 - **步骤（去除水印 · 手动框选，备选）**：切 `手动框选` → 点 `🎯 在画布上框选水印区域` → 画布上拖框 → 核对 `左 / 下 / 右 / 上` 坐标 → `预览删除区域` → `确认去除`
-- **入镜**：水印面板「添加水印」（文字水印参数 + `位置` 九宫格 + `添加水印`）+ 画布上被拖动定位的水印本体；或「去除水印 · 自动检测」+ 候选列表
-- **自检**：添加水印下能同时看到 `位置` 九宫格与画布上的水印本体（用画布拖动定位时会显示提示行）；自动检测下候选列表非空（「出现」如 `8/12`）
+- **入镜**：水印面板「添加水印 · `文字水印`」（`水印文字` / `字号` / `颜色` / `透明度` / `旋转角度` + `位置` 九宫格 + `添加水印`）+ 画布上按当前参数**实时预览**的水印本体
+- **自检**：`位置` 九宫格与画布实时预览水印**同时可见**（无需先点 `添加水印`）；九宫格中心 `◉` 处于选中态
+- **注意**：本样例的正文水印逐页版式不同，`去除水印 · 自动检测` 会检出大量候选（实测 **39 个候选 / 画布 74 个红框**），画面观感差；故 05 张固定采用「添加水印 · 实时预览」变体，**不要**改用自动检测构图。
 - **说明（中）**：添加文字/图片水印并在画布上拖动定位，或自动检测重复水印对象后一键去除
 - **说明（EN）**：Add text or image watermarks and place them by dragging on the canvas, or auto-detect repeating watermark objects and remove them
 
@@ -276,9 +280,9 @@ $dst.Dispose(); $src.Dispose()
 |---|------|-----------|--------------------------|----------|-------------------|
 | 01 | 阅读主界面 | `01-article.pdf` | 打开 → 视图切 `连续` → 左栏 `▦ 页面缩略图` → 滚到图文页 | 状态栏有文件名+总页数、缩略图可见、关键内容在上 2/3 | `01-reader-zh.png` / `01-reader-en.png` |
 | 02 | 全文搜索与高亮 | `01-article.pdf` | `Ctrl+F` → 输入多次出现的词回车 → `↓`／`F3` 跳到下一处 | 面板顶部为 `{x} / {y} 个结果`（**不是**「输入关键词后回车」）、页面高亮块可见 | `02-search-zh.png` / `02-search-en.png` |
-| 03 | 批注 | `01-article.pdf` | `✏ 编辑`（默认 `注释` 页签）→ 选类型 → 填文本 → `添加到当前页`；**每页只加 1 种** | 列表 ≥2 条、页面标记在上部可见 | `03-annot-zh.png` / `03-annot-en.png` |
+| 03 | 批注 | `01-article.pdf` | `✏ 编辑`（默认 `注释` 页签）→ 选类型 → 填文本 → `添加到当前页`；**每页只加 1 种** | 列表 **3 条**、高亮/下划线/删除线在画布上部**同时可见** | `03-annot-zh.png` / `03-annot-en.png` |
 | 04 | 页面管理 | `01-article.pdf` | 左栏 `▦ 页面缩略图` → `Ctrl`/`Shift` 多选 2–3 页 → 缩略图**右键** → **让菜单保持展开**再截 | 右键菜单可见、多选 ≥2 页 | `04-pages-zh.png` / `04-pages-en.png` |
-| 05 | 水印添加与去除 | `02-watermark.pdf` | 添加：`💧 水印` → `文字水印` → 调参 → **画布拖动水印本体**定位（不必点添加）；去除：切 `去除水印`·`自动检测` → `开始检测` | 添加：同时见 `位置` 九宫格 + 画布水印本体；检测：候选非空，**出现 `6/6`** | `05-watermark-zh.png` / `05-watermark-en.png` |
+| 05 | 水印添加与去除 | `02-watermark.pdf` | 添加：`💧 水印` → `文字水印` → 调参 → **不必点添加**，画布已实时预览 | 同时见 `位置` 九宫格（中心选中）+ 画布实时预览水印本体 | `05-watermark-zh.png` / `05-watermark-en.png` |
 | 06 | 深度编辑 | `01-article.pdf` | `✏ 编辑` → `深度编辑` 页签 → 底部胶囊点 `编辑` → **双击**或**框选**正文文字 → 弹 `RewriteModal` | 弹窗含「原文」「原字体」字段 | `06-rewrite-zh.png` / `06-rewrite-en.png` |
 | 07 | 密码与权限 | 07 卡加密样本（**自造**，见下注 1） | `🔒 密码` → 「现有打开密码」填密码 → `读取加密状态` | 徽章为 `已加密（…）` 而**非** `未加密`；权限矩阵 8 行 | `07-security-zh.png` / `07-security-en.png` |
 | 08 | 导出图片 | 任意（建议 `01-article.pdf`） | `🖼 导出` → 模式 `PDF → 图片` → 页码 `1,3,5-7` → 格式 + DPI 150 → `导出图片` | `PDF → 图片` 处于选中态、DPI 数值可见 | `08-export-zh.png` / `08-export-en.png` |
@@ -289,7 +293,7 @@ $dst.Dispose(); $src.Dispose()
 **实操提示（2026-09-26 查源码确认）**
 
 1. **07 卡的加密样本可用应用自身造**（无需外部工具）：打开 `01-article.pdf` → `🔒 密码` 面板 → 「打开密码」填任意值（「权限密码」留空则与打开密码相同）→ 点 `导出加密副本`（默认名 `encrypted.pdf`）→ 用该文件重新打开，徽章即显示 `已加密（…）`。依据 [SecurityPanel.tsx](../src/components/panels/SecurityPanel.tsx#L175) 与第 284–286 行；两个密码都为空时按钮禁用。
-2. **05 卡自动检测的 `采样页数` 默认 10**（[WatermarkPanel.tsx](../src/components/panels/WatermarkPanel.tsx#L446-L447)），本样例仅 6 页会被**全量采样**，候选「出现」应显示 `6/6`、ratio = 1.00（§2.3 主卡里的 `8/12` 只是泛例）。输入框范围 2–50。
+2. **05 卡不要用「自动检测」构图**：`采样页数` 默认 10（[WatermarkPanel.tsx](../src/components/panels/WatermarkPanel.tsx#L446-L447)），本样例仅 6 页会被**全量采样**；但正文水印逐页版式不同，实测检出 **39 个候选**、画布画出 **74 个红框**，画面观感差（§2.3 主卡里「出现如 `8/12`」只是泛例）。自动检测仅用于功能验证，05 张统一采用「添加水印 · 实时预览」变体。输入框范围 2–50。
 3. **省事拍摄顺序**（每份文档只开一次，拍完切 `EN` 整体重拍一遍）：
    - `01-article.pdf` → 01、02、03、04、07、08、11
    - `02-watermark.pdf` → 05
@@ -437,7 +441,18 @@ System requirements: Windows 10 version 1809 or later (x64).
 - **年龄分级**：按 Partner Center 问卷填写
 - **隐私政策 URL**：本应用无网络通信、不上传文件；问卷若判定需要，政策草稿见 [`store-listing/privacy-policy.md`](store-listing/privacy-policy.md)（中英双份，**尚需托管为公开网页并确认联系方式**）
 - **产品类型**：必须选 **MSIX/PWA**，不要选「独立 .exe/.msi 安装程序包」。后者要求提交**版本化 HTTPS 直链**（需自建托管并自行维护更新链接）、**自备链接到 Microsoft Trusted Root Program 的 CA 代码签名证书**（Store 不重签）、提交**静默离线安装器**（不可为下载器 stub），且提交后二进制不得更改。MSIX 路径由**微软免费重签 + 免费 CDN 托管 + 自动更新**，与现有打包链路直接对接。
-- **身份替换**：三个值取自 Partner Center「产品管理 → 产品标识」——`包/标识/名称`（Identity `Name`）、`包/标识/发布者`（Identity `Publisher`，形如 `CN=d9e5f0b8-...`，微软重签由平台处理无需与本地证书一致）、`包/属性/发布者显示名称`（`PublisherDisplayName`）。本地侧载测试保持脚本默认值即可。打包脚本已参数化（`-IdentityName` / `-Publisher` / `-PublisherDisplayName`），拿到值后一条命令出正式包，详见 [README](../README.md) 的 MSIX 小节。
+- **身份替换**：三个值取自 Partner Center「产品管理 → 产品标识」——`包/标识/名称`（Identity `Name`）、`包/标识/发布者`（Identity `Publisher`，微软重签由平台处理，无需与本地证书一致）、`包/属性/发布者显示名称`（`PublisherDisplayName`）。打包脚本已参数化（`-IdentityName` / `-Publisher` / `-PublisherDisplayName`），详见 [README](../README.md) 的 MSIX 小节。
+  **2026-09-26 已取得实际值并出包**：
+  - 包/标识/名称 = `CCB6DC78.PDFe`
+  - 包/标识/发布者 = `CN=D7439EB2-4E51-48CF-A6CB-58843AEEF25F`（形如 Guid 的 CN，非域名式）
+  - 包/属性/发布者显示名称 = `老袁不圆润`
+  - 包系列名（PFN）= `CCB6DC78.PDFe_hnyrmxy0d8w`；Store ID = `9PC0GZ78MFC41`；商店链接 `https://apps.microsoft.com/detail/9PC0GZ78MFC41`
+  - 出包命令：`scripts\build-msix.ps1 -Sign None -IdentityName CCB6DC78.PDFe -Publisher "CN=D7439EB2-4E51-48CF-A6CB-58843AEEF25F" -PublisherDisplayName "<发布者显示名称>"`。⚠️ 中文显示名建议写成 UTF-8 文件后用 `[System.IO.File]::ReadAllText(..., UTF8)` 读入再传参，直接写在命令行可能被 PowerShell 5.1 按 GBK 解码成乱码（乱码会原样进清单，Partner Center 校验会再次报 `PublisherDisplayName` 不匹配）。
+- **受限功能 `runFullTrust`**：Medium IL 桌面应用按微软文档**必须**声明该能力，无法移除。Partner Center「提交选项 / Submission options」页需填写用途说明并**点保存**，否则该节保持 Incomplete。
+  ⚠️ 该输入框上限 **300 字符（中英合计，含换行）**，故必须用短版；上面那版「加长版」已超限、会被截断，勿再使用。拟填短版（中文 53 + 换行 1 + 英文 237 = **291 字符**，留 9 字符余量）：
+  > PDFe 是离线运行的桌面 PDF 阅读与编辑工具，基于本机 PDFium 引擎，不联网、不收集用户数据。
+  >
+  > PDFe is an offline desktop PDF reader/editor using a local PDFium engine. No network access, no data collection. runFullTrust lets this packaged Win32 app read/write local files the user picks: open PDFs, render thumbnails, export files.
 
 ## 5. 提交前检查清单
 
@@ -450,6 +465,13 @@ System requirements: Windows 10 version 1809 or later (x64).
 - [ ] 清单 Identity 替换 + 微软重签后重新走 `Add-AppxPackage` 侧载自测
       打包链路已于 2026-09-26 以 `-Sign None` 复验通过：`npm run build` → `cargo build --release` → 暂存布局 → `makeappx pack` 全程 exit 0；解包后包内 payload 与 `target\release\pdfe.exe`、`pdfium\pdfium.dll` 的 SHA256 逐一比对一致，清单占位符（`__PUBLISHER__` / `__VERSION__` / `__EXE__`）均已正确替换。
       同日追加：清单新增 `__IDENTITY_NAME__` / `__PUBLISHER_DISPLAY_NAME__` 两个占位符，脚本新增 `-IdentityName` / `-PublisherDisplayName` 参数（默认值为本地测试值），残留占位符检查正则放宽为 `__[A-Z_]+__`。已用 `-SkipBuild -Sign None` 传测试值实跑验证注入生效（`Identity/@Name`、`Publisher`、`PublisherDisplayName` 三处均替换为目标值、无残留），再用默认值 `-Sign SelfSigned` 复跑，产物签名状态仍为 **Valid**（复用 `CN=PDFe Local Test` 证书）。未签名包本身无法安装，故安装自测仍待签名后进行。
+      2026-09-26 上架包实测：注入 Partner Center 三值出未签名包 `src-tauri\target\msix\PDFe_0.1.0_x64.msix`（7,076,158 字节，SHA256 `B27631719980CB1493A3F2E0568A0653953C51FE25851619D14B0B023B6A0F4C`，`Get-AuthenticodeSignature` = `NotSigned`），`Identity/@Name` / `Publisher` / `PublisherDisplayName` 三处与目标值逐字一致、无残留占位符。首轮上传被 Partner Center 校验拦截，唯一错误为 `PublisherDisplayName` 不匹配（包内是测试默认值 `PDFe`，产品为 `老袁不圆润`）——已按 §4 上表重建修复；顺带修正清单模板注释（占位符字面量不再写进注释，否则打包后被替换成值、注释自相矛盾）。**提交后该二进制不得再改动**，本地侧载自测请另跑一次默认值构建。
+      ⚠️ **2026-09-27 复检发现首轮上传的是「白屏坏包」**：包内 `layout\pdfe.exe` 为 2026-09-26 09:13:51 的 **dev 模式**构建（8,003,072 字节；在该 exe 字节里搜 `assets/index-` 返回 -1，即前端 dist 未内嵌）。dev 模式下运行时只导航到 `devUrl`（`http://localhost:1420`），脱离 dev server 即白屏。根因 = 当时 `src-tauri/Cargo.toml` 缺 `custom-protocol` feature（`cfg!(not(feature="custom-protocol"))` 在编译期推导 `dev=true`），已修复并在打包脚本中固定传 `--features custom-protocol`。
+      对照正确的 release 产物：`target\release\pdfe.exe` 8,114,688 字节（比 dev 版大约 +11 万字节），字节内可搜到 `/assets/index-D3lRW0em.css`（偏移 6990625）。
+      ✅ **出上架包后必做的自检（2 条，缺一不可）**：① `layout\pdfe.exe` 字节中含 `assets/index-`（未内嵌 = dev 版，必须重打）；② `Get-AuthenticodeSignature <msix>` = `NotSigned`（上架包不签名）。另需核对 `layout\AppxManifest.xml` 的 `Identity/@Name`、`Identity/@Publisher`、`PublisherDisplayName` 三值与 Partner Center 逐字一致。
+      **2026-09-27 已按上法重打包并全部自检通过**（覆盖同名产物）：`PDFe_0.1.0_x64.msix` **7,191,887 字节**（比坏包 +115,729，正对应内嵌的前端资源），SHA256 `04D224B04E03A3B44C1FAA18862AC580C3310DFBA76901FD2D9584F9DA003A23`，`Get-AuthenticodeSignature` = `NotSigned`；`layout\pdfe.exe` 8,114,688 字节且字节内含 `assets/index-` 与 `/assets/index-D3lRW0em.css`；清单 `Identity/@Name`=`CCB6DC78.PDFe`、`Identity/@Publisher`=`CN=D7439EB2-4E51-48CF-A6CB-58843AEEF25F`、`PublisherDisplayName`=`老袁不圆润`、`EntryPoint=Windows.FullTrustApplication`，无残留占位符。旧包（SHA256 `B2763171…`，7,076,158 字节）作废，勿再上传。
+- [ ] Partner Center「提交选项」页填写受限功能 `runFullTrust` 用途说明并保存（拟填文本见 §4，该页不保存会一直显示 Incomplete）
+- [ ] Partner Center 重新上传修复后的包（首轮校验结果：1 错误 `PublisherDisplayName` + 1 警告 `runFullTrust`；修复后应只剩警告）
 - [x] 自签名签名 + 侧载安装自测（2026-09-26 实测通过）
       `scripts\build-msix.ps1 -Sign SelfSigned -Install`：复用已有自签名证书（`CN=PDFe Local Test`，指纹 `76F0CE79C05E03A9152FD5472C13405E80F137FB`，本机 `LocalMachine\TrustedPeople` 已信任）→ `signtool sign` 成功，`Get-AuthenticodeSignature` 状态 **Valid** → 侧载安装成功（`Status = Ok`，`C:\Program Files\WindowsApps\konnyyuan.pdfe_0.1.0.0_x64__6cgrzvqajzfpg`）→ 启动验证通过（进程 `pdfe` 存活、窗口标题 `PDFe`、`Responding = True`）。
       **踩坑记录**：同版本重装会报 `0x80073CFB`「提供的程序包已安装，且禁止重新安装该程序包…内容不相同」——本地自测迭代同一版本号时，须先 `Remove-AppxPackage konnyyuan.pdfe_0.1.0.0_x64__6cgrzvqajzfpg` 再 `Add-AppxPackage`（或提升 `tauri.conf.json` 的 `version`）。
@@ -457,3 +479,16 @@ System requirements: Windows 10 version 1809 or later (x64).
       `appcert.exe` 位于 `C:\Program Files (x86)\Windows Kits\10\App Certification Kit\`，**须管理员提权**（非提权会话直接报「requested operation requires elevation」），且只能针对已签名并安装的包运行（未签名包无法预检）。实测链路：`appcert.exe reset` → `appcert.exe test -packagefullname konnyyuan.pdfe_0.1.0.0_x64__6cgrzvqajzfpg -reportoutputpath <报告>`，exit 0；报告判定 `APP_TYPE="Centennial"`、`PARTIAL_RUN="FALSE"`，共 **24 项测试、22 项 PASS**，仅 2 项未通过：
       1. 【FAIL，但 `OPTIONAL="TRUE"` 可选项】`已阻止的可执行文件`（REQUIREMENT 25 / TEST 88）——命中 `kernel32.dll!CreateProcessW`、`shell32.dll!ShellExecuteW` / `ShellExecuteExW` 的 API 引用，以及二进制内的字符串 `cmd` / `cmd.exe` / `\cmd.exe` / `basH` / `Reg` / `CDB` / `CmD`。属启发式扫描：前三个 API 是桌面应用「打开文件 / 打开外部链接」的正常依赖，其余是打包进运行时的无害字符串，非真实问题；该项为可选项，不影响提交。
       2. 【WARNING，`OPTIONAL="FALSE"`】`DPIAwarenessValidation`（REQUIREMENT 26 / TEST 92）——报「未能处理二进制文件 pdfe.exe」「应用不是 DPI 感知应用」。已用 `mt.exe /inputresource:"<exe>";#1 /out:<xml>` 抽出发布版 exe 内嵌清单核实：清单**只含** `Microsoft.Windows.Common-Controls 6.0` 依赖，无 `<application>` / `dpiAware` / `dpiAwareness` 声明——这正是 Tauri v2 默认清单 `tauri-build/src/windows-app-manifest.xml` 的全部内容；同时 WACK 报告的 `AitCategory Id="ApiDynamic"` 里记录了 `user32.dll!SetProcessDpiAwarenessContext`，说明 tao/Rust 是在**运行时动态**设置 DPI 感知，静态清单检查看不到，故判定为 Tauri 应用的通性误报。若后续认证测试因此被卡，再考虑用 `tauri_build::WindowsAttributes::new().app_manifest(...)` 注入含 `PerMonitorV2` 的自定义清单。
+
+### 5.1 提交当次操作清单（Partner Center 点击顺序）
+
+> §5 回答「准备到什么程度」，本节回答「提交那一刻按什么顺序点」。逐项打勾，全绿再点 `提交认证`。
+
+- [ ] ① 结束/取消上一轮未竟的认证（若「认证」页仍有进行中的提交），并**删除旧包**（SHA256 `B2763171…`，7,076,158 字节，白屏坏包）
+- [ ] ② 上传修复后的包 [PDFe_0.1.0_x64.msix](../src-tauri/target/msix/)（7,191,887 字节 / SHA256 `04D224B0…` / `NotSigned`）
+- [ ] ③ `提交选项` 页 → 受限功能 `runFullTrust` 用途说明填 §4 短版（291 字符）→ **点保存**（不保存该节恒为 Incomplete）
+- [ ] ④ `隐私政策 URL` 填托管后的 `.html`（当前**未就绪**，见 §4；须以 `.html` 结尾，不能填 `.md`）
+- [ ] ⑤ `商店一览` 逐语言填文案（§3.1 简短说明 / §3.2 说明 / §3.3 产品功能），上传 300×300 图标与 ≥4 张截图（§2）
+- [ ] ⑥ 补充字段：短标题 / 排序标题 / 语音标题 / 系统要求（§3.4）；`此版本中的新增功能` 首次提交**留空**
+- [ ] ⑦ `价格和可用性` / `属性` / `年龄分级` 按 §4 决策填写
+- [ ] ⑧ 所有页面 Incomplete 清零后点 **`提交认证`**；**提交后包二进制不得再改动**
