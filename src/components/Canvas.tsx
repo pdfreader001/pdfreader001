@@ -16,6 +16,14 @@ import type { DeepEditMode, PdfRegion } from "../state/store";
 
 const GAP = 16;
 
+/**
+ * 空注释列表的共享常量。
+ * 选择器若写成 `s.annotations[i] ?? []`，每次调用都会产生新数组引用，
+ * 会破坏 useSyncExternalStore 的快照一致性校验（开发模式下报
+ * "Maximum update depth exceeded"）。必须复用同一个引用。
+ */
+const NO_ANNOTATIONS: AnnotationInfo[] = [];
+
 /** 单页视图组件：canvas + 页码标签 */
 const PageView = React.memo(function PageView({
   page,
@@ -69,7 +77,9 @@ const PageView = React.memo(function PageView({
   const searchHits = useApp((s) => s.searchHits);
 
   // 注释：精细订阅当前页的注释列表
-  const pageAnnotations: AnnotationInfo[] = useApp((s) => s.annotations[pageIndex] ?? []);
+  const pageAnnotations: AnnotationInfo[] = useApp(
+    (s) => s.annotations[pageIndex] ?? NO_ANNOTATIONS,
+  );
   const setPageAnnotations = useApp((s) => s.setPageAnnotations);
   // 水印去除预览区域：所有页都叠加显示（水印按位置在各页重复出现）
   const removalPreview = useApp((s) => s.removalPreview);

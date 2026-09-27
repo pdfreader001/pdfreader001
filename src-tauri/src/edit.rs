@@ -212,6 +212,8 @@ pub fn add_annotation_logic(
                     .create_attachment_point_at_end(q)?;
                 annot.set_contents(&opts.contents)?;
                 let _ = annot.set_stroke_color(color);
+                // /Rect 必须显式写出：否则为全零，读取端（list_annotations）拿不到边界，画布无法渲染。
+                let _ = annot.set_bounds(rect);
             }
             AnnotationKind::Strikeout => {
                 let mut annot = annots.create_strikeout_annotation()?;
@@ -221,6 +223,8 @@ pub fn add_annotation_logic(
                     .create_attachment_point_at_end(q)?;
                 annot.set_contents(&opts.contents)?;
                 let _ = annot.set_stroke_color(color);
+                // /Rect 必须显式写出：否则为全零，读取端（list_annotations）拿不到边界，画布无法渲染。
+                let _ = annot.set_bounds(rect);
             }
             AnnotationKind::StickyNote => {
                 let mut annot = annots.create_text_annotation(&opts.contents)?;

@@ -41,6 +41,10 @@ tesseract = { version = "0.15", optional = true }
 # 默认无 OCR。启用方法：cargo build --features ocr
 default = []
 ocr = ["dep:tesseract"]
+# 生产构建必须显式启用：tauri-macros 用 cfg!(not(feature = "custom-protocol")) 推导 dev 开关，
+# 缺失该 feature 会让 release 包仍按 dev 处理——只连 build.devUrl、内嵌资源为空，脱离 dev server 即白屏。
+# 注意 default 里不能加它，否则 `npm run tauri dev` 会改走自定义协议、丢失 devUrl 热更新。
+custom-protocol = ["tauri/custom-protocol"]
 
 [dev-dependencies]
 # 用于生成带 AcroForm 字段的测试 PDF fixture（和 perf.rs 自动生成 large_*.pdf 同模式）

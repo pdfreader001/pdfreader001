@@ -28,6 +28,14 @@ const ANNOT_KINDS: { k: AnnotationKind; labelKey: string; icon: string }[] = [
   { k: "square", labelKey: "矩形", icon: "▭" },
 ];
 
+/**
+ * 空注释列表的共享常量。
+ * 选择器若写成 `s.annotations[i] ?? []`，每次调用都会产生新数组引用，
+ * 会破坏 useSyncExternalStore 的快照一致性校验（开发模式下报
+ * "Maximum update depth exceeded"）。必须复用同一个引用。
+ */
+const NO_ANNOTATIONS: AnnotationInfo[] = [];
+
 export default function EditPanel() {
   // 内层页签放在 store：画布浮动胶囊点工具时可直接切到「深度编辑」。
   const tab = useApp((s) => s.editTab);
@@ -81,7 +89,7 @@ function AnnotationEditor() {
   const errorToast = useApp((s) => s.errorToast);
   const t = useT();
 
-  const list: AnnotationInfo[] = useApp((s) => s.annotations[currentPage] ?? []);
+  const list: AnnotationInfo[] = useApp((s) => s.annotations[currentPage] ?? NO_ANNOTATIONS);
 
   const [kind, setKind] = useState<AnnotationKind>("highlight");
   const [color, setColor] = useState("#ffeb3b");

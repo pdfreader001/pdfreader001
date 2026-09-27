@@ -119,9 +119,9 @@ if (-not $SkipBuild) {
   try { npm run build; if ($LASTEXITCODE -ne 0) { throw "npm run build 失败" } }
   finally { Pop-Location }
 
-  Write-Step "1/6 Rust release 构建 (cargo build --release)"
+  Write-Step "1/6 Rust release 构建 (cargo build --release --features custom-protocol)"
   Push-Location $tauriDir
-  try { cargo build --release; if ($LASTEXITCODE -ne 0) { throw "cargo build --release 失败" } }
+  try { cargo build --release --features custom-protocol; if ($LASTEXITCODE -ne 0) { throw "cargo build --release --features custom-protocol 失败" } }
   finally { Pop-Location }
 } else {
   Write-Step "1/6 跳过构建（-SkipBuild）"
