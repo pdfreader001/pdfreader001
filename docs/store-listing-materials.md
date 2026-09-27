@@ -439,7 +439,13 @@ System requirements: Windows 10 version 1809 or later (x64).
 - **类别**：建议「效率 / Productivity」，需在提交时确认可用类目
 - **定价与市场**：免费 + 全市场（需确认是否只投 zh-CN / en-US 市场）
 - **年龄分级**：按 Partner Center 问卷填写
-- **隐私政策 URL**：本应用无网络通信、不上传文件；问卷若判定需要，政策草稿见 [`store-listing/privacy-policy.md`](store-listing/privacy-policy.md)（中英双份，**尚需托管为公开网页并确认联系方式**）
+- **隐私政策 URL**：本应用无网络通信、不上传文件；政策已托管并**验证可访问**（HTTP 200，中英双版渲染正常）：
+
+  ```
+  https://pdfreader001.github.io/pdfreader001/store-listing/privacy-policy.html
+  ```
+
+  源文件三形态见 [`store-listing/privacy-policy.md`](store-listing/privacy-policy.md) / [`.html`](store-listing/privacy-policy.html) / [`.txt`](store-listing/privacy-policy.txt)；托管方式为 GitHub Pages（Settings → Pages → Source「Deploy from a branch」+ `main` + `/docs`）。提交必须填**以 `.html` 结尾**的地址，不能填 `.md`。联系方式由仓库 Issues 页承载。⚠️ 路线 A 会把整个 `docs/` 目录作为网站公开，故该目录内**不得**出现内部备注/密钥类内容。
 - **产品类型**：必须选 **MSIX/PWA**，不要选「独立 .exe/.msi 安装程序包」。后者要求提交**版本化 HTTPS 直链**（需自建托管并自行维护更新链接）、**自备链接到 Microsoft Trusted Root Program 的 CA 代码签名证书**（Store 不重签）、提交**静默离线安装器**（不可为下载器 stub），且提交后二进制不得更改。MSIX 路径由**微软免费重签 + 免费 CDN 托管 + 自动更新**，与现有打包链路直接对接。
 - **身份替换**：三个值取自 Partner Center「产品管理 → 产品标识」——`包/标识/名称`（Identity `Name`）、`包/标识/发布者`（Identity `Publisher`，微软重签由平台处理，无需与本地证书一致）、`包/属性/发布者显示名称`（`PublisherDisplayName`）。打包脚本已参数化（`-IdentityName` / `-Publisher` / `-PublisherDisplayName`），详见 [README](../README.md) 的 MSIX 小节。
   **2026-09-26 已取得实际值并出包**：
@@ -487,7 +493,7 @@ System requirements: Windows 10 version 1809 or later (x64).
 - [ ] ① 结束/取消上一轮未竟的认证（若「认证」页仍有进行中的提交），并**删除旧包**（SHA256 `B2763171…`，7,076,158 字节，白屏坏包）
 - [ ] ② 上传修复后的包 [PDFe_0.1.0_x64.msix](../src-tauri/target/msix/)（7,191,887 字节 / SHA256 `04D224B0…` / `NotSigned`）
 - [ ] ③ `提交选项` 页 → 受限功能 `runFullTrust` 用途说明填 §4 短版（291 字符）→ **点保存**（不保存该节恒为 Incomplete）
-- [ ] ④ `隐私政策 URL` 填托管后的 `.html`（当前**未就绪**，见 §4；须以 `.html` 结尾，不能填 `.md`）
+- [ ] ④ `隐私政策 URL` 填 `https://pdfreader001.github.io/pdfreader001/store-listing/privacy-policy.html`（**已就绪**，HTTP 200 已验证；须以 `.html` 结尾，不能填 `.md`）
 - [ ] ⑤ `商店一览` 逐语言填文案（§3.1 简短说明 / §3.2 说明 / §3.3 产品功能），上传 300×300 图标与 ≥4 张截图（§2）
 - [ ] ⑥ 补充字段：短标题 / 排序标题 / 语音标题 / 系统要求（§3.4）；`此版本中的新增功能` 首次提交**留空**
 - [ ] ⑦ `价格和可用性` / `属性` / `年龄分级` 按 §4 决策填写
