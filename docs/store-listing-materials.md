@@ -468,14 +468,20 @@ System requirements: Windows 10 version 1809 or later (x64).
 - [x] 每张截图配 ≤200 字符说明，中英各一份 —— 9 张主卡的「说明（中）/（EN）」已写入 §2.3，补位 10/11 见其表格；2026-09-26 实测（按 Unicode 码点）：中文 21–36、英文 58–129，**全部 ≤200**，且 9 张卡中英成对无缺
 - [x] 说明 / 简短说明 / 产品功能 中英双份文案落库 —— §3.1 简短说明、§3.2 说明、§3.3 产品功能（中英各 10 条）均已落库，实测字符数与上限比对见 §3 开头，全部达标
 - [ ] 短标题、排序标题、系统要求填写
-- [ ] 清单 Identity 替换 + 微软重签后重新走 `Add-AppxPackage` 侧载自测
+- [x] 清单 Identity 替换后重新走 `Add-AppxPackage` 侧载自测（2026-09-27 实测通过，用商店身份包而非本地测试身份）
+      清单注入 Partner Center 三值（`CCB6DC78.PDFe` / `CN=D7439EB2-4E51-48CF-A6CB-58843AEEF25F` / `老袁不圆润`）后，以自签名（新证书同为 `CN=D7439EB2-…`，指纹 `5B46459DE656E937606786A05732E7F21A247D3C`）侧载安装成功：`Add-AppxPackage` exit 0 → `CCB6DC78.PDFe_0.1.0.0_x64__hmyrrnnxy08dw`，`Status = Ok`；启动后进程 `pdfe` 存活、标题 `PDFe`、`Responding = True`，截屏确认界面正常渲染（工具栏 + 左栏缩略图/书签 + 空态），**非白屏**。
+      **踩坑记录 1（证书信任范围）**：只把证书导入 `Cert:\CurrentUser\TrustedPeople` 不够，`Add-AppxPackage` 仍报 `0x800B0109`「根证书必须是受信任的证书」；必须装入 **`LocalMachine\TrustedPeople`**（需管理员 UAC）。
+      **踩坑记录 2（自签名 Subject 必须等于清单 Publisher）**：商店身份包的 Publisher 是产品 GUID，故需新建 Subject 为 `CN=D7439EB2-4E51-48CF-A6CB-58843AEEF25F` 的证书；原 `CN=PDFe Local Test` 证书只适用于默认值的本地测试包。
+      **踩坑记录 3（启动方式）**：`Start-Process "shell:appsFolder\<PFN>!App"` 报「系统找不到指定的文件」，`Start-Process explorer.exe -ArgumentList "shell:appsFolder\…"` 不报错但也不起进程；可用的是 Shell COM：`(New-Object -ComObject Shell.Application).NameSpace("shell:appsFolder").Items() | Where-Object { $_.Path -eq "<PFN>!App" } | ForEach-Object { $_.InvokeVerb("open") }`。另 `Invoke-CommandInDesktopPackage` 需提权，非必需。
+      旧的本地测试身份包 `konnyyuan.pdfe` 已 `Remove-AppxPackage` 卸载，开始菜单保持单一「PDFe」入口。
       打包链路已于 2026-09-26 以 `-Sign None` 复验通过：`npm run build` → `cargo build --release` → 暂存布局 → `makeappx pack` 全程 exit 0；解包后包内 payload 与 `target\release\pdfe.exe`、`pdfium\pdfium.dll` 的 SHA256 逐一比对一致，清单占位符（`__PUBLISHER__` / `__VERSION__` / `__EXE__`）均已正确替换。
       同日追加：清单新增 `__IDENTITY_NAME__` / `__PUBLISHER_DISPLAY_NAME__` 两个占位符，脚本新增 `-IdentityName` / `-PublisherDisplayName` 参数（默认值为本地测试值），残留占位符检查正则放宽为 `__[A-Z_]+__`。已用 `-SkipBuild -Sign None` 传测试值实跑验证注入生效（`Identity/@Name`、`Publisher`、`PublisherDisplayName` 三处均替换为目标值、无残留），再用默认值 `-Sign SelfSigned` 复跑，产物签名状态仍为 **Valid**（复用 `CN=PDFe Local Test` 证书）。未签名包本身无法安装，故安装自测仍待签名后进行。
       2026-09-26 上架包实测：注入 Partner Center 三值出未签名包 `src-tauri\target\msix\PDFe_0.1.0_x64.msix`（7,076,158 字节，SHA256 `B27631719980CB1493A3F2E0568A0653953C51FE25851619D14B0B023B6A0F4C`，`Get-AuthenticodeSignature` = `NotSigned`），`Identity/@Name` / `Publisher` / `PublisherDisplayName` 三处与目标值逐字一致、无残留占位符。首轮上传被 Partner Center 校验拦截，唯一错误为 `PublisherDisplayName` 不匹配（包内是测试默认值 `PDFe`，产品为 `老袁不圆润`）——已按 §4 上表重建修复；顺带修正清单模板注释（占位符字面量不再写进注释，否则打包后被替换成值、注释自相矛盾）。**提交后该二进制不得再改动**，本地侧载自测请另跑一次默认值构建。
       ⚠️ **2026-09-27 复检发现首轮上传的是「白屏坏包」**：包内 `layout\pdfe.exe` 为 2026-09-26 09:13:51 的 **dev 模式**构建（8,003,072 字节；在该 exe 字节里搜 `assets/index-` 返回 -1，即前端 dist 未内嵌）。dev 模式下运行时只导航到 `devUrl`（`http://localhost:1420`），脱离 dev server 即白屏。根因 = 当时 `src-tauri/Cargo.toml` 缺 `custom-protocol` feature（`cfg!(not(feature="custom-protocol"))` 在编译期推导 `dev=true`），已修复并在打包脚本中固定传 `--features custom-protocol`。
       对照正确的 release 产物：`target\release\pdfe.exe` 8,114,688 字节（比 dev 版大约 +11 万字节），字节内可搜到 `/assets/index-D3lRW0em.css`（偏移 6990625）。
       ✅ **出上架包后必做的自检（2 条，缺一不可）**：① `layout\pdfe.exe` 字节中含 `assets/index-`（未内嵌 = dev 版，必须重打）；② `Get-AuthenticodeSignature <msix>` = `NotSigned`（上架包不签名）。另需核对 `layout\AppxManifest.xml` 的 `Identity/@Name`、`Identity/@Publisher`、`PublisherDisplayName` 三值与 Partner Center 逐字一致。
-      **2026-09-27 已按上法重打包并全部自检通过**（覆盖同名产物）：`PDFe_0.1.0_x64.msix` **7,191,887 字节**（比坏包 +115,729，正对应内嵌的前端资源），SHA256 `04D224B04E03A3B44C1FAA18862AC580C3310DFBA76901FD2D9584F9DA003A23`，`Get-AuthenticodeSignature` = `NotSigned`；`layout\pdfe.exe` 8,114,688 字节且字节内含 `assets/index-` 与 `/assets/index-D3lRW0em.css`；清单 `Identity/@Name`=`CCB6DC78.PDFe`、`Identity/@Publisher`=`CN=D7439EB2-4E51-48CF-A6CB-58843AEEF25F`、`PublisherDisplayName`=`老袁不圆润`、`EntryPoint=Windows.FullTrustApplication`，无残留占位符。旧包（SHA256 `B2763171…`，7,076,158 字节）作废，勿再上传。
+      **2026-09-27 已按上法重打包并全部自检通过**：`PDFe_0.1.0_x64.msix` **7,191,892 字节**（比坏包 +115,734，正对应内嵌的前端资源），SHA256 `D33A247CEE0BEF96D7FB68F75B67F53DAACBDA09699A0C9A7D555DEEC61511F9`，`Get-AuthenticodeSignature` = `NotSigned`；`layout\pdfe.exe` 8,114,688 字节且字节内含 `assets/index-` 与 `/assets/index-D3lRW0em.css`；清单 `Identity/@Name`=`CCB6DC78.PDFe`、`Identity/@Publisher`=`CN=D7439EB2-4E51-48CF-A6CB-58843AEEF25F`、`PublisherDisplayName`=`老袁不圆润`、`EntryPoint=Windows.FullTrustApplication`，无残留占位符。
+      ⚠️ **上传给 Partner Center 的是未签名副本 `PDFe_0.1.0_x64.unsigned.msix`**（与上段同尺寸/同哈希：7,191,892 字节 / `D33A247C…` / `NotSigned`）。同名原件 `PDFe_0.1.0_x64.msix` 已在本地商店身份侧载自测中被**签名覆盖**（现为 7,194,886 字节 / SHA256 `DA847A45EE06B3BF76C19750984D1F9848353A403204F82F43E0E77AE3EEDB56`）——**切勿把签名后的同名文件传上去**。若原件被覆盖，用 `scripts\build-msix.ps1 -SkipBuild -Sign None -IdentityName CCB6DC78.PDFe -Publisher "CN=D7439EB2-4E51-48CF-A6CB-58843AEEF25F" -PublisherDisplayName <老袁不圆润>` 重出即可。旧包（SHA256 `B2763171…`，7,076,158 字节）作废，勿再上传。
 - [ ] Partner Center「提交选项」页填写受限功能 `runFullTrust` 用途说明并保存（拟填文本见 §4，该页不保存会一直显示 Incomplete）
 - [ ] Partner Center 重新上传修复后的包（首轮校验结果：1 错误 `PublisherDisplayName` + 1 警告 `runFullTrust`；修复后应只剩警告）
 - [x] 自签名签名 + 侧载安装自测（2026-09-26 实测通过）
@@ -491,7 +497,7 @@ System requirements: Windows 10 version 1809 or later (x64).
 > §5 回答「准备到什么程度」，本节回答「提交那一刻按什么顺序点」。逐项打勾，全绿再点 `提交认证`。
 
 - [ ] ① 结束/取消上一轮未竟的认证（若「认证」页仍有进行中的提交），并**删除旧包**（SHA256 `B2763171…`，7,076,158 字节，白屏坏包）
-- [ ] ② 上传修复后的包 [PDFe_0.1.0_x64.msix](../src-tauri/target/msix/)（7,191,887 字节 / SHA256 `04D224B0…` / `NotSigned`）
+- [ ] ② 上传修复后的包 **`PDFe_0.1.0_x64.unsigned.msix`**（[src-tauri/target/msix/](../src-tauri/target/msix/)，7,191,892 字节 / SHA256 `D33A247C…` / `NotSigned`）；**不要**传签名后的 `PDFe_0.1.0_x64.msix`（7,194,886 字节 / `DA847A45…`，那是本地自测产物）
 - [ ] ③ `提交选项` 页 → 受限功能 `runFullTrust` 用途说明填 §4 短版（291 字符）→ **点保存**（不保存该节恒为 Incomplete）
 - [ ] ④ `隐私政策 URL` 填 `https://pdfreader001.github.io/pdfreader001/store-listing/privacy-policy.html`（**已就绪**，HTTP 200 已验证；须以 `.html` 结尾，不能填 `.md`）
 - [ ] ⑤ `商店一览` 逐语言填文案（§3.1 简短说明 / §3.2 说明 / §3.3 产品功能），上传 300×300 图标与 ≥4 张截图（§2）
