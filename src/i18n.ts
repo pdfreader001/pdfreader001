@@ -454,6 +454,22 @@ const en: Record<string, string> = {
   "EPUB / MOBI / AZW3 / FB2 / HTML / RTF → PDF（依赖 Calibre）":
     "EPUB / MOBI / AZW3 / FB2 / HTML / RTF → PDF (requires Calibre)",
   "PDF → Office / 电子书不在范围": "PDF → Office / ebook is out of scope",
+  // ---------- 隐私声明 ----------
+  隐私声明: "Privacy Statement",
+  "PDFe 完全在你的本机运行，不包含联网功能，不收集、不上传、不共享你的个人信息或文档内容。":
+    "PDFe runs entirely on your own device. It has no networking features and does not collect, upload, or share your personal information or document contents.",
+  "文档只在你本机读取、处理和保存，不发送到任何服务器。":
+    "Your documents are read, processed, and saved only on your device; nothing is sent to any server.",
+  "不含遥测、分析、广告或埋点 SDK；无需注册或登录，也不收集文档内容与文件名。":
+    "No telemetry, analytics, advertising, or tracking SDKs. No account or sign-in, and no collection of document contents or file names.",
+  "不申请摄像头、麦克风、位置、通讯录等任何 Windows 受限权限，仅声明 runFullTrust。":
+    "It requests no restricted Windows capabilities (no camera, microphone, location, or contacts); it declares only runFullTrust.",
+  "仅在本机保存阅读位置与界面语言两项设置，不保存文档副本，卸载应用即清除。":
+    "Only two settings are stored locally — reading position and interface language. No document copies are kept, and both are removed when you uninstall the app.",
+  "只在你主动保存或导出时写文件，且一律写到你用系统对话框指定的位置。":
+    "Files are written only when you actively save or export, always to the location you choose in the system dialog.",
+  "内置 PDFium 等组件均离线运行；可选 OCR 在默认发布版本中未启用。":
+    "Bundled components such as PDFium run fully offline; the optional OCR feature is disabled in the default release build.",
   "💡 提示：按 F1 或 ? 随时打开此面板；按 Esc 关闭。":
     "💡 Tip: Press F1 or ? to open this panel anytime; press Esc to close.",
   // ---------- 错误消息 ----------
@@ -942,6 +958,22 @@ const ja: Record<string, string> = {
   "EPUB / MOBI / AZW3 / FB2 / HTML / RTF → PDF（依赖 Calibre）":
     "EPUB/MOBI/AZW3/FB2/HTML/RTF → PDF（要Calibre）",
   "PDF → Office / 电子书不在范围": "PDF→Office / 電子書籍は対象外",
+  // ---------- プライバシー声明 ----------
+  隐私声明: "プライバシー声明",
+  "PDFe 完全在你的本机运行，不包含联网功能，不收集、不上传、不共享你的个人信息或文档内容。":
+    "PDFe は完全にお使いの端末上で動作し、ネットワーク機能を持ちません。個人情報や文書の内容を収集・送信・共有しません。",
+  "文档只在你本机读取、处理和保存，不发送到任何服务器。":
+    "文書はお使いの端末上でのみ読み取り・処理・保存され、いかなるサーバーにも送信されません。",
+  "不含遥测、分析、广告或埋点 SDK；无需注册或登录，也不收集文档内容与文件名。":
+    "テレメトリ、解析、広告、トラッキング SDK は含みません。登録やログインは不要で、文書の内容やファイル名も収集しません。",
+  "不申请摄像头、麦克风、位置、通讯录等任何 Windows 受限权限，仅声明 runFullTrust。":
+    "カメラ、マイク、位置情報、連絡先などの Windows 制限付き機能は一切要求せず、runFullTrust のみを宣言しています。",
+  "仅在本机保存阅读位置与界面语言两项设置，不保存文档副本，卸载应用即清除。":
+    "端末には閲覧位置と表示言語の2つの設定のみを保存し、文書の複製は保存しません。アプリを削除すると消去されます。",
+  "只在你主动保存或导出时写文件，且一律写到你用系统对话框指定的位置。":
+    "ファイルの書き込みは、あなたが保存または書き出しを行ったときのみで、必ずシステムダイアログで指定した場所に書き込みます。",
+  "内置 PDFium 等组件均离线运行；可选 OCR 在默认发布版本中未启用。":
+    "PDFium などの組み込みコンポーネントはすべてオフラインで動作します。オプションの OCR は既定のリリース版では無効です。",
   "💡 提示：按 F1 或 ? 随时打开此面板；按 Esc 关闭。":
     "💡 ヒント：F1または?でこのパネルを開けます；Escで閉じます。",
   // ---------- エラーメッセージ ----------

@@ -103,6 +103,16 @@ const FEATURE_KEYS = [
   },
 ];
 
+// 应用内隐私声明：逐条对应 docs/store-listing/privacy-policy.md，改动任一侧须同步另一侧
+const PRIVACY_KEYS = [
+  "文档只在你本机读取、处理和保存，不发送到任何服务器。",
+  "不含遥测、分析、广告或埋点 SDK；无需注册或登录，也不收集文档内容与文件名。",
+  "不申请摄像头、麦克风、位置、通讯录等任何 Windows 受限权限，仅声明 runFullTrust。",
+  "仅在本机保存阅读位置与界面语言两项设置，不保存文档副本，卸载应用即清除。",
+  "只在你主动保存或导出时写文件，且一律写到你用系统对话框指定的位置。",
+  "内置 PDFium 等组件均离线运行；可选 OCR 在默认发布版本中未启用。",
+];
+
 export default function HelpPanel() {
   const helpOpen = useApp((s) => s.helpOpen);
   const setHelpOpen = useApp((s) => s.setHelpOpen);
@@ -195,6 +205,23 @@ export default function HelpPanel() {
             </ul>
           </div>
         ))}
+
+        <h3 style={{ marginTop: 20, marginBottom: 8 }}>{t("隐私声明")}</h3>
+        <p style={{ margin: "0 0 8px", fontSize: 13, lineHeight: 1.6, color: "var(--fg)" }}>
+          {t(
+            "PDFe 完全在你的本机运行，不包含联网功能，不收集、不上传、不共享你的个人信息或文档内容。",
+          )}
+        </p>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>
+          {PRIVACY_KEYS.map((it) => (
+            <li
+              key={it}
+              style={{ margin: "3px 0", color: "var(--fg)", fontSize: 13, lineHeight: 1.5 }}
+            >
+              {t(it)}
+            </li>
+          ))}
+        </ul>
 
         <div
           style={{
